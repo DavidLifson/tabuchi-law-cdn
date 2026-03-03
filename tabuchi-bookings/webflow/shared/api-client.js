@@ -111,7 +111,8 @@ const TabuchiAPI = (() => {
 
     try {
       const response = await fetch(url.toString(), fetchOptions);
-      const data = await response.json();
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
       if (!response.ok) {
         throw { status: response.status, ...data };
       }
