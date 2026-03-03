@@ -33,10 +33,52 @@ const TabuchiAPI = (() => {
   // ─── Availability Cache (in-memory) ────────────────────────────
   // Key: `${staffId}-${meetingTypeId}-${date}`, Value: { slots, available, fetchedAt }
   const _availCache = new Map();
-  const AVAIL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  const AVAIL_CACHE_TTL = 10 * 60 * 1000; // 10 minutes (server cache is 15 min)
 
-  // ─── SessionStorage Cache for Meeting-Type Data ───────────────
-  const MT_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+  // Hydrate availability cache from localStorage on load
+  (function() {
+    try {
+      var stored = JSON.parse(localStorage.getItem('tb_avail_cache') || '{}');
+      var now = Date.now();
+      for (var key in stored) {
+        if (stored.hasOwnProperty(key) && now - stored[key].fetchedAt < AVAIL_CACHE_TTL) {
+          _availCache.set(key, stored[key]);
+        }
+      }
+    } catch(e) {}
+  })();
+
+  function _persistAvailCache() {
+    try {
+      var obj = {};
+      _availCache.forEach(function(val, key) { obj[key] = val; });
+      localStorage.setItem('tb_avail_cache', JSON.stringify(obj));
+    } catch(e) {}
+  }
+
+  // Stale-while-revalidate helper for dashboard API calls
+  async function _cachedRequest(cacheKey, fetchFn, freshMs, staleMs) {
+    try {
+      var raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        var age = Date.now() - parsed.at;
+        if (age < freshMs) return parsed.data;
+        if (age < staleMs) {
+          fetchFn().then(function(d) {
+            localStorage.setItem(cacheKey, JSON.stringify({data:d, at:Date.now()}));
+          }).catch(function(){});
+          return parsed.data;
+        }
+      }
+    } catch(e) {}
+    var data = await fetchFn();
+    try { localStorage.setItem(cacheKey, JSON.stringify({data:data, at:Date.now()})); } catch(e) {}
+    return data;
+  }
+
+  // ─── localStorage Cache for Meeting-Type Data ─────────────────
+  const MT_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (meeting types rarely change)
 
   function resolveUrl(path) {
     // Check longest prefixes first to avoid partial matches
@@ -100,7 +142,7 @@ const TabuchiAPI = (() => {
   async function getMeetingType(staffSlug, meetingSlug) {
     const cacheKey = `tabuchi_mt_${staffSlug}_${meetingSlug}`;
     try {
-      const cached = sessionStorage.getItem(cacheKey);
+      const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const { data, cachedAt } = JSON.parse(cached);
         if (Date.now() - cachedAt < MT_CACHE_TTL) return data;
@@ -112,7 +154,7 @@ const TabuchiAPI = (() => {
     });
 
     try {
-      sessionStorage.setItem(cacheKey, JSON.stringify({ data, cachedAt: Date.now() }));
+      localStorage.setItem(cacheKey, JSON.stringify({ data, cachedAt: Date.now() }));
     } catch (e) { /* quota exceeded or unavailable */ }
 
     return data;
@@ -143,6 +185,7 @@ const TabuchiAPI = (() => {
       available: (data.slots || []).length > 0,
       fetchedAt: Date.now()
     });
+    _persistAvailCache();
 
     return data;
   }
@@ -171,6 +214,7 @@ const TabuchiAPI = (() => {
           fetchedAt: now
         });
       }
+      _persistAvailCache();
     }
 
     return data;
@@ -198,6 +242,7 @@ const TabuchiAPI = (() => {
   /** Clear all cached availability (call after booking/reschedule/cancel). */
   function clearAvailabilityCache() {
     _availCache.clear();
+    try { localStorage.removeItem('tb_avail_cache'); } catch(e) {}
   }
 
   /**
@@ -249,10 +294,12 @@ const TabuchiAPI = (() => {
   }
 
   async function dashboardGetBookings(status = 'upcoming') {
-    return request('GET', '/api/dashboard/bookings', {
-      params: { status },
-      headers: dashboardHeaders()
-    });
+    return _cachedRequest('tb_dash_bk_' + status, function() {
+      return request('GET', '/api/dashboard/bookings', {
+        params: { status },
+        headers: dashboardHeaders()
+      });
+    }, 60000, 300000); // 1 min fresh, 5 min stale
   }
 
   async function dashboardSaveMeetingType(meetingTypeData) {
