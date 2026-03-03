@@ -331,7 +331,8 @@ const TabuchiAPI = (() => {
   }
 
   async function dashboardGetBlockedDates() {
-    return request('GET', '/api/dashboard/blocked-dates', {
+    return request('POST', '/api/dashboard/blocked-dates', {
+      body: { action: 'list' },
       headers: dashboardHeaders()
     });
   }
