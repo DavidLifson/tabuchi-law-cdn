@@ -89,7 +89,8 @@ const ClientCareAPI = (() => {
         throw { status: 401, error: 'Session expired. Please sign in again.' };
       }
 
-      const data = await response.json();
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
       if (!response.ok) {
         throw { status: response.status, ...data };
       }
