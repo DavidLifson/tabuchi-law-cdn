@@ -33,7 +33,15 @@
   if (_u && _u.role === 'BOOKINGS') { window.location.href = '/dashboard'; return; }
 
   var API = ClientCareAPI;
-  var $el = function(id) { return document.getElementById(id); };
+  // Pick visible element, avoiding hidden .w-embed duplicate
+  var $el = function(id) {
+    var all = document.querySelectorAll('#' + id);
+    if (!all.length) return null;
+    for (var i = 0; i < all.length; i++) {
+      if (!all[i].closest('.w-embed')) return all[i];
+    }
+    return all[all.length - 1];
+  };
 
   var STAGES = [
     { key: 'NEW_LEAD', label: 'New Lead', color: 'blue' },

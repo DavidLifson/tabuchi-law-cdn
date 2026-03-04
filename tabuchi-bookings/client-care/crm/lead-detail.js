@@ -34,10 +34,14 @@
   if (_u && _u.role === 'BOOKINGS') { window.location.href = '/dashboard'; return; }
 
   var API = ClientCareAPI;
-  // Use last element with ID to avoid Webflow dual-embed (hidden .w-embed copy)
+  // Pick visible element, avoiding hidden .w-embed duplicate
   var $el = function(id) {
     var all = document.querySelectorAll('#' + id);
-    return all.length ? all[all.length - 1] : null;
+    if (!all.length) return null;
+    for (var i = 0; i < all.length; i++) {
+      if (!all[i].closest('.w-embed')) return all[i];
+    }
+    return all[all.length - 1];
   };
 
   // Extract lead ID from URL: /crm/lead?id=xxx
