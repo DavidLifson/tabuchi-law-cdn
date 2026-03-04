@@ -34,7 +34,11 @@
   if (_u && _u.role === 'BOOKINGS') { window.location.href = '/dashboard'; return; }
 
   var API = ClientCareAPI;
-  var $el = function(id) { return document.getElementById(id); };
+  // Use last element with ID to avoid Webflow dual-embed (hidden .w-embed copy)
+  var $el = function(id) {
+    var all = document.querySelectorAll('#' + id);
+    return all.length ? all[all.length - 1] : null;
+  };
 
   // Extract lead ID from URL: /crm/lead?id=xxx
   var params = API.util.getUrlParams();
