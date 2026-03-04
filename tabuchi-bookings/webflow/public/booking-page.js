@@ -32,6 +32,7 @@
   let selectedDate = null;
   let selectedTime = null;
   let currentStep = 'date'; // 'date' | 'time' | 'form'
+  const _fetchedMonths = new Set();
 
   // ─── Day Indicator CSS ─────────────────────────────────────────
   const style = document.createElement('style');
@@ -103,7 +104,6 @@
   }
 
   // ─── Batch Availability Helpers ─────────────────────────────────
-  const _fetchedMonths = new Set();
 
   async function fetchMonthAvailability(monthDate) {
     if (!staffData || !meetingTypeData) return;
