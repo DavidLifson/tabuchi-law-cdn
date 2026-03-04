@@ -1,0 +1,328 @@
+/* ═══════════════════════════════════════════════════════════════
+   Tabuchi Law Booking System - Custom Styles
+   Add this CSS to Webflow's custom code section (site-wide)
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --tb-accent: #2563EB;
+  --tb-accent-hover: #1D4ED8;
+  --tb-text: #1F2937;
+  --tb-text-light: #6B7280;
+  --tb-bg: #FFFFFF;
+  --tb-bg-light: #F9FAFB;
+  --tb-border: #E5E7EB;
+  --tb-success: #059669;
+  --tb-error: #DC2626;
+  --tb-radius: 8px;
+  --tb-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* ─── Loading & Error ────────────────────────────────────────── */
+
+.tb-loading {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 3rem; color: var(--tb-text-light);
+}
+
+.tb-spinner {
+  width: 32px; height: 32px; border: 3px solid var(--tb-border);
+  border-top-color: var(--tb-accent); border-radius: 50%;
+  animation: tb-spin 0.6s linear infinite; margin-bottom: 1rem;
+}
+
+@keyframes tb-spin { to { transform: rotate(360deg); } }
+
+.tb-error {
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: var(--tb-radius);
+  padding: 1rem 1.5rem; color: var(--tb-error); margin: 1rem 0;
+}
+
+.tb-no-slots {
+  text-align: center; color: var(--tb-text-light); padding: 2rem;
+  font-style: italic;
+}
+
+/* ─── Calendar ───────────────────────────────────────────────── */
+
+.tb-calendar {
+  max-width: 380px; margin: 0 auto;
+}
+
+.tb-calendar-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.75rem 0; font-weight: 600; font-size: 1.1rem;
+}
+
+.tb-calendar-header button {
+  background: none; border: 1px solid var(--tb-border); border-radius: var(--tb-radius);
+  padding: 0.4rem 0.8rem; cursor: pointer; font-size: 1rem;
+  transition: background 0.15s;
+}
+.tb-calendar-header button:hover { background: var(--tb-bg-light); }
+
+.tb-calendar-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+}
+
+.tb-cal-day-header {
+  text-align: center; font-size: 0.75rem; font-weight: 600;
+  color: var(--tb-text-light); padding: 0.5rem 0;
+  text-transform: uppercase;
+}
+
+.tb-cal-day {
+  text-align: center; padding: 0.6rem 0; border-radius: var(--tb-radius);
+  font-size: 0.9rem; transition: all 0.15s;
+}
+
+.tb-cal-empty { visibility: hidden; }
+
+.tb-cal-disabled {
+  color: #D1D5DB; cursor: default;
+}
+
+.tb-cal-available {
+  cursor: pointer; color: var(--tb-text);
+}
+.tb-cal-available:hover {
+  background: var(--tb-bg-light); color: var(--tb-accent);
+}
+
+.tb-cal-selected {
+  background: var(--tb-accent) !important; color: white !important;
+  font-weight: 600;
+}
+
+.tb-cal-today {
+  font-weight: 700; position: relative;
+}
+.tb-cal-today::after {
+  content: ''; position: absolute; bottom: 4px; left: 50%;
+  transform: translateX(-50%); width: 4px; height: 4px;
+  background: var(--tb-accent); border-radius: 50%;
+}
+
+/* ─── Time Slots ─────────────────────────────────────────────── */
+
+.tb-slots-title {
+  font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;
+  color: var(--tb-text);
+}
+
+.tb-slots-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.5rem;
+}
+
+.tb-slot {
+  padding: 0.6rem 0.75rem; border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius); background: white; cursor: pointer;
+  font-size: 0.9rem; text-align: center; transition: all 0.15s;
+  color: var(--tb-text);
+}
+.tb-slot:hover {
+  border-color: var(--tb-accent); color: var(--tb-accent);
+}
+.tb-slot-selected {
+  background: var(--tb-accent) !important; color: white !important;
+  border-color: var(--tb-accent) !important; font-weight: 600;
+}
+
+/* ─── Meeting Type Cards ─────────────────────────────────────── */
+
+.tb-meeting-card {
+  display: block; padding: 1.25rem; background: white;
+  border: 1px solid var(--tb-border); border-radius: var(--tb-radius);
+  margin-bottom: 0.75rem; text-decoration: none; color: var(--tb-text);
+  transition: all 0.15s; box-shadow: var(--tb-shadow);
+}
+.tb-meeting-card:hover {
+  border-color: var(--tb-accent); box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-1px);
+}
+
+.tb-meeting-card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.tb-meeting-card-name {
+  font-size: 1.1rem; font-weight: 600; margin: 0;
+}
+
+.tb-meeting-card-duration {
+  font-size: 0.85rem; color: var(--tb-text-light);
+  background: var(--tb-bg-light); padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+}
+
+.tb-meeting-card-desc {
+  font-size: 0.9rem; color: var(--tb-text-light);
+  margin: 0 0 0.5rem 0; line-height: 1.5;
+}
+
+.tb-meeting-card-location {
+  font-size: 0.8rem; color: var(--tb-text-light);
+}
+
+/* ─── Form ───────────────────────────────────────────────────── */
+
+.tb-form-field {
+  margin-bottom: 1rem;
+}
+
+.tb-form-field label {
+  display: block; font-size: 0.9rem; font-weight: 500;
+  margin-bottom: 0.3rem; color: var(--tb-text);
+}
+
+.tb-form-field input,
+.tb-form-field select,
+.tb-form-field textarea {
+  width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius); font-size: 0.95rem;
+  transition: border-color 0.15s; box-sizing: border-box;
+}
+
+.tb-form-field input:focus,
+.tb-form-field select:focus,
+.tb-form-field textarea:focus {
+  outline: none; border-color: var(--tb-accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.tb-required { color: var(--tb-error); margin-left: 2px; }
+
+/* ─── Buttons ────────────────────────────────────────────────── */
+
+.tb-btn {
+  display: inline-block; padding: 0.7rem 1.5rem; border-radius: var(--tb-radius);
+  font-size: 1rem; font-weight: 500; cursor: pointer; border: none;
+  text-decoration: none; text-align: center; transition: all 0.15s;
+}
+
+.tb-btn-primary {
+  background: var(--tb-accent); color: white;
+}
+.tb-btn-primary:hover { background: var(--tb-accent-hover); }
+.tb-btn-primary:disabled { background: #93C5FD; cursor: not-allowed; }
+
+.tb-btn-secondary {
+  background: white; color: var(--tb-accent); border: 1px solid var(--tb-accent);
+}
+.tb-btn-secondary:hover { background: #EFF6FF; }
+
+.tb-btn-danger {
+  background: var(--tb-error); color: white;
+}
+.tb-btn-danger:hover { background: #B91C1C; }
+
+/* ─── Confirmation Page ──────────────────────────────────────── */
+
+.tb-confirm-card {
+  background: white; border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius); padding: 2rem;
+  box-shadow: var(--tb-shadow); max-width: 600px; margin: 2rem auto;
+}
+
+.tb-confirm-card h2 {
+  color: var(--tb-success); margin-top: 0;
+}
+
+.tb-confirm-detail {
+  display: flex; justify-content: space-between;
+  padding: 0.5rem 0; border-bottom: 1px solid var(--tb-bg-light);
+}
+
+.tb-confirm-label {
+  font-weight: 500; color: var(--tb-text-light); font-size: 0.9rem;
+}
+
+.tb-confirm-value {
+  font-weight: 600; color: var(--tb-text);
+}
+
+.tb-confirm-actions {
+  margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;
+}
+
+/* ─── Dashboard ──────────────────────────────────────────────── */
+
+.tb-dash-card {
+  background: white; border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius); padding: 1.5rem;
+  box-shadow: var(--tb-shadow); margin-bottom: 1rem;
+}
+
+.tb-dash-stat {
+  text-align: center; padding: 1.5rem;
+}
+
+.tb-dash-stat-number {
+  font-size: 2.5rem; font-weight: 700; color: var(--tb-accent);
+}
+
+.tb-dash-stat-label {
+  font-size: 0.85rem; color: var(--tb-text-light); margin-top: 0.25rem;
+}
+
+.tb-booking-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.75rem 0; border-bottom: 1px solid var(--tb-bg-light);
+}
+
+.tb-booking-row:last-child { border-bottom: none; }
+
+.tb-status-badge {
+  padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem;
+  font-weight: 600; text-transform: uppercase;
+}
+
+.tb-status-confirmed { background: #D1FAE5; color: #065F46; }
+.tb-status-pending { background: #FEF3C7; color: #92400E; }
+.tb-status-cancelled { background: #FEE2E2; color: #991B1B; }
+.tb-status-completed { background: #F3F4F6; color: #4B5563; }
+.tb-status-rescheduled { background: #DBEAFE; color: #1E40AF; }
+
+/* ─── Booking Navigation ────────────────────────────────────── */
+
+.tb-booking-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--tb-border);
+}
+
+.tb-booking-nav .tb-back-btn {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.tb-booking-nav .tb-cancel-btn {
+  margin-left: auto;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  color: var(--tb-error);
+  border-color: var(--tb-error);
+  background: white;
+}
+.tb-booking-nav .tb-cancel-btn:hover {
+  background: #FEF2F2;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .tb-slots-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .tb-confirm-detail {
+    flex-direction: column; gap: 0.2rem;
+  }
+  .tb-confirm-actions {
+    flex-direction: column;
+  }
+  .tb-btn { width: 100%; }
+}
