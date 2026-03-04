@@ -29,6 +29,10 @@
 
   if (!ClientCareAPI.auth.requireAuth()) return;
 
+  // Block BOOKINGS-only users from CRM pages
+  var _u = ClientCareAPI.auth.getUser();
+  if (_u && _u.role === 'BOOKINGS') { window.location.href = '/dashboard'; return; }
+
   var API = ClientCareAPI;
   var $el = function(id) { return document.getElementById(id); };
 

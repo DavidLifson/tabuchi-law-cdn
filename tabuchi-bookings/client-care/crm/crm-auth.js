@@ -23,9 +23,10 @@
   var _root = document.querySelector('#cc-page-root');
   function $el(id) { return _root ? _root.querySelector('#' + id) : document.getElementById(id); }
 
-  // If already logged in, redirect to CRM dashboard
+  // If already logged in, redirect based on role
   if (ClientCareAPI.auth.isAuthenticated() && !window.location.search.includes('logout')) {
-    window.location.href = '/crm';
+    var _u = ClientCareAPI.auth.getUser();
+    window.location.href = (_u && _u.role === 'BOOKINGS') ? '/dashboard' : '/crm';
     return;
   }
 
@@ -111,8 +112,10 @@
         ClientCareAPI.auth.setUser(result.user);
       }
 
-      // Step 4: Redirect to CRM dashboard
-      window.location.href = '/crm';
+      // Step 4: Redirect based on role
+      var _dest = '/crm';
+      if (result.user && result.user.role === 'BOOKINGS') _dest = '/dashboard';
+      window.location.href = _dest;
 
     } catch (err) {
       setButtonState(false, 'Sign in with Microsoft');
