@@ -23,7 +23,9 @@
 (function UnifiedAuth() {
   'use strict';
 
-  var _root = document.querySelector('#app-page-root');
+  // Use last #app-page-root to handle Webflow dual-embed (HTML Embed widget + Before </body> tag)
+  var _roots = document.querySelectorAll('#app-page-root');
+  var _root = _roots[_roots.length - 1] || null;
   function $el(id) { return _root ? _root.querySelector('#' + id) : document.getElementById(id); }
 
   // If already logged in, redirect based on role
