@@ -177,7 +177,7 @@
     // Attach row click handlers
     tbody.querySelectorAll('.cc-lead-row').forEach(function(row) {
       row.addEventListener('click', function() {
-        window.location.href = '/crm/lead/' + row.dataset.id;
+        window.location.href = '/crm/lead?id=' + row.dataset.id;
       });
       row.style.cursor = 'pointer';
     });
@@ -343,7 +343,7 @@
     var newBtn = $el('cc-new-lead-btn');
     if (newBtn) {
       newBtn.addEventListener('click', function() {
-        window.location.href = '/crm/lead/new';
+        window.location.href = '/crm/lead?id=new';
       });
     }
   }

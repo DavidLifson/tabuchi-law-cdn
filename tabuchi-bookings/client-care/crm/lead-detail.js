@@ -36,9 +36,9 @@
   var API = ClientCareAPI;
   var $el = function(id) { return document.getElementById(id); };
 
-  // Extract lead ID from URL: /crm/lead/:id
-  var segments = API.util.getPathSegments();
-  var leadId = segments[2] || '';
+  // Extract lead ID from URL: /crm/lead?id=xxx
+  var params = API.util.getUrlParams();
+  var leadId = params.id || '';
 
   if (!leadId || leadId === 'new') return; // 'new' is handled by a different script
 
