@@ -284,7 +284,7 @@ const TabuchiAPI = (() => {
   // ─── Staff Dashboard APIs ──────────────────────────────────────
 
   function dashboardHeaders() {
-    const token = localStorage.getItem('app_token') || '';
+    const token = localStorage.getItem('app_token') || localStorage.getItem('dashboard_token') || '';
     return { 'Dashboard_Token': token };
   }
 
@@ -355,7 +355,7 @@ const TabuchiAPI = (() => {
 
   function adminHeaders() {
     // Admin uses the unified app_token; backend WF-19 validates via Admin_Token header
-    const token = localStorage.getItem('app_token') || '';
+    const token = localStorage.getItem('app_token') || localStorage.getItem('dashboard_token') || '';
     return { 'Admin_Token': token };
   }
 

@@ -16,7 +16,7 @@ const ClientCareAPI = (() => {
 
   // ─── Auth Token ──────────────────────────────────────────────
   function getToken() {
-    return localStorage.getItem('app_token') || '';
+    return localStorage.getItem('app_token') || localStorage.getItem('dashboard_token') || '';
   }
 
   function setToken(token) {
