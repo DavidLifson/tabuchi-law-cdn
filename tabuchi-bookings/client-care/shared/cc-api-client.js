@@ -295,6 +295,43 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/admin', { body: { action: 'system_stats' } });
   }
 
+  // ─── Config (Admin) ────────────────────────────────────────
+
+  /**
+   * List config records, optionally filtered by config_key
+   * @param {string} [configKey] - e.g. 'lead_source', 'stage', 'disposition'
+   */
+  async function listConfig(configKey) {
+    const body = { action: 'list' };
+    if (configKey) body.config_key = configKey;
+    return request('POST', '/cc/config', { body });
+  }
+
+  /**
+   * Create a config record
+   * @param {Object} data - { config_key, label, sort_order, meta }
+   */
+  async function createConfig(data) {
+    return request('POST', '/cc/config', { body: { action: 'create', ...data } });
+  }
+
+  /**
+   * Update a config record
+   * @param {string} id - Record ID
+   * @param {Object} fields - { label, sort_order, is_active, meta }
+   */
+  async function updateConfig(id, fields) {
+    return request('POST', '/cc/config', { body: { action: 'update', id, ...fields } });
+  }
+
+  /**
+   * Soft-delete a config record (sets Is_Active = false)
+   * @param {string} id - Record ID
+   */
+  async function deleteConfig(id) {
+    return request('POST', '/cc/config', { body: { action: 'delete', id } });
+  }
+
   // ─── Subscriptions ───────────────────────────────────────────
 
   async function unsubscribe(token) {
@@ -450,7 +487,8 @@ const ClientCareAPI = (() => {
     },
     // Admin
     admin: {
-      listUsers, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats
+      listUsers, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats,
+      config: { list: listConfig, create: createConfig, update: updateConfig, delete: deleteConfig }
     },
     // Subscriptions
     subscriptions: { unsubscribe },

@@ -43,8 +43,33 @@
     { key: 'overview', label: 'Overview' },
     { key: 'users', label: 'Users' },
     { key: 'templates', label: 'Templates' },
-    { key: 'system', label: 'System' }
+    { key: 'system', label: 'System' },
+    { key: 'staff', label: 'Staff' },
+    { key: 'categories', label: 'Categories' },
+    { key: 'lead-sources', label: 'Lead Sources' },
+    { key: 'stages', label: 'Stages' },
+    { key: 'dispositions', label: 'Dispositions' },
+    { key: 'activity-types', label: 'Activity Types' },
+    { key: 'entity-types', label: 'Entity Types' }
   ];
+
+  var CONFIG_META = {
+    'lead_source': [],
+    'stage': [
+      { key: 'percentage', label: 'Percentage (%)', type: 'number' },
+      { key: 'color', label: 'Color', type: 'color' }
+    ],
+    'disposition': [
+      { key: 'color', label: 'Color', type: 'color' }
+    ],
+    'activity_type': [],
+    'entity_type': []
+  };
+
+  function tabToConfigKey(tabKey) {
+    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type' };
+    return map[tabKey] || tabKey;
+  }
 
   var ROLE_OPTIONS = ['ADMIN', 'MANAGER', 'SALES_INTAKE', 'LAWYER', 'MARKETING', 'READ_ONLY'];
   var CHANNEL_OPTIONS = ['EMAIL', 'SMS'];
@@ -53,6 +78,31 @@
     ADMIN: 'red', MANAGER: 'blue', SALES_INTAKE: 'teal',
     LAWYER: 'green', MARKETING: 'purple', READ_ONLY: 'gray'
   };
+
+  // ─── Booking Admin API Helper (avoids hard dependency on api-client.js) ──
+  async function bookingAdminFetch(endpoint, data) {
+    var t = localStorage.getItem('app_token') || '';
+    var r = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/dashboard/admin/' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
+      body: JSON.stringify(data || {})
+    });
+    var j = await r.json();
+    if (!r.ok) throw Object.assign({ status: r.status }, j);
+    return j;
+  }
+
+  async function categoriesApiFetch(action, data) {
+    var t = localStorage.getItem('app_token') || '';
+    var r = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
+      body: JSON.stringify(Object.assign({ action: action }, data || {}))
+    });
+    var j = await r.json();
+    if (!r.ok) throw Object.assign({ status: r.status }, j);
+    return j;
+  }
 
   // ─── State ─────────────────────────────────────────────────
   var state = {
@@ -74,7 +124,16 @@
     templateFilterChannel: '',
     // Clio sync failures
     clioFailures: [],
-    clioLoading: false
+    clioLoading: false,
+    // Staff Management
+    staffList: [],
+    staffLoading: false,
+    // Categories
+    categories: [],
+    categoriesLoading: false,
+    // Config items (generic for lead sources, stages, etc.)
+    configItems: {},
+    configLoading: {}
   };
 
   // ─── Role Gate ─────────────────────────────────────────────
@@ -105,6 +164,7 @@
     el.querySelectorAll('.cc-admin-tab').forEach(function(btn) {
       btn.addEventListener('click', function() {
         state.activeTab = btn.dataset.tab;
+        location.hash = '#' + btn.dataset.tab;
         renderTabs();
         renderActiveTab();
       });
@@ -113,10 +173,19 @@
 
   function renderActiveTab() {
     switch (state.activeTab) {
-      case 'overview':  renderOverview(); break;
-      case 'users':     renderUsersTab(); break;
-      case 'templates': renderTemplatesTab(); break;
-      case 'system':    renderSystemTab(); break;
+      case 'overview':       renderOverview(); break;
+      case 'users':          renderUsersTab(); break;
+      case 'templates':      renderTemplatesTab(); break;
+      case 'system':         renderSystemTab(); break;
+      case 'staff':          renderStaffTab(); break;
+      case 'categories':     renderCategoriesTab(); break;
+      case 'lead-sources':
+      case 'stages':
+      case 'dispositions':
+      case 'activity-types':
+      case 'entity-types':
+        renderConfigTab(tabToConfigKey(state.activeTab), TABS.find(function(t) { return t.key === state.activeTab; }).label);
+        break;
     }
   }
 
@@ -822,6 +891,505 @@
   }
 
   // ═══════════════════════════════════════════════════════════
+  // STAFF MANAGEMENT TAB
+  // ═══════════════════════════════════════════════════════════
+
+  async function fetchStaff() {
+    state.staffLoading = true;
+    var content = $el('cc-admin-content');
+    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading staff...</p></div>';
+
+    try {
+      var result = await bookingAdminFetch('staff', { action: 'list' });
+      state.staffList = result.staff || [];
+    } catch (err) {
+      state.staffList = [];
+      showToast(err.error || 'Failed to load staff.', 'error');
+    }
+
+    state.staffLoading = false;
+    renderStaffTab();
+  }
+
+  function renderStaffTab() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    var html = '<div class="cc-admin-staff">';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">Staff Management</h3>';
+    html += '<button id="cc-import-staff-btn" class="cc-btn cc-btn-primary cc-btn-sm">Import from Office 365</button>';
+    html += '</div>';
+    html += '<p class="cc-admin-hint">Manage booking staff members. Import users from Office 365 and toggle active status.</p>';
+
+    if (state.staffList.length === 0 && !state.staffLoading) {
+      html += '<div class="cc-empty"><p>No staff members yet. Click "Import from Office 365" to add staff.</p></div>';
+      html += '</div>';
+      content.innerHTML = html;
+      bindStaffImportBtn();
+      return;
+    }
+
+    html += '<table class="cc-table cc-admin-staff-table">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th">Name</th>';
+    html += '<th class="cc-th">Email</th>';
+    html += '<th class="cc-th">Slug</th>';
+    html += '<th class="cc-th">Hours</th>';
+    html += '<th class="cc-th">Status</th>';
+    html += '<th class="cc-th">Action</th>';
+    html += '</tr></thead><tbody>';
+
+    state.staffList.forEach(function(s) {
+      var statusCls = s.active ? 'green' : 'red';
+      var statusText = s.active ? 'Active' : 'Inactive';
+      var btnText = s.active ? 'Deactivate' : 'Activate';
+      var btnCls = s.active ? 'cc-btn-danger-outline' : 'cc-btn-success-outline';
+      var hours = (s.workingHoursStart && s.workingHoursEnd) ? (s.workingHoursStart + ' \u2013 ' + s.workingHoursEnd) : '\u2014';
+
+      html += '<tr>';
+      html += '<td>' + escapeHtml(s.name || '') + '</td>';
+      html += '<td>' + escapeHtml(s.email || '') + '</td>';
+      html += '<td><code>' + escapeHtml(s.slug || '') + '</code></td>';
+      html += '<td>' + hours + '</td>';
+      html += '<td><span class="cc-badge cc-badge-' + statusCls + '">' + statusText + '</span></td>';
+      html += '<td><button class="cc-btn cc-btn-sm ' + btnCls + ' cc-toggle-staff-btn" data-staff-id="' + s.id + '" data-active="' + (s.active ? 'true' : 'false') + '">' + btnText + '</button></td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+    content.innerHTML = html;
+
+    bindStaffImportBtn();
+    bindStaffToggleButtons();
+  }
+
+  function bindStaffImportBtn() {
+    var btn = $el('cc-import-staff-btn');
+    if (btn) btn.addEventListener('click', showStaffImportModal);
+  }
+
+  function bindStaffToggleButtons() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+    content.querySelectorAll('.cc-toggle-staff-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var staffId = btn.dataset.staffId;
+        var currentActive = btn.dataset.active === 'true';
+        btn.textContent = 'Updating...';
+        btn.disabled = true;
+        try {
+          await bookingAdminFetch('staff', { action: 'toggle', staffId: staffId, active: !currentActive });
+          for (var i = 0; i < state.staffList.length; i++) {
+            if (state.staffList[i].id === staffId) {
+              state.staffList[i].active = !currentActive;
+              break;
+            }
+          }
+          renderStaffTab();
+        } catch (err) {
+          btn.textContent = currentActive ? 'Deactivate' : 'Activate';
+          btn.disabled = false;
+          showToast(err.error || 'Failed to toggle staff status.', 'error');
+        }
+      });
+    });
+  }
+
+  async function showStaffImportModal() {
+    var bodyHtml = '<div id="cc-import-staff-list"><div class="cc-loading"><div class="cc-spinner"></div><p>Loading Office 365 users...</p></div></div>';
+
+    showModal('Import from Office 365', bodyHtml, function() { closeModal(); return true; });
+
+    // Replace save button text with "Done"
+    var saveBtn = document.querySelector('.cc-modal-save-btn');
+    if (saveBtn) saveBtn.textContent = 'Done';
+
+    try {
+      var result = await bookingAdminFetch('staff', { action: 'listO365' });
+      var users = result.users || [];
+      var listEl = document.getElementById('cc-import-staff-list');
+      if (!listEl) return;
+
+      if (users.length === 0) {
+        listEl.innerHTML = '<p class="cc-admin-hint" style="text-align:center;">No Office 365 users found.</p>';
+        return;
+      }
+
+      var importedEmails = {};
+      state.staffList.forEach(function(s) {
+        if (s.email) importedEmails[s.email.toLowerCase()] = true;
+      });
+
+      var html = '';
+      users.forEach(function(u) {
+        var already = importedEmails[(u.mail || '').toLowerCase()] || false;
+        var btnHtml = already
+          ? '<span class="cc-badge cc-badge-green">Imported</span>'
+          : '<button class="cc-btn cc-btn-sm cc-btn-primary cc-import-user-btn" data-userid="' + escapeAttr(u.id) + '" data-name="' + escapeAttr(u.displayName) + '" data-email="' + escapeAttr(u.mail) + '">Import</button>';
+
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0;border-bottom:1px solid #F3F4F6;' + (already ? 'opacity:0.5;' : '') + '">';
+        html += '<div><div style="font-weight:500;font-size:0.9rem;">' + escapeHtml(u.displayName || '') + '</div>';
+        html += '<div style="font-size:0.8rem;color:#6B7280;">' + escapeHtml(u.mail || '') + (u.jobTitle ? ' &middot; ' + escapeHtml(u.jobTitle) : '') + '</div></div>';
+        html += '<div>' + btnHtml + '</div>';
+        html += '</div>';
+      });
+      listEl.innerHTML = html;
+
+      listEl.querySelectorAll('.cc-import-user-btn').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          btn.textContent = 'Importing...';
+          btn.disabled = true;
+          try {
+            var result = await bookingAdminFetch('staff', {
+              action: 'import',
+              userId: btn.dataset.userid,
+              displayName: btn.dataset.name,
+              email: btn.dataset.email
+            });
+            if (result.staff) state.staffList.push(result.staff);
+            btn.parentElement.innerHTML = '<span class="cc-badge cc-badge-green">Imported</span>';
+            renderStaffTab();
+          } catch (err) {
+            btn.textContent = 'Import';
+            btn.disabled = false;
+            showToast(err.error || 'Failed to import user.', 'error');
+          }
+        });
+      });
+    } catch (err) {
+      var listEl = document.getElementById('cc-import-staff-list');
+      if (listEl) listEl.innerHTML = '<p style="color:#DC2626;text-align:center;">' + escapeHtml(err.error || 'Failed to load Office 365 users.') + '</p>';
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // CATEGORIES TAB
+  // ═══════════════════════════════════════════════════════════
+
+  async function fetchCategories() {
+    state.categoriesLoading = true;
+    var content = $el('cc-admin-content');
+    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading categories...</p></div>';
+
+    try {
+      var result = await categoriesApiFetch('list');
+      state.categories = result.categories || [];
+    } catch (err) {
+      state.categories = [];
+      showToast(err.error || 'Failed to load categories.', 'error');
+    }
+
+    state.categoriesLoading = false;
+    renderCategoriesTab();
+  }
+
+  function renderCategoriesTab() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    var html = '<div class="cc-admin-categories">';
+    html += '<h3 class="cc-admin-section-title">Meeting Type Categories</h3>';
+    html += '<p class="cc-admin-hint">Manage the categories available for booking meeting types.</p>';
+
+    // Add form
+    html += '<div style="display:flex;gap:0.5rem;margin:1rem 0 1.5rem;align-items:center;">';
+    html += '<input id="cc-cat-input" type="text" class="cc-input" placeholder="New category name" style="flex:1;" />';
+    html += '<button id="cc-cat-add-btn" class="cc-btn cc-btn-primary cc-btn-sm">Add</button>';
+    html += '</div>';
+
+    if (state.categories.length === 0 && !state.categoriesLoading) {
+      html += '<div class="cc-empty"><p>No categories yet. Add one above.</p></div>';
+      html += '</div>';
+      content.innerHTML = html;
+      bindCategoryEvents();
+      return;
+    }
+
+    html += '<table class="cc-table">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th">Name</th>';
+    html += '<th class="cc-th" style="width:80px;">Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    state.categories.forEach(function(cat) {
+      html += '<tr>';
+      html += '<td>' + escapeHtml(cat.name || '') + '</td>';
+      html += '<td><button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-cat-delete-btn" data-cat-id="' + cat.id + '" data-cat-name="' + escapeAttr(cat.name) + '">Delete</button></td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+    content.innerHTML = html;
+
+    bindCategoryEvents();
+  }
+
+  function bindCategoryEvents() {
+    var addBtn = $el('cc-cat-add-btn');
+    var addInput = $el('cc-cat-input');
+
+    if (addBtn) addBtn.addEventListener('click', handleAddCategory);
+    if (addInput) addInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') handleAddCategory();
+    });
+
+    var content = $el('cc-admin-content');
+    if (!content) return;
+    content.querySelectorAll('.cc-cat-delete-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (confirm('Delete category "' + btn.dataset.catName + '"?')) {
+          handleDeleteCategory(btn.dataset.catId);
+        }
+      });
+    });
+  }
+
+  async function handleAddCategory() {
+    var input = $el('cc-cat-input');
+    if (!input) return;
+    var name = input.value.trim();
+    if (!name) { input.focus(); return; }
+
+    var addBtn = $el('cc-cat-add-btn');
+    if (addBtn) { addBtn.disabled = true; addBtn.textContent = 'Adding...'; }
+
+    try {
+      var result = await categoriesApiFetch('add', { name: name });
+      state.categories = result.categories || [];
+      renderCategoriesTab();
+      var newInput = $el('cc-cat-input');
+      if (newInput) newInput.focus();
+    } catch (err) {
+      showToast(err.error || 'Failed to add category.', 'error');
+      if (addBtn) { addBtn.disabled = false; addBtn.textContent = 'Add'; }
+    }
+  }
+
+  async function handleDeleteCategory(id) {
+    try {
+      var result = await categoriesApiFetch('delete', { id: id });
+      state.categories = result.categories || [];
+      renderCategoriesTab();
+    } catch (err) {
+      showToast(err.error || 'Failed to delete category.', 'error');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // GENERIC CONFIG TAB (Lead Sources, Stages, Dispositions, Activity Types, Entity Types)
+  // ═══════════════════════════════════════════════════════════
+
+  async function fetchConfigItems(configKey) {
+    state.configLoading[configKey] = true;
+    var content = $el('cc-admin-content');
+    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading...</p></div>';
+
+    try {
+      var result = await API.admin.config.list(configKey);
+      state.configItems[configKey] = result.data || [];
+    } catch (err) {
+      state.configItems[configKey] = [];
+      showToast(err.error || 'Failed to load items.', 'error');
+    }
+
+    state.configLoading[configKey] = false;
+  }
+
+  function renderConfigTab(configKey, label) {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    var items = (state.configItems[configKey] || []).slice().sort(function(a, b) {
+      return (a.Sort_Order || 0) - (b.Sort_Order || 0);
+    });
+    var metaFields = CONFIG_META[configKey] || [];
+
+    var html = '<div class="cc-admin-config">';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">' + escapeHtml(label) + '</h3>';
+    html += '<button id="cc-config-add-btn" class="cc-btn cc-btn-primary cc-btn-sm" data-config-key="' + configKey + '">+ Add New</button>';
+    html += '</div>';
+
+    if (items.length === 0 && !state.configLoading[configKey]) {
+      html += '<div class="cc-empty"><p>No ' + escapeHtml(label.toLowerCase()) + ' configured yet.</p></div>';
+      html += '</div>';
+      content.innerHTML = html;
+      bindConfigAddBtn(configKey, label, metaFields);
+      return;
+    }
+
+    html += '<table class="cc-table">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th">Label</th>';
+    html += '<th class="cc-th" style="width:80px;">Order</th>';
+    metaFields.forEach(function(mf) {
+      html += '<th class="cc-th">' + escapeHtml(mf.label) + '</th>';
+    });
+    html += '<th class="cc-th" style="width:80px;">Active</th>';
+    html += '<th class="cc-th" style="width:140px;">Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    items.forEach(function(item) {
+      var meta = {};
+      try { meta = JSON.parse(item.Meta || '{}'); } catch(e) {}
+      var activeCls = item.Is_Active ? 'green' : 'gray';
+      var activeText = item.Is_Active ? 'Yes' : 'No';
+
+      html += '<tr>';
+      html += '<td>' + escapeHtml(item.Label || '') + '</td>';
+      html += '<td>' + (item.Sort_Order || 0) + '</td>';
+      metaFields.forEach(function(mf) {
+        var val = meta[mf.key] || '';
+        if (mf.type === 'color' && val) {
+          html += '<td><span style="display:inline-block;width:18px;height:18px;border-radius:3px;background:' + escapeAttr(val) + ';vertical-align:middle;margin-right:4px;border:1px solid #D1D5DB;"></span> ' + escapeHtml(val) + '</td>';
+        } else {
+          html += '<td>' + escapeHtml(String(val)) + '</td>';
+        }
+      });
+      html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
+      html += '<td>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-config-edit-btn" data-item-id="' + item.id + '">Edit</button> ';
+      if (item.Is_Active) {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-config-deactivate-btn" data-item-id="' + item.id + '">Deactivate</button>';
+      } else {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-config-activate-btn" data-item-id="' + item.id + '">Activate</button>';
+      }
+      html += '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+    content.innerHTML = html;
+
+    bindConfigAddBtn(configKey, label, metaFields);
+    bindConfigTableEvents(configKey, label, metaFields);
+  }
+
+  function bindConfigAddBtn(configKey, label, metaFields) {
+    var btn = $el('cc-config-add-btn');
+    if (btn) btn.addEventListener('click', function() {
+      showConfigModal(configKey, label, metaFields, null);
+    });
+  }
+
+  function bindConfigTableEvents(configKey, label, metaFields) {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    content.querySelectorAll('.cc-config-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var item = (state.configItems[configKey] || []).find(function(i) { return i.id === btn.dataset.itemId; });
+        if (item) showConfigModal(configKey, label, metaFields, item);
+      });
+    });
+
+    content.querySelectorAll('.cc-config-deactivate-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        if (!confirm('Deactivate this item? It will be hidden from dropdowns.')) return;
+        try {
+          await API.admin.config.delete(btn.dataset.itemId);
+          showToast('Item deactivated.', 'success');
+          await fetchConfigItems(configKey);
+          renderConfigTab(configKey, label);
+        } catch (err) {
+          showToast(err.error || 'Failed to deactivate.', 'error');
+        }
+      });
+    });
+
+    content.querySelectorAll('.cc-config-activate-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        try {
+          await API.admin.config.update(btn.dataset.itemId, { Is_Active: true });
+          showToast('Item activated.', 'success');
+          await fetchConfigItems(configKey);
+          renderConfigTab(configKey, label);
+        } catch (err) {
+          showToast(err.error || 'Failed to activate.', 'error');
+        }
+      });
+    });
+  }
+
+  function showConfigModal(configKey, label, metaFields, existing) {
+    var isEdit = !!existing;
+    var meta = {};
+    if (existing) { try { meta = JSON.parse(existing.Meta || '{}'); } catch(e) {} }
+
+    var html = '<div class="cc-modal-form">';
+
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Label</label>';
+    html += '<input type="text" id="cc-modal-config-label" class="cc-input" value="' + escapeAttr(existing ? existing.Label : '') + '" placeholder="Display label" />';
+    html += '</div>';
+
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Sort Order</label>';
+    html += '<input type="number" id="cc-modal-config-sort" class="cc-input" value="' + (existing ? (existing.Sort_Order || 0) : 0) + '" />';
+    html += '</div>';
+
+    metaFields.forEach(function(mf) {
+      html += '<div class="cc-form-group">';
+      html += '<label class="cc-label">' + escapeHtml(mf.label) + '</label>';
+      if (mf.type === 'color') {
+        html += '<input type="color" id="cc-modal-config-meta-' + mf.key + '" class="cc-input" value="' + escapeAttr(meta[mf.key] || '#3B82F6') + '" style="height:38px;padding:2px;" />';
+      } else if (mf.type === 'number') {
+        html += '<input type="number" id="cc-modal-config-meta-' + mf.key + '" class="cc-input" value="' + escapeAttr(meta[mf.key] || '') + '" />';
+      } else {
+        html += '<input type="text" id="cc-modal-config-meta-' + mf.key + '" class="cc-input" value="' + escapeAttr(meta[mf.key] || '') + '" />';
+      }
+      html += '</div>';
+    });
+
+    html += '</div>';
+
+    var title = isEdit ? 'Edit ' + label.replace(/s$/, '') : 'New ' + label.replace(/s$/, '');
+    showModal(title, html, async function(form) {
+      var labelVal = form.querySelector('#cc-modal-config-label').value.trim();
+      if (!labelVal) { showToast('Label is required.', 'error'); return false; }
+
+      var sortOrder = parseInt(form.querySelector('#cc-modal-config-sort').value) || 0;
+
+      var metaObj = {};
+      metaFields.forEach(function(mf) {
+        var el = form.querySelector('#cc-modal-config-meta-' + mf.key);
+        if (el) metaObj[mf.key] = mf.type === 'number' ? (parseFloat(el.value) || 0) : el.value;
+      });
+
+      try {
+        if (isEdit) {
+          await API.admin.config.update(existing.id, {
+            Label: labelVal,
+            Sort_Order: sortOrder,
+            Meta: JSON.stringify(metaObj)
+          });
+          showToast('Item updated.', 'success');
+        } else {
+          await API.admin.config.create({
+            Config_Key: configKey,
+            Label: labelVal,
+            Sort_Order: sortOrder,
+            Is_Active: true,
+            Meta: JSON.stringify(metaObj)
+          });
+          showToast('Item created.', 'success');
+        }
+        closeModal();
+        await fetchConfigItems(configKey);
+        renderConfigTab(configKey, label);
+        return true;
+      } catch (err) {
+        showToast(err.error || 'Failed to save.', 'error');
+        return false;
+      }
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // GENERIC MODAL
   // ═══════════════════════════════════════════════════════════
 
@@ -953,9 +1521,14 @@
 
     if (!checkRole()) return;
 
+    // Hash-based tab routing
+    var hash = location.hash.replace('#', '');
+    if (hash && TABS.find(function(t) { return t.key === hash; })) {
+      state.activeTab = hash;
+    }
+
     renderTabs();
-    // Load default tab data
-    fetchOverviewData();
+    renderActiveTab();
   }
 
   // Tab change data loading
@@ -964,10 +1537,21 @@
     originalRenderActiveTab();
     // Fetch fresh data when switching tabs
     switch (state.activeTab) {
-      case 'overview':  fetchOverviewData(); break;
-      case 'users':     fetchUsers(); break;
-      case 'templates': fetchTemplates(); break;
+      case 'overview':    fetchOverviewData(); break;
+      case 'users':       fetchUsers(); break;
+      case 'templates':   fetchTemplates(); break;
+      case 'staff':       fetchStaff(); break;
+      case 'categories':  fetchCategories(); break;
       // system tab is static, no fetch needed
+      default:
+        // Config tabs
+        var ck = tabToConfigKey(state.activeTab);
+        if (CONFIG_META[ck] !== undefined) {
+          fetchConfigItems(ck).then(function() {
+            renderConfigTab(ck, TABS.find(function(t) { return t.key === state.activeTab; }).label);
+          });
+        }
+        break;
     }
   };
 
