@@ -76,9 +76,10 @@
   function renderStaffInfo() {
     setText('tb-staff-name', staffData.name);
     setText('tb-staff-bio', staffData.bio);
-    if (staffData.photoUrl) {
-      const img = document.getElementById('tb-staff-photo');
-      if (img) { img.src = staffData.photoUrl; img.alt = staffData.name; }
+    const img = document.getElementById('tb-staff-photo');
+    if (img) {
+      if (staffData.photoUrl) { img.src = staffData.photoUrl; img.alt = staffData.name; }
+      else { img.style.display = 'none'; }
     }
   }
 
