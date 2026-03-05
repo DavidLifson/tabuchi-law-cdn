@@ -1,0 +1,1282 @@
+{
+    "updatedAt":  "2026-02-23T20:40:28.111Z",
+    "createdAt":  "2026-02-09T14:30:34.316Z",
+    "id":  "oFs1mUh0JXhT9Vze",
+    "name":  "08 - POST Cancel API",
+    "description":  null,
+    "active":  true,
+    "isArchived":  false,
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "api/cancel",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+                                                         "allowedOrigins":  "*"
+                                                     }
+                                     },
+                      "id":  "webhook",
+                      "name":  "Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       250,
+                                       300
+                                   ],
+                      "webhookId":  "api-cancel"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const body = $input.first().json.body;\nif (!body.bookingId || !body.token) {\n  return [{ json: { valid: false, error: \u0027Missing required fields: bookingId, token\u0027 } }];\n}\nreturn [{ json: { valid: true, ...body } }];"
+                                     },
+                      "id":  "validate",
+                      "name":  "Validate",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       480,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict"
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "c1",
+                                                                                   "leftValue":  "={{ $json.valid }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-valid",
+                      "name":  "Valid?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       700,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "options":  {
+
+                                                     },
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ JSON.stringify({ success: false, error: $json.error }) }}",
+                                         "responseCode":  400,
+                                         "responseHeaders":  {
+                                                                 "entries":  [
+                                                                                 {
+                                                                                     "name":  "Access-Control-Allow-Origin",
+                                                                                     "value":  "*"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                     },
+                      "id":  "respond-400",
+                      "name":  "Respond 400",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.1,
+                      "position":  [
+                                       940,
+                                       480
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "search",
+                                         "table":  {
+                                                       "__rl":  true,
+                                                       "value":  "tblCK5OdPNcWnBP3e",
+                                                       "mode":  "id"
+                                                   },
+                                         "filterByFormula":  "=AND({Booking_ID} = \u0027{{ $(\u0027Validate\u0027).first().json.bookingId }}\u0027, {Cancel_Token} = \u0027{{ $(\u0027Validate\u0027).first().json.token }}\u0027)",
+                                         "base":  {
+                                                      "__rl":  true,
+                                                      "value":  "appPccm6NkaJdvqwy",
+                                                      "mode":  "id"
+                                                  }
+                                     },
+                      "id":  "find-booking",
+                      "name":  "Find Booking",
+                      "type":  "n8n-nodes-base.airtable",
+                      "typeVersion":  2.1,
+                      "position":  [
+                                       940,
+                                       200
+                                   ],
+                      "credentials":  {
+                                          "airtableTokenApi":  {
+                                                                   "id":  "eTz4entn8SmOARvR",
+                                                                   "name":  "airtable1"
+                                                               }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict"
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "c2",
+                                                                                   "leftValue":  "={{ $input.all().length }}",
+                                                                                   "rightValue":  0,
+                                                                                   "operator":  {
+                                                                                                    "type":  "number",
+                                                                                                    "operation":  "gt"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-found",
+                      "name":  "Found?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       1180,
+                                       200
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "options":  {
+
+                                                     },
+                                         "respondWith":  "json",
+                                         "responseBody":  "={\"success\":false,\"error\":\"Booking not found or invalid token\"}",
+                                         "responseCode":  403,
+                                         "responseHeaders":  {
+                                                                 "entries":  [
+                                                                                 {
+                                                                                     "name":  "Access-Control-Allow-Origin",
+                                                                                     "value":  "*"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                     },
+                      "id":  "respond-403",
+                      "name":  "Respond 403",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.1,
+                      "position":  [
+                                       1420,
+                                       380
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const booking = $(\u0027Find Booking\u0027).first().json;\nconst input = $(\u0027Validate\u0027).first().json;\n\nif (booking.Status === \u0027cancelled\u0027) {\n  return [{ json: { canCancel: false, error: \u0027This booking is already cancelled\u0027 } }];\n}\n\n// Parse witness calendar event IDs if present\nlet witnessCalEventIds = [];\ntry { witnessCalEventIds = booking.Witness_Calendar_Event_IDs ? JSON.parse(booking.Witness_Calendar_Event_IDs) : []; } catch(e) { witnessCalEventIds = []; }\n\nconst staffId = booking.Staff ? booking.Staff[0] : null;\nreturn [{ json: { canCancel: true, bookingRecordId: booking.id, calEventId: booking.Calendar_Event_ID, zoomMeetingId: booking.Zoom_Meeting_ID || \u0027\u0027, witnessCalEventIds, staffId, reason: input.reason || \u0027\u0027, bookingId: booking.Booking_ID } }];"
+                                     },
+                      "id":  "check-status",
+                      "name":  "Check Status",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1420,
+                                       100
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict"
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "c3",
+                                                                                   "leftValue":  "={{ $json.canCancel }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "if-can",
+                      "name":  "Can Cancel?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       1660,
+                                       100
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "options":  {
+
+                                                     },
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ JSON.stringify({ success: false, error: $json.error }) }}",
+                                         "responseCode":  409,
+                                         "responseHeaders":  {
+                                                                 "entries":  [
+                                                                                 {
+                                                                                     "name":  "Access-Control-Allow-Origin",
+                                                                                     "value":  "*"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                     },
+                      "id":  "respond-409",
+                      "name":  "Respond 409",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.1,
+                      "position":  [
+                                       1900,
+                                       280
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "get",
+                                         "table":  {
+                                                       "__rl":  true,
+                                                       "value":  "tblABg23aP4YQ36aN",
+                                                       "mode":  "id"
+                                                   },
+                                         "id":  "={{ $(\u0027Check Status\u0027).first().json.staffId }}",
+                                         "base":  {
+                                                      "__rl":  true,
+                                                      "value":  "appPccm6NkaJdvqwy",
+                                                      "mode":  "id"
+                                                  }
+                                     },
+                      "id":  "get-staff",
+                      "name":  "Get Staff",
+                      "type":  "n8n-nodes-base.airtable",
+                      "typeVersion":  2.1,
+                      "position":  [
+                                       1900,
+                                       -20
+                                   ],
+                      "credentials":  {
+                                          "airtableTokenApi":  {
+                                                                   "id":  "eTz4entn8SmOARvR",
+                                                                   "name":  "airtable1"
+                                                               }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://login.microsoftonline.com/{{ $vars.AZURE_TENANT_ID }}/oauth2/v2.0/token",
+                                         "authentication":  "none",
+                                         "sendBody":  true,
+                                         "contentType":  "form-urlencoded",
+                                         "specifyBody":  "keypair",
+                                         "bodyParameters":  {
+                                                                "parameters":  [
+                                                                                   {
+                                                                                       "name":  "grant_type",
+                                                                                       "value":  "client_credentials"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "client_id",
+                                                                                       "value":  "={{ $vars.AZURE_CLIENT_ID }}"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "client_secret",
+                                                                                       "value":  "={{ $vars.AZURE_CLIENT_SECRET }}"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "scope",
+                                                                                       "value":  "https://graph.microsoft.com/.default"
+                                                                                   }
+                                                                               ]
+                                                            },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "get-graph-token",
+                      "name":  "Get Graph Token",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       1900,
+                                       140
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// v4 — wrapped in top-level try/catch for safety\ntry {\n  const http = this.helpers.httpRequest;\n  const status = $(\u0027Check Status\u0027).first().json;\n  const staff = $(\u0027Get Staff\u0027).first().json;\n  const graphToken = $(\u0027Get Graph Token\u0027).first().json.access_token;\n  const msUserId = staff.MS_User_ID;\n\n  // Delete primary calendar event\n  if (status.calEventId \u0026\u0026 msUserId) {\n    try {\n      await http({\n        method: \u0027DELETE\u0027,\n        url: `https://graph.microsoft.com/v1.0/users/${msUserId}/events/${status.calEventId}`,\n        headers: { Authorization: `Bearer ${graphToken}` },\n        returnFullResponse: true\n      });\n    } catch(e) { /* ignore deletion errors */ }\n  }\n\n  // Delete Zoom meeting if applicable\n  if (status.zoomMeetingId) {\n    try {\n      const tokenData = await http({\n        method: \u0027POST\u0027,\n        url: \u0027https://zoom.us/oauth/token?grant_type=account_credentials\u0026account_id=\u0027 + $vars.ZOOM_ACCOUNT_ID,\n        headers: { Authorization: \u0027Basic \u0027 + Buffer.from($vars.ZOOM_CLIENT_ID + \u0027:\u0027 + $vars.ZOOM_CLIENT_SECRET).toString(\u0027base64\u0027), \u0027Content-Type\u0027: \u0027application/x-www-form-urlencoded\u0027 },\n        json: true\n      });\n      await http({\n        method: \u0027DELETE\u0027,\n        url: `https://api.zoom.us/v2/meetings/${status.zoomMeetingId}`,\n        headers: { Authorization: `Bearer ${tokenData.access_token}` },\n        returnFullResponse: true\n      });\n    } catch(e) { /* ignore deletion errors */ }\n  }\n\n  // Delete witness calendar events if any\n  if (status.witnessCalEventIds \u0026\u0026 status.witnessCalEventIds.length \u003e 0) {\n    for (const wEvt of status.witnessCalEventIds) {\n      try {\n        if (wEvt.calEventId \u0026\u0026 wEvt.msUserId) {\n          await http({\n            method: \u0027DELETE\u0027,\n            url: `https://graph.microsoft.com/v1.0/users/${wEvt.msUserId}/events/${wEvt.calEventId}`,\n            headers: { Authorization: `Bearer ${graphToken}` },\n            returnFullResponse: true\n          });\n        }\n      } catch(e) { /* ignore */ }\n    }\n  }\n} catch(topErr) {\n  // Top-level catch — log but do not throw\n}\n\nreturn [{ json: { done: true } }];"
+                                     },
+                      "id":  "delete-event",
+                      "name":  "Delete Calendar Event",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2140,
+                                       -20
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "PATCH",
+                                         "url":  "=https://api.airtable.com/v0/appPccm6NkaJdvqwy/tblCK5OdPNcWnBP3e/{{ $(\u0027Check Status\u0027).first().json.bookingRecordId }}",
+                                         "authentication":  "predefinedCredentialType",
+                                         "nodeCredentialType":  "airtableTokenApi",
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={{ JSON.stringify({ fields: { Status: \u0027cancelled\u0027, Cancellation_Reason: $(\u0027Check Status\u0027).first().json.reason } }) }}",
+                                         "options":  {
+                                                         "response":  {
+                                                                          "response":  {
+                                                                                           "responseFormat":  "json"
+                                                                                       }
+                                                                      }
+                                                     }
+                                     },
+                      "id":  "update-booking",
+                      "name":  "Update Booking to Cancelled",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       2380,
+                                       -20
+                                   ],
+                      "credentials":  {
+                                          "airtableTokenApi":  {
+                                                                   "id":  "eTz4entn8SmOARvR",
+                                                                   "name":  "airtable1"
+                                                               }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const status = $(\u0027Check Status\u0027).first().json;\nreturn [{ json: { success: true, bookingId: status.bookingId, message: \u0027Your booking has been cancelled successfully.\u0027 } }];"
+                                     },
+                      "id":  "format",
+                      "name":  "Format Response",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       2620,
+                                       -20
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "options":  {
+
+                                                     },
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ JSON.stringify($json) }}",
+                                         "responseCode":  200,
+                                         "responseHeaders":  {
+                                                                 "entries":  [
+                                                                                 {
+                                                                                     "name":  "Access-Control-Allow-Origin",
+                                                                                     "value":  "*"
+                                                                                 }
+                                                                             ]
+                                                             }
+                                     },
+                      "id":  "respond-ok",
+                      "name":  "Respond 200",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.1,
+                      "position":  [
+                                       2860,
+                                       -20
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Webhook":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "Validate",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "Validate":  {
+                                         "main":  [
+                                                      [
+                                                          {
+                                                              "node":  "Valid?",
+                                                              "type":  "main",
+                                                              "index":  0
+                                                          }
+                                                      ]
+                                                  ]
+                                     },
+                        "Valid?":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "Find Booking",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                                    [
+                                                        {
+                                                            "node":  "Respond 400",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "Find Booking":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Found?",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Found?":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "Check Status",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                                    [
+                                                        {
+                                                            "node":  "Respond 403",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "Check Status":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Can Cancel?",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Can Cancel?":  {
+                                            "main":  [
+                                                         [
+                                                             {
+                                                                 "node":  "Update Booking to Cancelled",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             },
+                                                             {
+                                                                 "node":  "Get Graph Token",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             }
+                                                         ],
+                                                         [
+                                                             {
+                                                                 "node":  "Respond 409",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             }
+                                                         ]
+                                                     ]
+                                        },
+                        "Get Graph Token":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Get Staff",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Get Staff":  {
+                                          "main":  [
+                                                       [
+                                                           {
+                                                               "node":  "Delete Calendar Event",
+                                                               "type":  "main",
+                                                               "index":  0
+                                                           }
+                                                       ]
+                                                   ]
+                                      },
+                        "Update Booking to Cancelled":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "Format Response",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                        "Format Response":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Respond 200",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "availableInMCP":  false,
+                     "callerPolicy":  "workflowsFromSameOwner"
+                 },
+    "staticData":  null,
+    "meta":  null,
+    "pinData":  {
+                    "Webhook":  [
+                                    {
+                                        "json":  {
+                                                     "headers":  {
+                                                                     "host":  "tabuchilaw.app.n8n.cloud",
+                                                                     "user-agent":  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+                                                                     "content-length":  "106",
+                                                                     "accept":  "*/*",
+                                                                     "accept-encoding":  "gzip, br",
+                                                                     "accept-language":  "en-CA,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
+                                                                     "cdn-loop":  "cloudflare; loops=1; subreqs=1",
+                                                                     "cf-connecting-ip":  "99.246.71.208",
+                                                                     "cf-ew-via":  "15",
+                                                                     "cf-ipcountry":  "CA",
+                                                                     "cf-ray":  "9cc58c46d162abf7-YYZ",
+                                                                     "cf-visitor":  "{\"scheme\":\"https\"}",
+                                                                     "cf-worker":  "n8n.cloud",
+                                                                     "content-type":  "application/json",
+                                                                     "dnt":  "1",
+                                                                     "origin":  "https://tabuchi-law-bookings.webflow.io",
+                                                                     "priority":  "u=1, i",
+                                                                     "referer":  "https://tabuchi-law-bookings.webflow.io/",
+                                                                     "sec-ch-ua":  "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
+                                                                     "sec-ch-ua-mobile":  "?0",
+                                                                     "sec-ch-ua-platform":  "\"Windows\"",
+                                                                     "sec-fetch-dest":  "empty",
+                                                                     "sec-fetch-mode":  "cors",
+                                                                     "sec-fetch-site":  "cross-site",
+                                                                     "x-forwarded-for":  "99.246.71.208, 172.69.130.209",
+                                                                     "x-forwarded-host":  "tabuchilaw.app.n8n.cloud",
+                                                                     "x-forwarded-port":  "443",
+                                                                     "x-forwarded-proto":  "https",
+                                                                     "x-forwarded-server":  "traefik-prod-users-gwc-89-8567ddc79c-fh6gl",
+                                                                     "x-is-trusted":  "yes",
+                                                                     "x-real-ip":  "99.246.71.208"
+                                                                 },
+                                                     "params":  {
+
+                                                                },
+                                                     "query":  {
+
+                                                               },
+                                                     "body":  {
+                                                                  "bookingId":  "BK-20260213-HQIW",
+                                                                  "token":  "148oYbvhNP9Mi87GE7Tm9FyOw2S2CN8q",
+                                                                  "reason":  "Testing cancel flow"
+                                                              },
+                                                     "webhookUrl":  "https://tabuchilaw.app.n8n.cloud/webhook/api/cancel",
+                                                     "executionMode":  "production"
+                                                 },
+                                        "pairedItem":  {
+                                                           "item":  0
+                                                       }
+                                    }
+                                ]
+                },
+    "versionId":  "ba316012-8a62-4b23-8709-1c9ea68dd564",
+    "activeVersionId":  "ba316012-8a62-4b23-8709-1c9ea68dd564",
+    "versionCounter":  31,
+    "triggerCount":  1,
+    "shared":  [
+                   {
+                       "updatedAt":  "2026-02-09T14:30:34.320Z",
+                       "createdAt":  "2026-02-09T14:30:34.320Z",
+                       "role":  "workflow:owner",
+                       "workflowId":  "oFs1mUh0JXhT9Vze",
+                       "projectId":  "iQIRHE3QjmDCm8gk",
+                       "project":  {
+                                       "updatedAt":  "2026-02-06T18:07:22.000Z",
+                                       "createdAt":  "2025-12-01T21:17:22.858Z",
+                                       "id":  "iQIRHE3QjmDCm8gk",
+                                       "name":  "Meeting Booking Recording and Transcription to Clio",
+                                       "type":  "team",
+                                       "icon":  {
+                                                    "type":  "icon",
+                                                    "value":  "layers"
+                                                },
+                                       "description":  "",
+                                       "creatorId":  null,
+                                       "projectRelations":  [
+                                                                {
+                                                                    "updatedAt":  "2025-12-01T21:17:22.860Z",
+                                                                    "createdAt":  "2025-12-01T21:17:22.860Z",
+                                                                    "userId":  "fdd1069a-368b-4b71-ae6b-77458074ccb3",
+                                                                    "projectId":  "iQIRHE3QjmDCm8gk",
+                                                                    "user":  {
+                                                                                 "updatedAt":  "2026-02-23T18:14:58.882Z",
+                                                                                 "createdAt":  "2025-06-18T15:24:23.191Z",
+                                                                                 "id":  "fdd1069a-368b-4b71-ae6b-77458074ccb3",
+                                                                                 "email":  "david.l@tabuchilaw.com",
+                                                                                 "firstName":  "David",
+                                                                                 "lastName":  "Lifson",
+                                                                                 "personalizationAnswers":  null,
+                                                                                 "settings":  {
+                                                                                                  "userActivated":  true,
+                                                                                                  "easyAIWorkflowOnboarded":  true,
+                                                                                                  "userClaimedAiCredits":  true,
+                                                                                                  "firstSuccessfulWorkflowId":  "1yUet0pcX4yFPCPi",
+                                                                                                  "userActivatedAt":  1771474744998,
+                                                                                                  "npsSurvey":  {
+                                                                                                                    "waitingForResponse":  true,
+                                                                                                                    "ignoredCount":  1,
+                                                                                                                    "lastShownAt":  1771870130127
+                                                                                                                }
+                                                                                              },
+                                                                                 "disabled":  false,
+                                                                                 "mfaEnabled":  false,
+                                                                                 "lastActiveAt":  "2026-02-23",
+                                                                                 "isPending":  false
+                                                                             }
+                                                                }
+                                                            ]
+                                   }
+                   }
+               ],
+    "tags":  [
+                 {
+                     "updatedAt":  "2026-02-06T18:59:10.590Z",
+                     "createdAt":  "2026-02-06T18:59:10.590Z",
+                     "id":  "LCdT8iLmpF8dxCLH",
+                     "name":  "tabuchi-bookings"
+                 }
+             ],
+    "activeVersion":  {
+                          "updatedAt":  "2026-02-23T20:40:28.112Z",
+                          "createdAt":  "2026-02-23T20:40:28.112Z",
+                          "versionId":  "ba316012-8a62-4b23-8709-1c9ea68dd564",
+                          "workflowId":  "oFs1mUh0JXhT9Vze",
+                          "nodes":  [
+                                        {
+                                            "parameters":  {
+                                                               "httpMethod":  "POST",
+                                                               "path":  "api/cancel",
+                                                               "responseMode":  "responseNode",
+                                                               "options":  {
+                                                                               "allowedOrigins":  "*"
+                                                                           }
+                                                           },
+                                            "id":  "webhook",
+                                            "name":  "Webhook",
+                                            "type":  "n8n-nodes-base.webhook",
+                                            "typeVersion":  2,
+                                            "position":  [
+                                                             250,
+                                                             300
+                                                         ],
+                                            "webhookId":  "api-cancel"
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "jsCode":  "const body = $input.first().json.body;\nif (!body.bookingId || !body.token) {\n  return [{ json: { valid: false, error: \u0027Missing required fields: bookingId, token\u0027 } }];\n}\nreturn [{ json: { valid: true, ...body } }];"
+                                                           },
+                                            "id":  "validate",
+                                            "name":  "Validate",
+                                            "type":  "n8n-nodes-base.code",
+                                            "typeVersion":  2,
+                                            "position":  [
+                                                             480,
+                                                             300
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "conditions":  {
+                                                                                  "options":  {
+                                                                                                  "caseSensitive":  true,
+                                                                                                  "leftValue":  "",
+                                                                                                  "typeValidation":  "strict"
+                                                                                              },
+                                                                                  "conditions":  [
+                                                                                                     {
+                                                                                                         "id":  "c1",
+                                                                                                         "leftValue":  "={{ $json.valid }}",
+                                                                                                         "rightValue":  true,
+                                                                                                         "operator":  {
+                                                                                                                          "type":  "boolean",
+                                                                                                                          "operation":  "true"
+                                                                                                                      }
+                                                                                                     }
+                                                                                                 ],
+                                                                                  "combinator":  "and"
+                                                                              },
+                                                               "options":  {
+
+                                                                           }
+                                                           },
+                                            "id":  "if-valid",
+                                            "name":  "Valid?",
+                                            "type":  "n8n-nodes-base.if",
+                                            "typeVersion":  2.2,
+                                            "position":  [
+                                                             700,
+                                                             300
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "options":  {
+
+                                                                           },
+                                                               "respondWith":  "json",
+                                                               "responseBody":  "={{ JSON.stringify({ success: false, error: $json.error }) }}",
+                                                               "responseCode":  400,
+                                                               "responseHeaders":  {
+                                                                                       "entries":  [
+                                                                                                       {
+                                                                                                           "name":  "Access-Control-Allow-Origin",
+                                                                                                           "value":  "*"
+                                                                                                       }
+                                                                                                   ]
+                                                                                   }
+                                                           },
+                                            "id":  "respond-400",
+                                            "name":  "Respond 400",
+                                            "type":  "n8n-nodes-base.respondToWebhook",
+                                            "typeVersion":  1.1,
+                                            "position":  [
+                                                             940,
+                                                             480
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "operation":  "search",
+                                                               "table":  {
+                                                                             "__rl":  true,
+                                                                             "value":  "tblCK5OdPNcWnBP3e",
+                                                                             "mode":  "id"
+                                                                         },
+                                                               "filterByFormula":  "=AND({Booking_ID} = \u0027{{ $(\u0027Validate\u0027).first().json.bookingId }}\u0027, {Cancel_Token} = \u0027{{ $(\u0027Validate\u0027).first().json.token }}\u0027)",
+                                                               "base":  {
+                                                                            "__rl":  true,
+                                                                            "value":  "appPccm6NkaJdvqwy",
+                                                                            "mode":  "id"
+                                                                        }
+                                                           },
+                                            "id":  "find-booking",
+                                            "name":  "Find Booking",
+                                            "type":  "n8n-nodes-base.airtable",
+                                            "typeVersion":  2.1,
+                                            "position":  [
+                                                             940,
+                                                             200
+                                                         ],
+                                            "credentials":  {
+                                                                "airtableTokenApi":  {
+                                                                                         "id":  "eTz4entn8SmOARvR",
+                                                                                         "name":  "airtable1"
+                                                                                     }
+                                                            }
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "conditions":  {
+                                                                                  "options":  {
+                                                                                                  "caseSensitive":  true,
+                                                                                                  "leftValue":  "",
+                                                                                                  "typeValidation":  "strict"
+                                                                                              },
+                                                                                  "conditions":  [
+                                                                                                     {
+                                                                                                         "id":  "c2",
+                                                                                                         "leftValue":  "={{ $input.all().length }}",
+                                                                                                         "rightValue":  0,
+                                                                                                         "operator":  {
+                                                                                                                          "type":  "number",
+                                                                                                                          "operation":  "gt"
+                                                                                                                      }
+                                                                                                     }
+                                                                                                 ],
+                                                                                  "combinator":  "and"
+                                                                              },
+                                                               "options":  {
+
+                                                                           }
+                                                           },
+                                            "id":  "if-found",
+                                            "name":  "Found?",
+                                            "type":  "n8n-nodes-base.if",
+                                            "typeVersion":  2.2,
+                                            "position":  [
+                                                             1180,
+                                                             200
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "options":  {
+
+                                                                           },
+                                                               "respondWith":  "json",
+                                                               "responseBody":  "={\"success\":false,\"error\":\"Booking not found or invalid token\"}",
+                                                               "responseCode":  403,
+                                                               "responseHeaders":  {
+                                                                                       "entries":  [
+                                                                                                       {
+                                                                                                           "name":  "Access-Control-Allow-Origin",
+                                                                                                           "value":  "*"
+                                                                                                       }
+                                                                                                   ]
+                                                                                   }
+                                                           },
+                                            "id":  "respond-403",
+                                            "name":  "Respond 403",
+                                            "type":  "n8n-nodes-base.respondToWebhook",
+                                            "typeVersion":  1.1,
+                                            "position":  [
+                                                             1420,
+                                                             380
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "jsCode":  "const booking = $(\u0027Find Booking\u0027).first().json;\nconst input = $(\u0027Validate\u0027).first().json;\n\nif (booking.Status === \u0027cancelled\u0027) {\n  return [{ json: { canCancel: false, error: \u0027This booking is already cancelled\u0027 } }];\n}\n\n// Parse witness calendar event IDs if present\nlet witnessCalEventIds = [];\ntry { witnessCalEventIds = booking.Witness_Calendar_Event_IDs ? JSON.parse(booking.Witness_Calendar_Event_IDs) : []; } catch(e) { witnessCalEventIds = []; }\n\nconst staffId = booking.Staff ? booking.Staff[0] : null;\nreturn [{ json: { canCancel: true, bookingRecordId: booking.id, calEventId: booking.Calendar_Event_ID, zoomMeetingId: booking.Zoom_Meeting_ID || \u0027\u0027, witnessCalEventIds, staffId, reason: input.reason || \u0027\u0027, bookingId: booking.Booking_ID } }];"
+                                                           },
+                                            "id":  "check-status",
+                                            "name":  "Check Status",
+                                            "type":  "n8n-nodes-base.code",
+                                            "typeVersion":  2,
+                                            "position":  [
+                                                             1420,
+                                                             100
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "conditions":  {
+                                                                                  "options":  {
+                                                                                                  "caseSensitive":  true,
+                                                                                                  "leftValue":  "",
+                                                                                                  "typeValidation":  "strict"
+                                                                                              },
+                                                                                  "conditions":  [
+                                                                                                     {
+                                                                                                         "id":  "c3",
+                                                                                                         "leftValue":  "={{ $json.canCancel }}",
+                                                                                                         "rightValue":  true,
+                                                                                                         "operator":  {
+                                                                                                                          "type":  "boolean",
+                                                                                                                          "operation":  "true"
+                                                                                                                      }
+                                                                                                     }
+                                                                                                 ],
+                                                                                  "combinator":  "and"
+                                                                              },
+                                                               "options":  {
+
+                                                                           }
+                                                           },
+                                            "id":  "if-can",
+                                            "name":  "Can Cancel?",
+                                            "type":  "n8n-nodes-base.if",
+                                            "typeVersion":  2.2,
+                                            "position":  [
+                                                             1660,
+                                                             100
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "options":  {
+
+                                                                           },
+                                                               "respondWith":  "json",
+                                                               "responseBody":  "={{ JSON.stringify({ success: false, error: $json.error }) }}",
+                                                               "responseCode":  409,
+                                                               "responseHeaders":  {
+                                                                                       "entries":  [
+                                                                                                       {
+                                                                                                           "name":  "Access-Control-Allow-Origin",
+                                                                                                           "value":  "*"
+                                                                                                       }
+                                                                                                   ]
+                                                                                   }
+                                                           },
+                                            "id":  "respond-409",
+                                            "name":  "Respond 409",
+                                            "type":  "n8n-nodes-base.respondToWebhook",
+                                            "typeVersion":  1.1,
+                                            "position":  [
+                                                             1900,
+                                                             280
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "operation":  "get",
+                                                               "table":  {
+                                                                             "__rl":  true,
+                                                                             "value":  "tblABg23aP4YQ36aN",
+                                                                             "mode":  "id"
+                                                                         },
+                                                               "id":  "={{ $(\u0027Check Status\u0027).first().json.staffId }}",
+                                                               "base":  {
+                                                                            "__rl":  true,
+                                                                            "value":  "appPccm6NkaJdvqwy",
+                                                                            "mode":  "id"
+                                                                        }
+                                                           },
+                                            "id":  "get-staff",
+                                            "name":  "Get Staff",
+                                            "type":  "n8n-nodes-base.airtable",
+                                            "typeVersion":  2.1,
+                                            "position":  [
+                                                             1900,
+                                                             -20
+                                                         ],
+                                            "credentials":  {
+                                                                "airtableTokenApi":  {
+                                                                                         "id":  "eTz4entn8SmOARvR",
+                                                                                         "name":  "airtable1"
+                                                                                     }
+                                                            }
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "method":  "POST",
+                                                               "url":  "=https://login.microsoftonline.com/{{ $vars.AZURE_TENANT_ID }}/oauth2/v2.0/token",
+                                                               "authentication":  "none",
+                                                               "sendBody":  true,
+                                                               "contentType":  "form-urlencoded",
+                                                               "specifyBody":  "keypair",
+                                                               "bodyParameters":  {
+                                                                                      "parameters":  [
+                                                                                                         {
+                                                                                                             "name":  "grant_type",
+                                                                                                             "value":  "client_credentials"
+                                                                                                         },
+                                                                                                         {
+                                                                                                             "name":  "client_id",
+                                                                                                             "value":  "={{ $vars.AZURE_CLIENT_ID }}"
+                                                                                                         },
+                                                                                                         {
+                                                                                                             "name":  "client_secret",
+                                                                                                             "value":  "={{ $vars.AZURE_CLIENT_SECRET }}"
+                                                                                                         },
+                                                                                                         {
+                                                                                                             "name":  "scope",
+                                                                                                             "value":  "https://graph.microsoft.com/.default"
+                                                                                                         }
+                                                                                                     ]
+                                                                                  },
+                                                               "options":  {
+
+                                                                           }
+                                                           },
+                                            "id":  "get-graph-token",
+                                            "name":  "Get Graph Token",
+                                            "type":  "n8n-nodes-base.httpRequest",
+                                            "typeVersion":  4.2,
+                                            "position":  [
+                                                             1900,
+                                                             140
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "jsCode":  "// v4 — wrapped in top-level try/catch for safety\ntry {\n  const http = this.helpers.httpRequest;\n  const status = $(\u0027Check Status\u0027).first().json;\n  const staff = $(\u0027Get Staff\u0027).first().json;\n  const graphToken = $(\u0027Get Graph Token\u0027).first().json.access_token;\n  const msUserId = staff.MS_User_ID;\n\n  // Delete primary calendar event\n  if (status.calEventId \u0026\u0026 msUserId) {\n    try {\n      await http({\n        method: \u0027DELETE\u0027,\n        url: `https://graph.microsoft.com/v1.0/users/${msUserId}/events/${status.calEventId}`,\n        headers: { Authorization: `Bearer ${graphToken}` },\n        returnFullResponse: true\n      });\n    } catch(e) { /* ignore deletion errors */ }\n  }\n\n  // Delete Zoom meeting if applicable\n  if (status.zoomMeetingId) {\n    try {\n      const tokenData = await http({\n        method: \u0027POST\u0027,\n        url: \u0027https://zoom.us/oauth/token?grant_type=account_credentials\u0026account_id=\u0027 + $vars.ZOOM_ACCOUNT_ID,\n        headers: { Authorization: \u0027Basic \u0027 + Buffer.from($vars.ZOOM_CLIENT_ID + \u0027:\u0027 + $vars.ZOOM_CLIENT_SECRET).toString(\u0027base64\u0027), \u0027Content-Type\u0027: \u0027application/x-www-form-urlencoded\u0027 },\n        json: true\n      });\n      await http({\n        method: \u0027DELETE\u0027,\n        url: `https://api.zoom.us/v2/meetings/${status.zoomMeetingId}`,\n        headers: { Authorization: `Bearer ${tokenData.access_token}` },\n        returnFullResponse: true\n      });\n    } catch(e) { /* ignore deletion errors */ }\n  }\n\n  // Delete witness calendar events if any\n  if (status.witnessCalEventIds \u0026\u0026 status.witnessCalEventIds.length \u003e 0) {\n    for (const wEvt of status.witnessCalEventIds) {\n      try {\n        if (wEvt.calEventId \u0026\u0026 wEvt.msUserId) {\n          await http({\n            method: \u0027DELETE\u0027,\n            url: `https://graph.microsoft.com/v1.0/users/${wEvt.msUserId}/events/${wEvt.calEventId}`,\n            headers: { Authorization: `Bearer ${graphToken}` },\n            returnFullResponse: true\n          });\n        }\n      } catch(e) { /* ignore */ }\n    }\n  }\n} catch(topErr) {\n  // Top-level catch — log but do not throw\n}\n\nreturn [{ json: { done: true } }];"
+                                                           },
+                                            "id":  "delete-event",
+                                            "name":  "Delete Calendar Event",
+                                            "type":  "n8n-nodes-base.code",
+                                            "typeVersion":  2,
+                                            "position":  [
+                                                             2140,
+                                                             -20
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "method":  "PATCH",
+                                                               "url":  "=https://api.airtable.com/v0/appPccm6NkaJdvqwy/tblCK5OdPNcWnBP3e/{{ $(\u0027Check Status\u0027).first().json.bookingRecordId }}",
+                                                               "authentication":  "predefinedCredentialType",
+                                                               "nodeCredentialType":  "airtableTokenApi",
+                                                               "sendBody":  true,
+                                                               "specifyBody":  "json",
+                                                               "jsonBody":  "={{ JSON.stringify({ fields: { Status: \u0027cancelled\u0027, Cancellation_Reason: $(\u0027Check Status\u0027).first().json.reason } }) }}",
+                                                               "options":  {
+                                                                               "response":  {
+                                                                                                "response":  {
+                                                                                                                 "responseFormat":  "json"
+                                                                                                             }
+                                                                                            }
+                                                                           }
+                                                           },
+                                            "id":  "update-booking",
+                                            "name":  "Update Booking to Cancelled",
+                                            "type":  "n8n-nodes-base.httpRequest",
+                                            "typeVersion":  4.2,
+                                            "position":  [
+                                                             2380,
+                                                             -20
+                                                         ],
+                                            "credentials":  {
+                                                                "airtableTokenApi":  {
+                                                                                         "id":  "eTz4entn8SmOARvR",
+                                                                                         "name":  "airtable1"
+                                                                                     }
+                                                            }
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "jsCode":  "const status = $(\u0027Check Status\u0027).first().json;\nreturn [{ json: { success: true, bookingId: status.bookingId, message: \u0027Your booking has been cancelled successfully.\u0027 } }];"
+                                                           },
+                                            "id":  "format",
+                                            "name":  "Format Response",
+                                            "type":  "n8n-nodes-base.code",
+                                            "typeVersion":  2,
+                                            "position":  [
+                                                             2620,
+                                                             -20
+                                                         ]
+                                        },
+                                        {
+                                            "parameters":  {
+                                                               "options":  {
+
+                                                                           },
+                                                               "respondWith":  "json",
+                                                               "responseBody":  "={{ JSON.stringify($json) }}",
+                                                               "responseCode":  200,
+                                                               "responseHeaders":  {
+                                                                                       "entries":  [
+                                                                                                       {
+                                                                                                           "name":  "Access-Control-Allow-Origin",
+                                                                                                           "value":  "*"
+                                                                                                       }
+                                                                                                   ]
+                                                                                   }
+                                                           },
+                                            "id":  "respond-ok",
+                                            "name":  "Respond 200",
+                                            "type":  "n8n-nodes-base.respondToWebhook",
+                                            "typeVersion":  1.1,
+                                            "position":  [
+                                                             2860,
+                                                             -20
+                                                         ]
+                                        }
+                                    ],
+                          "connections":  {
+                                              "Webhook":  {
+                                                              "main":  [
+                                                                           [
+                                                                               {
+                                                                                   "node":  "Validate",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ]
+                                                                       ]
+                                                          },
+                                              "Validate":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "Valid?",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           },
+                                              "Valid?":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "Find Booking",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ],
+                                                                          [
+                                                                              {
+                                                                                  "node":  "Respond 400",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                                              "Find Booking":  {
+                                                                   "main":  [
+                                                                                [
+                                                                                    {
+                                                                                        "node":  "Found?",
+                                                                                        "type":  "main",
+                                                                                        "index":  0
+                                                                                    }
+                                                                                ]
+                                                                            ]
+                                                               },
+                                              "Found?":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "Check Status",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ],
+                                                                          [
+                                                                              {
+                                                                                  "node":  "Respond 403",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                                              "Check Status":  {
+                                                                   "main":  [
+                                                                                [
+                                                                                    {
+                                                                                        "node":  "Can Cancel?",
+                                                                                        "type":  "main",
+                                                                                        "index":  0
+                                                                                    }
+                                                                                ]
+                                                                            ]
+                                                               },
+                                              "Can Cancel?":  {
+                                                                  "main":  [
+                                                                               [
+                                                                                   {
+                                                                                       "node":  "Update Booking to Cancelled",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   },
+                                                                                   {
+                                                                                       "node":  "Get Graph Token",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   }
+                                                                               ],
+                                                                               [
+                                                                                   {
+                                                                                       "node":  "Respond 409",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   }
+                                                                               ]
+                                                                           ]
+                                                              },
+                                              "Get Graph Token":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Get Staff",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  },
+                                              "Get Staff":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Delete Calendar Event",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                                              "Update Booking to Cancelled":  {
+                                                                                  "main":  [
+                                                                                               [
+                                                                                                   {
+                                                                                                       "node":  "Format Response",
+                                                                                                       "type":  "main",
+                                                                                                       "index":  0
+                                                                                                   }
+                                                                                               ]
+                                                                                           ]
+                                                                              },
+                                              "Format Response":  {
+                                                                      "main":  [
+                                                                                   [
+                                                                                       {
+                                                                                           "node":  "Respond 200",
+                                                                                           "type":  "main",
+                                                                                           "index":  0
+                                                                                       }
+                                                                                   ]
+                                                                               ]
+                                                                  }
+                                          },
+                          "authors":  "David Lifson",
+                          "name":  null,
+                          "description":  null,
+                          "autosaved":  false,
+                          "workflowPublishHistory":  [
+                                                         {
+                                                             "createdAt":  "2026-02-23T20:40:28.298Z",
+                                                             "id":  131,
+                                                             "workflowId":  "oFs1mUh0JXhT9Vze",
+                                                             "versionId":  "ba316012-8a62-4b23-8709-1c9ea68dd564",
+                                                             "event":  "activated",
+                                                             "userId":  "fdd1069a-368b-4b71-ae6b-77458074ccb3"
+                                                         }
+                                                     ]
+                      }
+}
