@@ -26,10 +26,8 @@
 
 (function LeadDetail() {
   'use strict';
-  console.log('[LEAD-DETAIL] IIFE executing, readyState=' + document.readyState);
 
   if (!ClientCareAPI.auth.requireAuth()) return;
-  console.log('[LEAD-DETAIL] auth passed');
 
   // Block BOOKINGS-only users from CRM pages
   var _u = ClientCareAPI.auth.getUser();
@@ -465,7 +463,6 @@
 
   // ─── Initialize ──────────────────────────────────────────────
   function init() {
-    console.log('[LEAD-DETAIL] init() called, leadId=' + leadId);
     var user = API.auth.getUser();
     var userNameEl = $el('cc-user-name');
     if (user && userNameEl) userNameEl.textContent = user.name || user.email;
@@ -473,12 +470,9 @@
     loadData();
   }
 
-  console.log('[LEAD-DETAIL] readyState check: ' + document.readyState);
   if (document.readyState === 'loading') {
-    console.log('[LEAD-DETAIL] adding DOMContentLoaded listener');
     document.addEventListener('DOMContentLoaded', init);
   } else {
-    console.log('[LEAD-DETAIL] calling init() directly');
     init();
   }
 })();
