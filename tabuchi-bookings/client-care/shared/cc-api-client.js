@@ -253,6 +253,47 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/campaigns', { body: { action: 'update', campaign_id: id, ...fields } });
   }
 
+  async function validateCampaign(campaignId) {
+    return request('POST', '/cc/campaigns', { body: { action: 'validate', campaign_id: campaignId } });
+  }
+
+  async function testSendCampaign(campaignId, data) {
+    return request('POST', '/cc/campaigns', { body: { action: 'test_send', campaign_id: campaignId, ...data } });
+  }
+
+  async function scheduleCampaign(campaignId, scheduledAt, timezone) {
+    return request('POST', '/cc/campaigns', { body: { action: 'schedule', campaign_id: campaignId, scheduled_at: scheduledAt, timezone } });
+  }
+
+  async function sendCampaignNow(campaignId) {
+    return request('POST', '/cc/campaigns', { body: { action: 'send_now', campaign_id: campaignId } });
+  }
+
+  async function cancelCampaign(campaignId) {
+    return request('POST', '/cc/campaigns', { body: { action: 'cancel', campaign_id: campaignId } });
+  }
+
+  async function duplicateCampaign(campaignId, newName) {
+    return request('POST', '/cc/campaigns', { body: { action: 'duplicate', campaign_id: campaignId, name: newName } });
+  }
+
+  async function resendNonOpeners(campaignId, data) {
+    return request('POST', '/cc/campaigns', { body: { action: 'resend_non_openers', campaign_id: campaignId, ...data } });
+  }
+
+  async function listCampaignRecipients(campaignId, params = {}) {
+    return request('POST', '/cc/campaigns', { body: { action: 'list_recipients', campaign_id: campaignId, ...params } });
+  }
+
+  async function getCampaignReport(campaignId, reportType = 'overview') {
+    return request('POST', '/cc/campaigns', { body: { action: 'report', campaign_id: campaignId, report_type: reportType } });
+  }
+
+  async function previewAudience(audienceDefinition) {
+    return request('POST', '/cc/campaigns', { body: { action: 'preview_audience', audience: audienceDefinition } });
+  }
+
+  // Campaign Steps (drip/automation campaigns)
   async function listCampaignSteps(campaignId) {
     return request('POST', '/cc/campaigns', { body: { action: 'list_steps', campaign_id: campaignId } });
   }
@@ -267,6 +308,32 @@ const ClientCareAPI = (() => {
 
   async function enrollLeads(campaignId, leadIds) {
     return request('POST', '/cc/campaigns', { body: { action: 'enroll', campaign_id: campaignId, lead_ids: leadIds } });
+  }
+
+  // ─── Templates (Campaign) ──────────────────────────────────────
+
+  async function listCampaignTemplates(params = {}) {
+    return request('POST', '/cc/campaign-templates', { body: { action: 'list', ...params } });
+  }
+
+  async function getCampaignTemplate(templateId) {
+    return request('POST', '/cc/campaign-templates', { body: { action: 'get', template_id: templateId } });
+  }
+
+  async function createCampaignTemplate(data) {
+    return request('POST', '/cc/campaign-templates', { body: { action: 'create', ...data } });
+  }
+
+  async function updateCampaignTemplate(id, fields) {
+    return request('POST', '/cc/campaign-templates', { body: { action: 'update', template_id: id, ...fields } });
+  }
+
+  async function deleteCampaignTemplate(id) {
+    return request('POST', '/cc/campaign-templates', { body: { action: 'delete', template_id: id } });
+  }
+
+  async function duplicateCampaignTemplate(id, newName) {
+    return request('POST', '/cc/campaign-templates', { body: { action: 'duplicate', template_id: id, name: newName } });
   }
 
   // ─── Admin ─────────────────────────────────────────────────
@@ -482,8 +549,19 @@ const ClientCareAPI = (() => {
     // Campaigns
     campaigns: {
       list: listCampaigns, get: getCampaign, create: createCampaign, update: updateCampaign,
+      validate: validateCampaign, testSend: testSendCampaign,
+      schedule: scheduleCampaign, sendNow: sendCampaignNow, cancel: cancelCampaign,
+      duplicate: duplicateCampaign, resendNonOpeners: resendNonOpeners,
+      listRecipients: listCampaignRecipients, report: getCampaignReport,
+      previewAudience: previewAudience,
       listSteps: listCampaignSteps, createStep: createCampaignStep, deleteStep: deleteCampaignStep,
       enroll: enrollLeads
+    },
+    // Campaign Templates
+    campaignTemplates: {
+      list: listCampaignTemplates, get: getCampaignTemplate,
+      create: createCampaignTemplate, update: updateCampaignTemplate,
+      delete: deleteCampaignTemplate, duplicate: duplicateCampaignTemplate
     },
     // Admin
     admin: {
