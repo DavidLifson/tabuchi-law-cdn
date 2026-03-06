@@ -917,7 +917,7 @@
     if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading staff...</p></div>';
 
     try {
-      var result = await bookingAdminFetch('staff', { action: 'list' });
+      var result = await bookingAdminFetch('staff', { action: 'list-staff' });
       state.staffList = result.staff || [];
     } catch (err) {
       state.staffList = [];
@@ -997,7 +997,7 @@
         btn.textContent = 'Updating...';
         btn.disabled = true;
         try {
-          await bookingAdminFetch('staff', { action: 'toggle', staffId: staffId, active: !currentActive });
+          await bookingAdminFetch('staff', { action: 'toggle-staff', staffId: staffId, active: !currentActive });
           for (var i = 0; i < state.staffList.length; i++) {
             if (state.staffList[i].id === staffId) {
               state.staffList[i].active = !currentActive;
@@ -1024,7 +1024,7 @@
     if (saveBtn) saveBtn.textContent = 'Done';
 
     try {
-      var result = await bookingAdminFetch('staff', { action: 'listO365' });
+      var result = await bookingAdminFetch('staff', { action: 'list-office365-users' });
       var users = result.users || [];
       var listEl = document.getElementById('cc-import-staff-list');
       if (!listEl) return;
@@ -1060,7 +1060,7 @@
           btn.disabled = true;
           try {
             var result = await bookingAdminFetch('staff', {
-              action: 'import',
+              action: 'import-user',
               userId: btn.dataset.userid,
               displayName: btn.dataset.name,
               email: btn.dataset.email
@@ -1564,4 +1564,3 @@
     init();
   }
 })();
-
