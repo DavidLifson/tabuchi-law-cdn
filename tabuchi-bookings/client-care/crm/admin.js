@@ -187,6 +187,23 @@
         renderConfigTab(tabToConfigKey(state.activeTab), TABS.find(function(t) { return t.key === state.activeTab; }).label);
         break;
     }
+    // Fetch fresh data for the active tab
+    switch (state.activeTab) {
+      case 'overview':    fetchOverviewData(); break;
+      case 'users':       fetchUsers(); break;
+      case 'templates':   fetchTemplates(); break;
+      case 'staff':       fetchStaff(); break;
+      case 'categories':  fetchCategories(); break;
+      // system tab is static, no fetch needed
+      default:
+        var ck = tabToConfigKey(state.activeTab);
+        if (CONFIG_META[ck] !== undefined) {
+          fetchConfigItems(ck).then(function() {
+            renderConfigTab(ck, TABS.find(function(t) { return t.key === state.activeTab; }).label);
+          });
+        }
+        break;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1529,31 +1546,17 @@
 
     renderTabs();
     renderActiveTab();
-  }
 
-  // Tab change data loading
-  var originalRenderActiveTab = renderActiveTab;
-  renderActiveTab = function() {
-    originalRenderActiveTab();
-    // Fetch fresh data when switching tabs
-    switch (state.activeTab) {
-      case 'overview':    fetchOverviewData(); break;
-      case 'users':       fetchUsers(); break;
-      case 'templates':   fetchTemplates(); break;
-      case 'staff':       fetchStaff(); break;
-      case 'categories':  fetchCategories(); break;
-      // system tab is static, no fetch needed
-      default:
-        // Config tabs
-        var ck = tabToConfigKey(state.activeTab);
-        if (CONFIG_META[ck] !== undefined) {
-          fetchConfigItems(ck).then(function() {
-            renderConfigTab(ck, TABS.find(function(t) { return t.key === state.activeTab; }).label);
-          });
-        }
-        break;
-    }
-  };
+    // Handle browser back/forward hash changes
+    window.addEventListener('hashchange', function() {
+      var h = location.hash.replace('#', '');
+      if (h && TABS.find(function(t) { return t.key === h; })) {
+        state.activeTab = h;
+        renderTabs();
+        renderActiveTab();
+      }
+    });
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
