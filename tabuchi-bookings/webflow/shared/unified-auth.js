@@ -130,6 +130,11 @@
       // Step 3: Store unified credentials
       localStorage.setItem('app_token', result.token);
 
+      // Store admin_token for ADMIN users (needed by WF-19 staff APIs)
+      if (result.admin_token) {
+        localStorage.setItem('admin_token', result.admin_token);
+      }
+
       if (result.user) {
         localStorage.setItem('app_user', JSON.stringify(result.user));
       }

@@ -79,12 +79,12 @@
     LAWYER: 'green', MARKETING: 'purple', READ_ONLY: 'gray'
   };
 
-  // ─── Booking Admin API Helper (avoids hard dependency on api-client.js) ──
+  // ─── Booking Admin API Helper (calls WF-19 at api/admin/{endpoint}) ──
   async function bookingAdminFetch(endpoint, data) {
-    var t = localStorage.getItem('app_token') || '';
-    var r = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/dashboard/admin/' + endpoint, {
+    var t = localStorage.getItem('admin_token') || '';
+    var r = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/' + endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
+      headers: { 'Content-Type': 'application/json', 'Admin_Token': t },
       body: JSON.stringify(data || {})
     });
     var j = await r.json();
