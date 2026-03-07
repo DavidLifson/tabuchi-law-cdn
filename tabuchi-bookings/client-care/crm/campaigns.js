@@ -1621,10 +1621,8 @@
     html += '<div class="cc-form-group">';
     html += '<label class="cc-label">Campaign Type *</label>';
     html += '<select id="cc-modal-type" class="cc-input">';
-    html += '<option value="email">Email (Broadcast)</option>';
+    html += '<option value="NEWSLETTER">Newsletter / Broadcast</option>';
     html += '<option value="DRIP">Drip (Automation)</option>';
-    html += '<option value="NEWSLETTER">Newsletter (Legacy)</option>';
-    html += '<option value="test">Test</option>';
     html += '</select>';
     html += '</div>';
 
@@ -1690,7 +1688,7 @@
       preheader: form.querySelector('#cc-modal-preheader').value.trim(),
       from_name: form.querySelector('#cc-modal-from-name').value.trim(),
       from_email: form.querySelector('#cc-modal-from-email').value.trim(),
-      reply_to_email: form.querySelector('#cc-modal-reply-to').value.trim(),
+      reply_to: form.querySelector('#cc-modal-reply-to').value.trim(),
       timezone: form.querySelector('#cc-modal-timezone').value
     };
 
@@ -1770,7 +1768,7 @@
       preheader: form.querySelector('#cc-modal-preheader').value.trim(),
       from_name: form.querySelector('#cc-modal-from-name').value.trim(),
       from_email: form.querySelector('#cc-modal-from-email').value.trim(),
-      reply_to_email: form.querySelector('#cc-modal-reply-to').value.trim(),
+      reply_to: form.querySelector('#cc-modal-reply-to').value.trim(),
       channel: form.querySelector('#cc-modal-channel').value
     };
 
