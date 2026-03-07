@@ -656,39 +656,55 @@
     }
   }
 
-  async function handleDuplicate(templateId, templateName) {
-    var newName = prompt('New template name:', 'Copy of ' + (templateName || ''));
-    if (!newName) return;
+  function handleDuplicate(templateId, templateName) {
+    var html = '<div class="cc-modal-form">' +
+      '<div class="cc-form-group">' +
+        '<label class="cc-label">New Template Name *</label>' +
+        '<input type="text" id="cc-modal-dup-name" class="cc-input" value="' + escapeHtml('Copy of ' + (templateName || '')) + '" />' +
+      '</div>' +
+    '</div>';
 
-    try {
-      var result = await API.campaignTemplates.duplicate(templateId, newName);
-      if (result.success) {
-        showToast('Template duplicated.', 'success');
-        fetchTemplates();
-        if (result.template_id) openDetail(result.template_id);
-      } else {
-        showToast(result.error || 'Failed to duplicate.', 'error');
+    showModal('Duplicate Template', html, async function(form) {
+      var newName = form.querySelector('#cc-modal-dup-name').value.trim();
+      if (!newName) { showToast('Template name is required.', 'error'); return; }
+
+      try {
+        var result = await API.campaignTemplates.duplicate(templateId, newName);
+        if (result.success) {
+          showToast('Template duplicated.', 'success');
+          closeModal();
+          fetchTemplates();
+          if (result.template_id) openDetail(result.template_id);
+        } else {
+          showToast(result.error || 'Failed to duplicate.', 'error');
+        }
+      } catch (err) {
+        showToast(err.error || 'Error duplicating template.', 'error');
       }
-    } catch (err) {
-      showToast(err.error || 'Error duplicating template.', 'error');
-    }
+    }, { submitLabel: 'Duplicate' });
   }
 
-  async function handleDelete(templateId, templateName) {
-    if (!confirm('Delete template "' + (templateName || '') + '"? This cannot be undone.')) return;
+  function handleDelete(templateId, templateName) {
+    var html = '<div class="cc-modal-form">' +
+      '<p style="margin:0 0 8px 0;">Are you sure you want to delete <strong>' + escapeHtml(templateName || '') + '</strong>?</p>' +
+      '<p style="margin:0;color:#dc2626;font-size:13px;">This action cannot be undone.</p>' +
+    '</div>';
 
-    try {
-      var result = await API.campaignTemplates.delete(templateId);
-      if (result.success) {
-        showToast('Template deleted.', 'success');
-        if (state.view === 'detail') closeDetail();
-        else fetchTemplates();
-      } else {
-        showToast(result.error || 'Failed to delete.', 'error');
+    showModal('Delete Template', html, async function() {
+      try {
+        var result = await API.campaignTemplates.delete(templateId);
+        if (result.success) {
+          showToast('Template deleted.', 'success');
+          closeModal();
+          if (state.view === 'detail') closeDetail();
+          else fetchTemplates();
+        } else {
+          showToast(result.error || 'Failed to delete.', 'error');
+        }
+      } catch (err) {
+        showToast(err.error || 'Error deleting template.', 'error');
       }
-    } catch (err) {
-      showToast(err.error || 'Error deleting template.', 'error');
-    }
+    }, { submitLabel: 'Delete' });
   }
 
   // ═══════════════════════════════════════════════════════════
