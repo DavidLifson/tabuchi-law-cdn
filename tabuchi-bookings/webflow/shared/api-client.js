@@ -537,7 +537,9 @@ const TabuchiAPI = (() => {
    */
   function showLoading(containerId) {
     const el = document.getElementById(containerId);
-    if (el) el.innerHTML = '<div class="tb-loading"><div class="tb-spinner"></div><p>Loading...</p></div>';
+    if (!el) return;
+    el.innerHTML = '<div class="tb-loading"><div class="tb-spinner"></div><p>Loading...</p></div>';
+    el.style.display = '';
   }
 
   /**
@@ -550,6 +552,7 @@ const TabuchiAPI = (() => {
     p.textContent = message;
     el.innerHTML = '<div class="tb-error"></div>';
     el.firstChild.appendChild(p);
+    el.style.display = '';
   }
 
   // Public API
