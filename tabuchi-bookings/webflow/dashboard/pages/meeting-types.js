@@ -232,14 +232,14 @@
 
       html += '<div class="tb-dash-card" style="' + colorBorder + '">'
         // ── Header row (always visible, clickable to toggle) ──
-        + '<div class="tb-meeting-card-header tb-mt-card-toggle" style="cursor:pointer;" data-mt-id="' + mt.id + '">'
+        + '<div class="tb-meeting-card-header tb-mt-card-toggle" style="cursor:pointer;" data-mt-id="' + esc(mt.id) + '">'
         + '<div style="display:flex;align-items:center;gap:0.4rem;flex:1;min-width:0;">'
         + '<span class="tb-mt-chevron" style="font-size:0.75rem;color:#9CA3AF;flex-shrink:0;">\u25B8</span>'
         + '<h3 class="tb-meeting-card-name" style="margin:0;">' + esc(mt.name) + '</h3>'
         + '<span class="tb-meeting-card-duration">' + esc(String(mt.duration)) + ' min</span> ' + statusBadge + catBadge + '</div>'
         + '<div style="display:flex;gap:0.5rem;flex-shrink:0;" onclick="event.stopPropagation();">'
-        + '<button class="tb-btn tb-btn-secondary tb-mt-edit-btn" data-id="' + mt.id + '" style="padding:0.4rem 0.8rem;font-size:0.85rem;">Edit</button>'
-        + '<button class="tb-btn tb-btn-danger tb-mt-delete-btn" data-id="' + mt.id + '" data-name="' + esc(mt.name) + '" style="padding:0.4rem 0.8rem;font-size:0.85rem;">Delete</button>'
+        + '<button class="tb-btn tb-btn-secondary tb-mt-edit-btn" data-id="' + esc(mt.id) + '" style="padding:0.4rem 0.8rem;font-size:0.85rem;">Edit</button>'
+        + '<button class="tb-btn tb-btn-danger tb-mt-delete-btn" data-id="' + esc(mt.id) + '" data-name="' + esc(mt.name) + '" style="padding:0.4rem 0.8rem;font-size:0.85rem;">Delete</button>'
         + '</div></div>'
         // ── Body (collapsed by default) ──
         + '<div class="tb-mt-card-body" style="display:none;margin-top:0.5rem;">'
@@ -249,8 +249,8 @@
         + '</div>'
         + (bookingUrl ? '<div style="background:#F0F7FF;border:1px solid #DBEAFE;border-radius:6px;padding:0.6rem 0.8rem;margin-top:0.75rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">'
         + '<span style="font-size:0.8rem;font-weight:600;color:#1E40AF;">Client Booking Link:</span>'
-        + '<code style="font-size:0.75rem;color:#374151;word-break:break-all;flex:1;">' + bookingUrl + '</code>'
-        + '<button class="tb-btn tb-btn-secondary tb-copy-link-btn" data-url="' + bookingUrl + '" style="padding:0.25rem 0.6rem;font-size:0.75rem;white-space:nowrap;">Copy Link</button>'
+        + '<code style="font-size:0.75rem;color:#374151;word-break:break-all;flex:1;">' + esc(bookingUrl) + '</code>'
+        + '<button class="tb-btn tb-btn-secondary tb-copy-link-btn" data-url="' + esc(bookingUrl) + '" style="padding:0.25rem 0.6rem;font-size:0.75rem;white-space:nowrap;">Copy Link</button>'
         + '</div>' : '')
         + '</div>'
         + '</div>';

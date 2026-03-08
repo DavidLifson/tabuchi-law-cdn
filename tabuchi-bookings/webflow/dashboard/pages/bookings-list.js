@@ -127,11 +127,10 @@
       return;
     }
 
-    // Filter by category
-    let filtered = bookings;
-    if (currentCategory) {
-      filtered = bookings.filter(b => b.category === currentCategory);
-    }
+    // Filter by category (slice to avoid mutating original array during sort)
+    let filtered = currentCategory
+      ? bookings.filter(b => b.category === currentCategory)
+      : bookings.slice();
 
     setText('tb-bookings-count', `${filtered.length} booking${filtered.length !== 1 ? 's' : ''}`);
 
@@ -186,7 +185,7 @@
           <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
             ${booking.clientEmail ? `<a href="mailto:${encodeURI(booking.clientEmail)}" style="font-size:0.8rem;color:var(--tb-accent);">${escapeHtml(booking.clientEmail)}</a>` : ''}
             ${booking.clientPhone ? `<span style="font-size:0.8rem;color:var(--tb-text-light);">${escapeHtml(booking.clientPhone)}</span>` : ''}
-            ${booking.meetingLink && booking.status !== 'cancelled' ? `<a href="${escapeHtml(booking.meetingLink)}" target="_blank" class="tb-btn tb-btn-secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Join Meeting</a>` : ''}
+            ${booking.meetingLink && booking.status !== 'cancelled' && /^https?:\/\//i.test(booking.meetingLink) ? `<a href="${escapeHtml(booking.meetingLink)}" target="_blank" class="tb-btn tb-btn-secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Join Meeting</a>` : ''}
           </div>
         </div>
       `;

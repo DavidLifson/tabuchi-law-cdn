@@ -33,6 +33,11 @@
 
     hideEl('tb-loading');
 
+    if (!booking) {
+      TabuchiAPI.util.showError('tb-error', 'Booking not found.');
+      return;
+    }
+
     if (booking.status === 'cancelled') {
       TabuchiAPI.util.showError('tb-error', 'This booking has already been cancelled.');
       return;

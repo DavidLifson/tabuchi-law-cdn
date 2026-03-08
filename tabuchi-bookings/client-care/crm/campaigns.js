@@ -134,7 +134,7 @@
   }
 
   function escapeAttr(str) {
-    return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function uid() {
@@ -298,10 +298,10 @@
       html += '<td class="cc-campaign-subject-cell">' + escapeHtml(c.subject || '—') + '</td>';
       html += '<td><span class="cc-badge cc-badge-' + statusCls + '">' + statusLabel(st) + '</span></td>';
       html += '<td>' + escapeHtml(typeLabel) + '</td>';
-      html += '<td style="text-align:center">' + (c.estimated_recipients != null ? c.estimated_recipients : '—') + '</td>';
-      html += '<td>' + (c.scheduled_at ? API.util.formatDateTime(c.scheduled_at) : '—') + '</td>';
-      html += '<td>' + (c.sent_at ? API.util.formatDateTime(c.sent_at) : '—') + '</td>';
-      html += '<td>' + API.util.formatRelativeTime(c.updated_at || c.Updated_At) + '</td>';
+      html += '<td style="text-align:center">' + (c.estimated_recipients != null ? escapeHtml(String(c.estimated_recipients)) : '—') + '</td>';
+      html += '<td>' + escapeHtml(c.scheduled_at ? API.util.formatDateTime(c.scheduled_at) : '—') + '</td>';
+      html += '<td>' + escapeHtml(c.sent_at ? API.util.formatDateTime(c.sent_at) : '—') + '</td>';
+      html += '<td>' + escapeHtml(API.util.formatRelativeTime(c.updated_at || c.Updated_At)) + '</td>';
 
       html += '<td class="cc-list-actions">';
       html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-campaign-view-btn" data-id="' + c.id + '">Open</button>';
@@ -845,7 +845,8 @@
           else html += imgTag;
           break;
         case 'button':
-          html += '<div style="text-align:center;margin:16px 0"><a href="' + escapeAttr(block.data.url || '#') + '" style="display:inline-block;padding:12px 24px;background:' + (block.data.color || '#2563EB') + ';color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px">' + escapeHtml(block.data.text || 'Click Here') + '</a></div>';
+          var btnColor = /^#[0-9A-Fa-f]{3,8}$/.test(block.data.color) ? block.data.color : '#2563EB';
+          html += '<div style="text-align:center;margin:16px 0"><a href="' + escapeAttr(block.data.url || '#') + '" style="display:inline-block;padding:12px 24px;background:' + btnColor + ';color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px">' + escapeHtml(block.data.text || 'Click Here') + '</a></div>';
           break;
         case 'divider':
           html += '<hr style="border:0;border-top:1px solid #E5E7EB;margin:16px 0">';

@@ -121,7 +121,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_token: idToken })
       });
-      var result = await response.json();
+      var result;
+      try { result = await response.json(); } catch (e) {
+        throw { error: 'Server returned an invalid response. Please try again later.' };
+      }
 
       if (!result.success) {
         throw { error: result.error || 'Login failed. You may not have access. Contact your administrator.' };

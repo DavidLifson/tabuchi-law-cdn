@@ -173,7 +173,7 @@
       html += '<span class="cc-kanban-card-owner">' + escapeHtml(lead.Lead_Owner_Name) + '</span>';
     }
     if (ageText) {
-      html += '<span class="cc-kanban-card-age">' + ageText + '</span>';
+      html += '<span class="cc-kanban-card-age">' + escapeHtml(ageText) + '</span>';
     }
     html += '</div>';
 

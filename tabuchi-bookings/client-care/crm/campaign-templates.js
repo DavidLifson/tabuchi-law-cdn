@@ -91,7 +91,7 @@
   }
 
   function escapeAttr(str) {
-    return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function uid() { return 'b_' + Math.random().toString(36).substr(2, 9); }

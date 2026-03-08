@@ -176,8 +176,8 @@
       html += '<td><span class="cc-badge cc-badge-' + API.util.priorityColor(lead.Priority) + '">' + escapeHtml(lead.Priority || '—') + '</span></td>';
       html += '<td>' + escapeHtml(lead.Lead_Owner_Name || '—') + '</td>';
       html += '<td>' + escapeHtml(lead.Source || '—') + '</td>';
-      html += '<td>' + API.util.formatRelativeTime(lead.Last_Contacted_At) + '</td>';
-      html += '<td>' + API.util.formatDate(lead.Created_At) + '</td>';
+      html += '<td>' + escapeHtml(API.util.formatRelativeTime(lead.Last_Contacted_At)) + '</td>';
+      html += '<td>' + escapeHtml(API.util.formatDate(lead.Created_At)) + '</td>';
       html += '</tr>';
     });
     tbody.innerHTML = html;

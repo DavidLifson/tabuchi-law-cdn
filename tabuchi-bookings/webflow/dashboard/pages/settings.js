@@ -55,6 +55,7 @@
     populateForm();
 
     // Auto-sync Microsoft photo if no photo and user has MS account
+    if (!staffData) return;
     var currentPhoto = staffData.photoUrl || staffData.photo_url || '';
     if (!currentPhoto && staffData.msUserId) {
       TabuchiAPI.dashboard.syncMicrosoft().then(function(result) {
