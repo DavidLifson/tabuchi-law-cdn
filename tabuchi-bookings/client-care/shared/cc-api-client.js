@@ -90,7 +90,8 @@ const ClientCareAPI = (() => {
       }
 
       const text = await response.text();
-      const data = text ? JSON.parse(text) : {};
+      let data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { error: 'Invalid response from server' }; }
       if (!response.ok) {
         throw { status: response.status, ...data };
       }
@@ -520,7 +521,11 @@ const ClientCareAPI = (() => {
 
   function showError(containerId, message) {
     const el = document.getElementById(containerId);
-    if (el) el.innerHTML = `<div class="cc-error"><p>${message}</p></div>`;
+    if (!el) return;
+    const p = document.createElement('p');
+    p.textContent = message;
+    el.innerHTML = '<div class="cc-error"></div>';
+    el.firstChild.appendChild(p);
   }
 
   function getUrlParams() {

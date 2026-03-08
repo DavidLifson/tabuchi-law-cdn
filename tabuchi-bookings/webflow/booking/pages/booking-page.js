@@ -293,32 +293,33 @@
     for (const q of intakeQuestions) {
       const reqAttr = q.required ? 'required' : '';
       const reqStar = q.required ? '<span class="tb-required">*</span>' : '';
+      const safeId = escapeAttr(q.id);
 
       html += `<div class="tb-form-field">`;
-      html += `<label for="intake-${q.id}">${q.label}${reqStar}</label>`;
+      html += `<label for="intake-${safeId}">${escapeHtml(q.label)}${reqStar}</label>`;
 
       switch (q.fieldType) {
         case 'textarea':
-          html += `<textarea id="intake-${q.id}" name="intake-${q.id}" rows="3" ${reqAttr}></textarea>`;
+          html += `<textarea id="intake-${safeId}" name="intake-${safeId}" rows="3" ${reqAttr}></textarea>`;
           break;
         case 'select':
-          html += `<select id="intake-${q.id}" name="intake-${q.id}" ${reqAttr}><option value="">Select...</option>`;
-          for (const opt of q.options) {
-            html += `<option value="${opt}">${opt}</option>`;
+          html += `<select id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}><option value="">Select...</option>`;
+          for (const opt of (q.options || [])) {
+            html += `<option value="${escapeAttr(opt)}">${escapeHtml(opt)}</option>`;
           }
           html += '</select>';
           break;
         case 'checkbox':
-          html += `<input type="checkbox" id="intake-${q.id}" name="intake-${q.id}" ${reqAttr}>`;
+          html += `<input type="checkbox" id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}>`;
           break;
         case 'email':
-          html += `<input type="email" id="intake-${q.id}" name="intake-${q.id}" ${reqAttr}>`;
+          html += `<input type="email" id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}>`;
           break;
         case 'phone':
-          html += `<input type="tel" id="intake-${q.id}" name="intake-${q.id}" ${reqAttr}>`;
+          html += `<input type="tel" id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}>`;
           break;
         default: // text
-          html += `<input type="text" id="intake-${q.id}" name="intake-${q.id}" ${reqAttr}>`;
+          html += `<input type="text" id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}>`;
       }
       html += '</div>';
     }
@@ -373,7 +374,7 @@
     const backBtn = document.createElement('button');
     backBtn.type = 'button';
     backBtn.className = 'tb-btn tb-btn-secondary tb-back-btn';
-    backBtn.innerHTML = `&#8592; ${label}`;
+    backBtn.textContent = '\u2190 ' + label;
     backBtn.addEventListener('click', () => goToStep(targetStep));
     nav.appendChild(backBtn);
 
@@ -477,6 +478,16 @@
   function hideElement(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
 })();

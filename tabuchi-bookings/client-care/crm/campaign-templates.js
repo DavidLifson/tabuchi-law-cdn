@@ -501,13 +501,14 @@
           html += d.link ? '<a href="' + escapeAttr(d.link) + '">' + imgTag + '</a>' : imgTag;
           break;
         case 'button':
-          html += '<div style="text-align:center;margin:16px 0"><a href="' + escapeAttr(d.url || '#') + '" style="display:inline-block;padding:12px 24px;background:' + (d.color || '#2563EB') + ';color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px">' + escapeHtml(d.text || 'Click Here') + '</a></div>';
+          var btnColor = /^#[0-9A-Fa-f]{3,8}$/.test(d.color) ? d.color : '#2563EB';
+          html += '<div style="text-align:center;margin:16px 0"><a href="' + escapeAttr(d.url || '#') + '" style="display:inline-block;padding:12px 24px;background:' + btnColor + ';color:white;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px">' + escapeHtml(d.text || 'Click Here') + '</a></div>';
           break;
         case 'divider':
           html += '<hr style="border:0;border-top:1px solid #E5E7EB;margin:16px 0">';
           break;
         case 'spacer':
-          html += '<div style="height:' + (d.height || 20) + 'px"></div>';
+          html += '<div style="height:' + (parseInt(d.height, 10) || 20) + 'px"></div>';
           break;
         case 'header':
           html += '<div style="text-align:center;padding:16px 0;border-bottom:1px solid #E5E7EB;margin-bottom:16px">';
@@ -660,7 +661,7 @@
     var html = '<div class="cc-modal-form">' +
       '<div class="cc-form-group">' +
         '<label class="cc-label">New Template Name *</label>' +
-        '<input type="text" id="cc-modal-dup-name" class="cc-input" value="' + escapeHtml('Copy of ' + (templateName || '')) + '" />' +
+        '<input type="text" id="cc-modal-dup-name" class="cc-input" value="' + escapeAttr('Copy of ' + (templateName || '')) + '" />' +
       '</div>' +
     '</div>';
 

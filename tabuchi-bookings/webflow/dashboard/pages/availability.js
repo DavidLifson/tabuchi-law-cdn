@@ -180,9 +180,9 @@
       var dateDisplay = TabuchiAPI.util.formatDate(bd.date);
       var timeDisplay = bd.allDay ? 'All day' : TabuchiAPI.util.formatTime(bd.startTime) + ' - ' + TabuchiAPI.util.formatTime(bd.endTime);
       var recurring = bd.recurring ? '<span class="tb-status-badge tb-status-rescheduled">Recurring</span>' : '';
-      html += '<div class="tb-booking-row"><div><strong>' + dateDisplay + '</strong>'
-        + '<div style="font-size:0.85rem;color:var(--tb-text-light);">' + timeDisplay + (bd.reason ? ' &middot; ' + bd.reason : '') + ' ' + recurring + '</div></div>'
-        + '<button class="tb-btn tb-btn-danger tb-blocked-remove-btn" data-id="' + bd.id + '" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Remove</button></div>';
+      html += '<div class="tb-booking-row"><div><strong>' + escapeHtml(dateDisplay) + '</strong>'
+        + '<div style="font-size:0.85rem;color:var(--tb-text-light);">' + escapeHtml(timeDisplay) + (bd.reason ? ' &middot; ' + escapeHtml(bd.reason) : '') + ' ' + recurring + '</div></div>'
+        + '<button class="tb-btn tb-btn-danger tb-blocked-remove-btn" data-id="' + escapeHtml(bd.id) + '" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Remove</button></div>';
     }
     container.innerHTML = html;
     container.querySelectorAll('.tb-blocked-remove-btn').forEach(function(btn) {
@@ -246,4 +246,5 @@
   function isChecked(id) { var el = $el(id); return el ? el.checked : false; }
   function showEl(id) { var el = $el(id); if (el) el.style.display = ''; }
   function hideEl(id) { var el = $el(id); if (el) el.style.display = 'none'; }
+  function escapeHtml(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
 })();

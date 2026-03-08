@@ -87,7 +87,8 @@
       headers: { 'Content-Type': 'application/json', 'Admin_Token': t },
       body: JSON.stringify(data || {})
     });
-    var j = await r.json();
+    var j;
+    try { j = await r.json(); } catch (e) { j = { error: 'Invalid response from server (status ' + r.status + ')' }; }
     if (!r.ok) throw Object.assign({ status: r.status }, j);
     return j;
   }
@@ -99,7 +100,8 @@
       headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
       body: JSON.stringify(Object.assign({ action: action }, data || {}))
     });
-    var j = await r.json();
+    var j;
+    try { j = await r.json(); } catch (e) { j = { error: 'Invalid response from server (status ' + r.status + ')' }; }
     if (!r.ok) throw Object.assign({ status: r.status }, j);
     return j;
   }
@@ -300,7 +302,7 @@
         html += '<td>' + escapeHtml(formatPracticeArea(lead.Practice_Area)) + '</td>';
         html += '<td>' + (lead.Clio_Contact_ID ? '<span class="cc-badge cc-badge-green">Linked</span>' : '<span class="cc-badge cc-badge-red">Missing</span>') + '</td>';
         html += '<td>' + (lead.Clio_Matter_ID ? '<span class="cc-badge cc-badge-green">Linked</span>' : '<span class="cc-badge cc-badge-red">Missing</span>') + '</td>';
-        html += '<td><a href="/crm/lead/' + lead.id + '" class="cc-link">View Lead</a></td>';
+        html += '<td><a href="/crm/lead?id=' + escapeAttr(lead.id) + '" class="cc-link">View Lead</a></td>';
         html += '</tr>';
       });
 
@@ -399,15 +401,15 @@
         ? '<span class="cc-badge cc-badge-green">Active</span>'
         : '<span class="cc-badge cc-badge-gray">Inactive</span>';
 
-      html += '<tr data-user-id="' + u.id + '">';
+      html += '<tr data-user-id="' + escapeAttr(u.id) + '">';
       html += '<td>' + escapeHtml(u.name || '') + '</td>';
       html += '<td>' + escapeHtml(u.email || '') + '</td>';
       html += '<td><span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(u.role || '') + '</span></td>';
       html += '<td>' + escapeHtml(u.team_name || '\u2014') + '</td>';
       html += '<td>' + statusBadge + '</td>';
-      html += '<td>' + (u.last_login_at ? API.util.formatRelativeTime(u.last_login_at) : 'Never') + '</td>';
+      html += '<td>' + (u.last_login_at ? escapeHtml(API.util.formatRelativeTime(u.last_login_at)) : 'Never') + '</td>';
       html += '<td>';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-user-btn" data-user-id="' + u.id + '">Edit</button>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-user-btn" data-user-id="' + escapeAttr(u.id) + '">Edit</button>';
       html += '</td>';
       html += '</tr>';
     });
@@ -601,13 +603,13 @@
         ? truncate(stripHtml(t.body_html || ''), 60)
         : truncate(t.body_text || '', 60);
 
-      html += '<tr data-template-id="' + t.id + '">';
+      html += '<tr data-template-id="' + escapeAttr(t.id) + '">';
       html += '<td class="cc-template-name-cell">' + escapeHtml(t.name || 'Untitled') + '</td>';
       html += '<td><span class="cc-badge cc-badge-' + channelCls + '">' + escapeHtml(t.channel || '') + '</span></td>';
       html += '<td>' + escapeHtml(t.subject || '\u2014') + '</td>';
       html += '<td class="cc-template-preview-cell">' + escapeHtml(bodyPreview || '\u2014') + '</td>';
       html += '<td>';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-template-btn" data-template-id="' + t.id + '">Edit</button>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-template-btn" data-template-id="' + escapeAttr(t.id) + '">Edit</button>';
       html += '</td>';
       html += '</tr>';
     });
@@ -970,7 +972,7 @@
       html += '<td><code>' + escapeHtml(s.slug || '') + '</code></td>';
       html += '<td>' + hours + '</td>';
       html += '<td><span class="cc-badge cc-badge-' + statusCls + '">' + statusText + '</span></td>';
-      html += '<td><button class="cc-btn cc-btn-sm ' + btnCls + ' cc-toggle-staff-btn" data-staff-id="' + s.id + '" data-active="' + (s.active ? 'true' : 'false') + '">' + btnText + '</button></td>';
+      html += '<td><button class="cc-btn cc-btn-sm ' + btnCls + ' cc-toggle-staff-btn" data-staff-id="' + escapeAttr(s.id) + '" data-active="' + (s.active ? 'true' : 'false') + '">' + btnText + '</button></td>';
       html += '</tr>';
     });
 
@@ -1268,11 +1270,11 @@
       });
       html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
       html += '<td>';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-config-edit-btn" data-item-id="' + item.id + '">Edit</button> ';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-config-edit-btn" data-item-id="' + escapeAttr(item.id) + '">Edit</button> ';
       if (item.Is_Active) {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-config-deactivate-btn" data-item-id="' + item.id + '">Deactivate</button>';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-config-deactivate-btn" data-item-id="' + escapeAttr(item.id) + '">Deactivate</button>';
       } else {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-config-activate-btn" data-item-id="' + item.id + '">Activate</button>';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-config-activate-btn" data-item-id="' + escapeAttr(item.id) + '">Activate</button>';
       }
       html += '</td>';
       html += '</tr>';
@@ -1463,10 +1465,20 @@
       if (e.target === overlay) closeModal();
     });
 
-    // Bind save
-    overlay.querySelector('.cc-modal-save-btn').addEventListener('click', function() {
-      var formEl = modal.querySelector('.cc-modal-body');
-      onSubmit(formEl);
+    // Bind save (with double-click guard)
+    overlay.querySelector('.cc-modal-save-btn').addEventListener('click', async function() {
+      var saveBtn = this;
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+      try {
+        var formEl = modal.querySelector('.cc-modal-body');
+        await onSubmit(formEl);
+      } catch (e) {
+        // onSubmit handles errors via toast
+      } finally {
+        if (saveBtn.parentNode) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+      }
     });
   }
 
@@ -1508,13 +1520,12 @@
   }
 
   function escapeAttr(str) {
-    return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function stripHtml(html) {
-    var div = document.createElement('div');
-    div.innerHTML = html;
-    return div.textContent || div.innerText || '';
+    try { var doc = new DOMParser().parseFromString(html, 'text/html'); return doc.body.textContent || ''; }
+    catch (e) { return ''; }
   }
 
   function truncate(str, maxLen) {

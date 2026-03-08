@@ -188,7 +188,7 @@
         container.innerHTML = '<p class="tb-no-slots">No available times on this date.</p>';
       } else {
         let html = '<div class="tb-slots-grid">';
-        result.slots.forEach(s => html += `<button class="tb-slot" data-time="${s}">${TabuchiAPI.util.formatTime(s)}</button>`);
+        result.slots.forEach(s => html += `<button class="tb-slot" data-time="${escapeHtml(s)}">${escapeHtml(TabuchiAPI.util.formatTime(s))}</button>`);
         html += '</div><button id="tb-reschedule-confirm-btn" class="tb-btn tb-btn-primary" style="margin-top:1rem;display:none;">Confirm Reschedule</button>';
         container.innerHTML = html;
 
@@ -246,7 +246,7 @@
 
       const successEl = document.getElementById('tb-reschedule-success');
       if (successEl) {
-        successEl.innerHTML = `<h3>Rescheduled!</h3><p>Your new appointment is on <strong>${TabuchiAPI.util.formatDate(selectedDate)}</strong> at <strong>${TabuchiAPI.util.formatTime(selectedTime)}</strong>.</p><p>A new calendar invitation will be sent to your email.</p>`;
+        successEl.innerHTML = `<h3>Rescheduled!</h3><p>Your new appointment is on <strong>${escapeHtml(TabuchiAPI.util.formatDate(selectedDate))}</strong> at <strong>${escapeHtml(TabuchiAPI.util.formatTime(selectedTime))}</strong>.</p><p>A new calendar invitation will be sent to your email.</p>`;
         successEl.style.display = '';
       }
       hideEl('tb-select-date-heading');
@@ -277,6 +277,7 @@
     });
   }
 
+  function escapeHtml(str) { if (str == null) return ''; var d = document.createElement('div'); d.textContent = String(str); return d.innerHTML; }
   function setText(id, t) { const el = document.getElementById(id); if (el) el.textContent = t || ''; }
   function showEl(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
   function hideEl(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }

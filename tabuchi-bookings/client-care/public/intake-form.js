@@ -104,9 +104,6 @@
 
   // ─── Navigation ────────────────────────────────────────────────
   function goToStep(stepKey) {
-    // Collect data from current step before leaving
-    collectCurrentStepData();
-
     state.currentStep = stepKey;
     state.stepHistory.push(stepKey);
     renderStep();
@@ -114,6 +111,15 @@
   }
 
   function nextStep() {
+    // Validate required fields before advancing
+    var content = $el('cc-intake-step-content');
+    if (content) {
+      var requiredInputs = content.querySelectorAll('[required]');
+      for (var i = 0; i < requiredInputs.length; i++) {
+        if (!requiredInputs[i].reportValidity()) return;
+      }
+    }
+
     collectCurrentStepData();
 
     // Determine branch after service_type
@@ -131,10 +137,12 @@
 
   function prevStep() {
     if (state.stepHistory.length > 1) {
+      collectCurrentStepData();
       state.stepHistory.pop(); // Remove current
       var prev = state.stepHistory[state.stepHistory.length - 1];
       state.currentStep = prev;
       renderStep();
+      autoSave();
     }
   }
 
@@ -1111,15 +1119,8 @@
       });
     }
 
-    // Bind conditional logic (delegated to step content area)
-    var content = $el('cc-intake-step-content');
-    if (content) {
-      // Use MutationObserver to rebind after step content changes
-      var observer = new MutationObserver(function() {
-        bindConditionalLogic();
-      });
-      observer.observe(content, { childList: true });
-    }
+    // Bind conditional logic once (delegated, handles dynamic content)
+    bindConditionalLogic();
 
     // Render first step
     renderStep();

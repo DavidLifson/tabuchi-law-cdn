@@ -108,6 +108,11 @@
       showMissingToken();
       return;
     }
+    // Basic format validation — tokens should be UUIDs
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+      showMissingToken();
+      return;
+    }
     processUnsubscribe(token);
   }
 

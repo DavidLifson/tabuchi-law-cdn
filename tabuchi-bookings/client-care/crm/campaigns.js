@@ -592,7 +592,7 @@
     html += '<div class="cc-detail-fields">';
     html += fieldRow('Subject', c.subject || '—');
     html += fieldRow('Preheader', c.preheader || '—');
-    html += fieldRow('From', (c.from_name || '—') + ' &lt;' + (c.from_email || '—') + '&gt;');
+    html += fieldRow('From', (c.from_name || '—') + ' <' + (c.from_email || '—') + '>');
     html += fieldRow('Reply-To', c.reply_to_email || '—');
     html += fieldRow('Timezone', c.timezone || 'America/Toronto');
     if (c.template_name) html += fieldRow('Template', c.template_name);
@@ -677,7 +677,7 @@
   }
 
   function fieldRow(label, value) {
-    return '<div class="cc-field-row"><span class="cc-field-label">' + escapeHtml(label) + '</span><span class="cc-field-value">' + (value || '') + '</span></div>';
+    return '<div class="cc-field-row"><span class="cc-field-label">' + escapeHtml(label) + '</span><span class="cc-field-value">' + escapeHtml(value || '') + '</span></div>';
   }
 
   function renderStepsTable() {

@@ -87,7 +87,7 @@
       renderCategories();
     } catch (err) {
       if (err.status === 401) { window.location.href = '/login'; return; }
-      if (listEl) listEl.innerHTML = `<div style="padding:1rem;color:#DC2626;">${err.error || 'Unable to load categories.'}</div>`;
+      if (listEl) listEl.innerHTML = `<div style="padding:1rem;color:#DC2626;">${escapeHtml(err.error || 'Unable to load categories.')}</div>`;
     }
   }
 
@@ -106,8 +106,8 @@
 
     listEl.innerHTML = categories.map((cat) =>
       `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 1rem;border-bottom:1px solid #F3F4F6;">
-        <span style="font-size:0.95rem;">${cat.name || ''}</span>
-        <button data-cat-id="${cat.id}" class="tb-cat-delete" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:1.1rem;padding:0.2rem 0.5rem;border-radius:4px;line-height:1;" title="Delete">&times;</button>
+        <span style="font-size:0.95rem;">${escapeHtml(cat.name || '')}</span>
+        <button data-cat-id="${escapeHtml(cat.id)}" class="tb-cat-delete" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:1.1rem;padding:0.2rem 0.5rem;border-radius:4px;line-height:1;" title="Delete">&times;</button>
       </div>`
     ).join('');
 
@@ -157,5 +157,10 @@
     } catch (err) {
       alert(err.error || 'Failed to delete category.');
     }
+  }
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
   }
 })();

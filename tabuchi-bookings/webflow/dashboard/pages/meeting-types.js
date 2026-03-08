@@ -210,7 +210,7 @@
 
     if (filtered.length === 0) {
       container.innerHTML = currentCategory
-        ? '<p class="tb-no-slots">No meeting types in the "' + currentCategory + '" category.</p>'
+        ? '<p class="tb-no-slots">No meeting types in the "' + esc(currentCategory) + '" category.</p>'
         : '<p class="tb-no-slots">No meeting types yet. Click "Add Meeting Type" to create one.</p>';
       return;
     }
@@ -220,7 +220,7 @@
       + '<a href="#" id="tb-mt-toggle-all" style="font-size:0.8rem;color:#60A5FA;text-decoration:none;">Expand All</a></div>';
 
     for (const mt of filtered) {
-      const colorBorder = mt.color ? 'border-left: 4px solid ' + mt.color : '';
+      const colorBorder = mt.color && /^#[0-9A-Fa-f]{3,8}$/.test(mt.color) ? 'border-left: 4px solid ' + mt.color : '';
       const statusBadge = mt.active !== false
         ? '<span class="tb-status-badge tb-status-confirmed">Active</span>'
         : '<span class="tb-status-badge tb-status-cancelled">Inactive</span>';

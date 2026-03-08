@@ -35,7 +35,7 @@
   // Join URL — adapt label by location type and hide if no URL
   const joinLink = document.getElementById('tb-confirm-join-link');
   const joinContainer = document.getElementById('tb-confirm-join-url');
-  if (joinLink && params.joinUrl) {
+  if (joinLink && params.joinUrl && /^https?:\/\//i.test(params.joinUrl)) {
     joinLink.href = params.joinUrl;
     // Determine label from joinUrl or location param
     if (params.joinUrl.includes('zoom.us')) {
@@ -50,12 +50,12 @@
 
   // Reschedule / Cancel links
   const rescheduleLink = document.getElementById('tb-reschedule-link');
-  if (rescheduleLink && params.rescheduleUrl) {
+  if (rescheduleLink && params.rescheduleUrl && /^https?:\/\/|^\//.test(params.rescheduleUrl)) {
     rescheduleLink.href = params.rescheduleUrl;
   }
 
   const cancelLink = document.getElementById('tb-cancel-link');
-  if (cancelLink && params.cancelUrl) {
+  if (cancelLink && params.cancelUrl && /^https?:\/\/|^\//.test(params.cancelUrl)) {
     cancelLink.href = params.cancelUrl;
   }
 

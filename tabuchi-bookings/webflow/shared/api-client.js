@@ -94,7 +94,9 @@ const TabuchiAPI = (() => {
   async function request(method, path, options = {}) {
     const url = new URL(resolveUrl(path));
     if (options.params) {
-      Object.entries(options.params).forEach(([k, v]) => url.searchParams.set(k, v));
+      Object.entries(options.params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
+      });
     }
 
     const fetchOptions = {
@@ -112,7 +114,8 @@ const TabuchiAPI = (() => {
     try {
       const response = await fetch(url.toString(), fetchOptions);
       const text = await response.text();
-      const data = text ? JSON.parse(text) : {};
+      let data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { error: 'Invalid response from server' }; }
       if (!response.ok) {
         throw { status: response.status, ...data };
       }
@@ -390,7 +393,7 @@ const TabuchiAPI = (() => {
   async function adminCategories(action, data = {}) {
     return request('POST', '/api/admin/categories', {
       body: { action, ...data },
-      headers: dashboardHeaders()
+      headers: adminHeaders()
     });
   }
 
@@ -426,6 +429,7 @@ const TabuchiAPI = (() => {
   function generateICS(booking) {
     const start = `${booking.date.replace(/-/g, '')}T${booking.time.replace(':', '')}00`;
     const end = `${booking.date.replace(/-/g, '')}T${booking.endTime.replace(':', '')}00`;
+    function icsEscape(str) { return String(str || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
     const lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
@@ -433,14 +437,14 @@ const TabuchiAPI = (() => {
       'BEGIN:VEVENT',
       `DTSTART;TZID=America/Toronto:${start}`,
       `DTEND;TZID=America/Toronto:${end}`,
-      `SUMMARY:${booking.meetingTypeName} - ${booking.staffName}`
+      `SUMMARY:${icsEscape(booking.meetingTypeName)} - ${icsEscape(booking.staffName)}`
     ];
     if (booking.joinUrl) {
       const label = booking.joinUrl.includes('zoom.us') ? 'Join Zoom Meeting' : 'Join Teams Meeting';
-      lines.push(`DESCRIPTION:${label}: ${booking.joinUrl}`);
+      lines.push(`DESCRIPTION:${icsEscape(label + ': ' + booking.joinUrl)}`);
       lines.push(`URL:${booking.joinUrl}`);
     } else {
-      lines.push(`DESCRIPTION:${booking.meetingTypeName} with ${booking.staffName}`);
+      lines.push(`DESCRIPTION:${icsEscape(booking.meetingTypeName + ' with ' + booking.staffName)}`);
     }
     lines.push('END:VEVENT', 'END:VCALENDAR');
     return lines.join('\r\n');
@@ -537,7 +541,11 @@ const TabuchiAPI = (() => {
    */
   function showError(containerId, message) {
     const el = document.getElementById(containerId);
-    if (el) el.innerHTML = `<div class="tb-error"><p>${message}</p></div>`;
+    if (!el) return;
+    const p = document.createElement('p');
+    p.textContent = message;
+    el.innerHTML = '<div class="tb-error"></div>';
+    el.firstChild.appendChild(p);
   }
 
   // Public API

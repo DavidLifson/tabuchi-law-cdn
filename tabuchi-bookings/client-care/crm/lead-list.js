@@ -147,7 +147,7 @@
         if (tbody) tbody.innerHTML = '<tr><td colspan="' + COLUMNS.length + '" class="cc-error-cell">Failed to load leads.</td></tr>';
       }
     } catch (err) {
-      if (tbody) tbody.innerHTML = '<tr><td colspan="' + COLUMNS.length + '" class="cc-error-cell">' + (err.error || 'Error loading leads.') + '</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="' + COLUMNS.length + '" class="cc-error-cell">' + escapeHtml(err.error || 'Error loading leads.') + '</td></tr>';
     }
 
     state.loading = false;
@@ -171,9 +171,9 @@
       html += '<div class="cc-lead-name">' + escapeHtml(lead.Client_Name || '—') + '</div>';
       html += '<div class="cc-lead-email">' + escapeHtml(lead.Client_Email || '') + '</div>';
       html += '</td>';
-      html += '<td><span class="cc-badge cc-badge-' + API.util.stageColor(lead.Lead_Stage) + '">' + API.util.stageLabel(lead.Lead_Stage) + '</span></td>';
-      html += '<td>' + formatPracticeArea(lead.Practice_Area) + '</td>';
-      html += '<td><span class="cc-badge cc-badge-' + API.util.priorityColor(lead.Priority) + '">' + (lead.Priority || '—') + '</span></td>';
+      html += '<td><span class="cc-badge cc-badge-' + API.util.stageColor(lead.Lead_Stage) + '">' + escapeHtml(API.util.stageLabel(lead.Lead_Stage)) + '</span></td>';
+      html += '<td>' + escapeHtml(formatPracticeArea(lead.Practice_Area)) + '</td>';
+      html += '<td><span class="cc-badge cc-badge-' + API.util.priorityColor(lead.Priority) + '">' + escapeHtml(lead.Priority || '—') + '</span></td>';
       html += '<td>' + escapeHtml(lead.Lead_Owner_Name || '—') + '</td>';
       html += '<td>' + escapeHtml(lead.Source || '—') + '</td>';
       html += '<td>' + API.util.formatRelativeTime(lead.Last_Contacted_At) + '</td>';
@@ -286,6 +286,8 @@
       var filterKey = id.replace('cc-filter-', '').replace('-', '_');
       // Map shortened names
       if (filterKey === 'practice') filterKey = 'practice_area';
+      // Sync dropdown to initial state value
+      if (state.filters[filterKey]) el.value = state.filters[filterKey];
       el.addEventListener('change', function() {
         state.filters[filterKey] = el.value;
         state.offset = 0;

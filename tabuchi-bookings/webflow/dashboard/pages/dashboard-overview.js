@@ -144,21 +144,29 @@
 
   function renderBookingRow(booking) {
     const statusClass = `tb-status-${(booking.status || 'confirmed').toLowerCase()}`;
+    const joinHtml = booking.meetingLink && /^https?:\/\//i.test(booking.meetingLink)
+      ? `<a href="${escapeHtml(booking.meetingLink)}" target="_blank" class="tb-btn tb-btn-secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Join</a>` : '';
     return `
       <div class="tb-booking-row">
         <div>
-          <strong>${booking.clientName || 'Unknown'}</strong>
+          <strong>${escapeHtml(booking.clientName || 'Unknown')}</strong>
           <div style="font-size:0.85rem;color:var(--tb-text-light);">
-            ${booking.serviceName || booking.meetingTypeName || ''} &middot;
-            ${TabuchiAPI.util.formatDate(booking.date)} at ${TabuchiAPI.util.formatTime(booking.time || booking.startTime)}
+            ${escapeHtml(booking.serviceName || booking.meetingTypeName || '')} &middot;
+            ${escapeHtml(TabuchiAPI.util.formatDate(booking.date))} at ${escapeHtml(TabuchiAPI.util.formatTime(booking.time || booking.startTime))}
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:0.5rem;">
-          <span class="tb-status-badge ${statusClass}">${booking.status || 'confirmed'}</span>
-          ${booking.meetingLink ? `<a href="${booking.meetingLink}" target="_blank" class="tb-btn tb-btn-secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Join</a>` : ''}
+          <span class="tb-status-badge ${statusClass}">${escapeHtml(booking.status || 'confirmed')}</span>
+          ${joinHtml}
         </div>
       </div>
     `;
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
   }
 
   function setText(id, t) { const el = $el(id); if (el) el.textContent = t || ''; }

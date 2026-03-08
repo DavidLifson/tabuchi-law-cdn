@@ -180,7 +180,7 @@
     // Disposition badge for non-open
     if (lead.Disposition && lead.Disposition !== 'OPEN') {
       var dispClass = lead.Disposition === 'WON' ? 'green' : 'red';
-      html += '<div class="cc-kanban-card-disposition cc-badge-' + dispClass + '">' + lead.Disposition + '</div>';
+      html += '<div class="cc-kanban-card-disposition cc-badge-' + dispClass + '">' + escapeHtml(lead.Disposition) + '</div>';
     }
 
     html += '</div>';
@@ -327,7 +327,7 @@
       card.addEventListener('click', function(e) {
         // Don't navigate if we were dragging
         if (state.draggedCard) return;
-        window.location.href = '/crm/lead/' + card.dataset.leadId;
+        window.location.href = '/crm/lead?id=' + card.dataset.leadId;
       });
     });
   }
@@ -346,6 +346,8 @@
     Object.entries(filterMap).forEach(function(entry) {
       var el = $el(entry[0]);
       if (!el) return;
+      // Sync dropdown to initial state value
+      if (state.filters[entry[1]]) el.value = state.filters[entry[1]];
       el.addEventListener('change', function() {
         state.filters[entry[1]] = el.value;
         fetchLeads();

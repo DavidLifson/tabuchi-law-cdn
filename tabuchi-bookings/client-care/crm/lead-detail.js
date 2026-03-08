@@ -119,8 +119,8 @@
     el.innerHTML =
       '<div class="cc-lead-header-main">' +
         '<h1 class="cc-lead-title">' + escapeHtml(l.Client_Name || 'Unnamed Lead') + '</h1>' +
-        '<span class="cc-badge cc-badge-' + API.util.stageColor(l.Lead_Stage) + '">' + API.util.stageLabel(l.Lead_Stage) + '</span>' +
-        (l.Priority ? ' <span class="cc-badge cc-badge-' + API.util.priorityColor(l.Priority) + '">' + l.Priority + '</span>' : '') +
+        '<span class="cc-badge cc-badge-' + API.util.stageColor(l.Lead_Stage) + '">' + escapeHtml(API.util.stageLabel(l.Lead_Stage)) + '</span>' +
+        (l.Priority ? ' <span class="cc-badge cc-badge-' + API.util.priorityColor(l.Priority) + '">' + escapeHtml(l.Priority) + '</span>' : '') +
         (l.Disposition === 'WON' ? ' <span class="cc-badge cc-badge-green">WON</span>' : '') +
         (l.Disposition === 'LOST' ? ' <span class="cc-badge cc-badge-red">LOST</span>' : '') +
       '</div>' +
@@ -136,6 +136,7 @@
     if (!el || !state.lead) return;
     var currentStage = state.lead.Lead_Stage || 'NEW_LEAD';
     var currentIdx = STAGES.findIndex(function(s) { return s.key === currentStage; });
+    if (currentIdx === -1) currentIdx = 0; // unknown stage defaults to first
 
     var html = '<div class="cc-stage-progress">';
     STAGES.forEach(function(s, i) {
@@ -200,7 +201,7 @@
         alert('Stage update failed: ' + (result.error || 'Unknown error'));
       }
     } catch (err) {
-      alert('Stage update failed: ' + (err.error || err.errors ? err.errors.join('; ') : 'Network error'));
+      alert('Stage update failed: ' + (err.error || (err.errors ? err.errors.join('; ') : 'Network error')));
     }
   }
 
@@ -258,11 +259,11 @@
       html += '<div class="cc-timeline-content">';
       html += '<div class="cc-timeline-header">';
       html += '<span class="cc-timeline-type">' + escapeHtml(a.Type || '') + '</span>';
-      html += '<span class="cc-timeline-time">' + API.util.formatRelativeTime(a.Occurred_At) + '</span>';
+      html += '<span class="cc-timeline-time">' + escapeHtml(API.util.formatRelativeTime(a.Occurred_At)) + '</span>';
       html += '</div>';
       html += '<div class="cc-timeline-subject">' + escapeHtml(a.Subject || '') + '</div>';
       if (a.Body) html += '<div class="cc-timeline-body">' + escapeHtml(a.Body) + '</div>';
-      if (a.Duration_Minutes) html += '<div class="cc-timeline-meta">' + a.Duration_Minutes + ' min</div>';
+      if (a.Duration_Minutes) html += '<div class="cc-timeline-meta">' + escapeHtml(String(a.Duration_Minutes)) + ' min</div>';
       if (a.Outcome) html += '<div class="cc-timeline-meta">Outcome: ' + escapeHtml(a.Outcome) + '</div>';
       html += '</div></div>';
     });
@@ -295,10 +296,10 @@
       var isOverdue = !isDone && t.Due_At && new Date(t.Due_At) < new Date();
       var cls = 'cc-task-item' + (isDone ? ' cc-task-done' : '') + (isOverdue ? ' cc-task-overdue' : '');
 
-      html += '<div class="' + cls + '" data-task-id="' + t.id + '">';
+      html += '<div class="' + cls + '" data-task-id="' + escapeHtml(t.id) + '">';
       html += '<div class="cc-task-check">';
       if (!isDone) {
-        html += '<button class="cc-task-complete-btn" data-task-id="' + t.id + '" title="Mark complete">&#9744;</button>';
+        html += '<button class="cc-task-complete-btn" data-task-id="' + escapeHtml(t.id) + '" title="Mark complete">&#9744;</button>';
       } else {
         html += '<span class="cc-task-completed-icon">&#9745;</span>';
       }
@@ -307,8 +308,8 @@
       html += '<div class="cc-task-title">' + escapeHtml(t.Title || '') + '</div>';
       if (t.Description) html += '<div class="cc-task-desc">' + escapeHtml(t.Description) + '</div>';
       html += '<div class="cc-task-meta">';
-      if (t.Due_At) html += '<span class="' + (isOverdue ? 'cc-text-red' : '') + '">Due: ' + API.util.formatDate(t.Due_At) + '</span>';
-      if (t.Task_Type) html += ' &middot; ' + t.Task_Type;
+      if (t.Due_At) html += '<span class="' + (isOverdue ? 'cc-text-red' : '') + '">Due: ' + escapeHtml(API.util.formatDate(t.Due_At)) + '</span>';
+      if (t.Task_Type) html += ' &middot; ' + escapeHtml(t.Task_Type);
       html += '</div>';
       html += '</div></div>';
     });
@@ -365,10 +366,13 @@
       '</div>';
 
     $el('cc-act-submit').addEventListener('click', async function() {
+      var btn = $el('cc-act-submit');
+      if (btn.disabled) return;
       var type = $el('cc-act-type').value;
       var subject = $el('cc-act-subject').value.trim();
       if (!subject) { alert('Subject is required.'); return; }
 
+      btn.disabled = true;
       try {
         var result = await API.activities.create({
           lead_id: leadId,
@@ -387,6 +391,8 @@
         }
       } catch (err) {
         alert('Failed: ' + (err.error || 'Unknown error'));
+      } finally {
+        btn.disabled = false;
       }
     });
   }
@@ -414,14 +420,17 @@
       '</div>';
 
     $el('cc-task-submit').addEventListener('click', async function() {
+      var btn = $el('cc-task-submit');
+      if (btn.disabled) return;
       var title = $el('cc-task-title').value.trim();
       if (!title) { alert('Task title is required.'); return; }
 
+      btn.disabled = true;
       try {
         var result = await API.tasks.create({
           lead_id: leadId,
           title: title,
-          due_at: $el('cc-task-due').value ? new Date($el('cc-task-due').value).toISOString() : '',
+          due_at: $el('cc-task-due').value || '',
           task_type: $el('cc-task-type').value
         });
         if (result.success) {
@@ -431,6 +440,8 @@
         }
       } catch (err) {
         alert('Failed: ' + (err.error || 'Unknown error'));
+      } finally {
+        btn.disabled = false;
       }
     });
   }
@@ -446,8 +457,9 @@
 
   // ─── Helpers ─────────────────────────────────────────────────
   function escapeHtml(str) {
+    if (str == null) return '';
     var div = document.createElement('div');
-    div.textContent = str;
+    div.textContent = String(str);
     return div.innerHTML;
   }
 

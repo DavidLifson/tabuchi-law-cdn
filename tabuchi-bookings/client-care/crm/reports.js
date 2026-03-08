@@ -95,8 +95,9 @@
   }
 
   // ─── Fetch Report ──────────────────────────────────────────
+  var _fetchGen = 0;
   async function fetchReport() {
-    if (state.loading) return;
+    var gen = ++_fetchGen;
     state.loading = true;
 
     var content = $el('cc-report-content');
@@ -110,18 +111,22 @@
       if (state.source) params.source = state.source;
 
       var result = await API.reports.get(state.activeReport, params);
+      if (gen !== _fetchGen) return; // stale response, discard
       state.data = result;
 
       if (result.success) {
         renderReport();
       } else {
-        if (content) content.innerHTML = '<div class="cc-error">' + escapeHtml(result.error || 'Failed to load report.') + '</div>';
+        var msg = typeof result.error === 'string' ? result.error : 'Failed to load report.';
+        if (content) content.innerHTML = '<div class="cc-error">' + escapeHtml(msg) + '</div>';
       }
     } catch (err) {
-      if (content) content.innerHTML = '<div class="cc-error">' + escapeHtml(err.error || 'Error loading report.') + '</div>';
+      if (gen !== _fetchGen) return;
+      var msg = typeof err.error === 'string' ? err.error : (err.message || 'Error loading report.');
+      if (content) content.innerHTML = '<div class="cc-error">' + escapeHtml(msg) + '</div>';
+    } finally {
+      state.loading = false;
     }
-
-    state.loading = false;
   }
 
   // ─── Render Filters ────────────────────────────────────────
@@ -248,11 +253,11 @@
   function renderCloseRatio(d) {
     if (!d) return '';
     var html = '<div class="cc-rpt-headline">' +
-      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + d.close_ratio_pct + '%</div><div class="cc-rpt-stat-label">Close Ratio</div></div>' +
-      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + d.total + '</div><div class="cc-rpt-stat-label">Total</div></div>' +
-      '<div class="cc-rpt-stat cc-text-green"><div class="cc-rpt-stat-value">' + d.won + '</div><div class="cc-rpt-stat-label">Won</div></div>' +
-      '<div class="cc-rpt-stat cc-text-red"><div class="cc-rpt-stat-value">' + d.lost + '</div><div class="cc-rpt-stat-label">Lost</div></div>' +
-      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + d.open + '</div><div class="cc-rpt-stat-label">Open</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.close_ratio_pct != null ? d.close_ratio_pct : 0)) + '%</div><div class="cc-rpt-stat-label">Close Ratio</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.total || 0)) + '</div><div class="cc-rpt-stat-label">Total</div></div>' +
+      '<div class="cc-rpt-stat cc-text-green"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.won || 0)) + '</div><div class="cc-rpt-stat-label">Won</div></div>' +
+      '<div class="cc-rpt-stat cc-text-red"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.lost || 0)) + '</div><div class="cc-rpt-stat-label">Lost</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.open || 0)) + '</div><div class="cc-rpt-stat-label">Open</div></div>' +
     '</div>';
 
     if (d.by_practice_area && d.by_practice_area.length) {
@@ -284,11 +289,12 @@
     if (!d || !d.stages) return '';
     var html = '<div class="cc-rpt-funnel">';
     d.stages.forEach(function(s) {
-      var widthPct = Math.max(s.pct_of_total, 5);
+      var rawPct = Number(s.pct_of_total);
+      var widthPct = Math.min(Math.max(isNaN(rawPct) ? 0 : rawPct, 5), 100);
       html += '<div class="cc-funnel-row">';
-      html += '<div class="cc-funnel-label">' + API.util.stageLabel(s.stage) + '</div>';
+      html += '<div class="cc-funnel-label">' + escapeHtml(API.util.stageLabel(s.stage)) + '</div>';
       html += '<div class="cc-funnel-bar-wrap"><div class="cc-funnel-bar" style="width:' + widthPct + '%"></div></div>';
-      html += '<div class="cc-funnel-count">' + s.reached_or_beyond + ' (' + s.pct_of_total + '%)</div>';
+      html += '<div class="cc-funnel-count">' + escapeHtml(String(s.reached_or_beyond)) + ' (' + escapeHtml(String(s.pct_of_total)) + '%)</div>';
       html += '</div>';
     });
     html += '</div>';
@@ -333,18 +339,18 @@
   function renderSLACompliance(d) {
     if (!d) return '';
     var html = '<div class="cc-rpt-headline">' +
-      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + d.compliance_pct + '%</div><div class="cc-rpt-stat-label">SLA Compliance</div></div>' +
-      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + d.total + '</div><div class="cc-rpt-stat-label">Total</div></div>' +
-      '<div class="cc-rpt-stat cc-text-green"><div class="cc-rpt-stat-value">' + d.within_sla + '</div><div class="cc-rpt-stat-label">Within ' + d.sla_hours + 'h</div></div>' +
-      '<div class="cc-rpt-stat cc-text-red"><div class="cc-rpt-stat-value">' + d.breached + '</div><div class="cc-rpt-stat-label">Breached</div></div>' +
-      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + d.never_contacted + '</div><div class="cc-rpt-stat-label">Never Contacted</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.compliance_pct != null ? d.compliance_pct : 0)) + '%</div><div class="cc-rpt-stat-label">SLA Compliance</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.total || 0)) + '</div><div class="cc-rpt-stat-label">Total</div></div>' +
+      '<div class="cc-rpt-stat cc-text-green"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.within_sla || 0)) + '</div><div class="cc-rpt-stat-label">Within ' + escapeHtml(String(d.sla_hours || 24)) + 'h</div></div>' +
+      '<div class="cc-rpt-stat cc-text-red"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.breached || 0)) + '</div><div class="cc-rpt-stat-label">Breached</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.never_contacted || 0)) + '</div><div class="cc-rpt-stat-label">Never Contacted</div></div>' +
     '</div>';
     return html;
   }
 
   function renderLostReasons(d) {
     if (!d || !d.reasons) return '';
-    var html = '<div class="cc-rpt-meta">Total lost: ' + d.total_lost + '</div>';
+    var html = '<div class="cc-rpt-meta">Total lost: ' + escapeHtml(String(d.total_lost)) + '</div>';
     html += buildSortableTable(d.reasons, [
       { key: 'reason', label: 'Reason' },
       { key: 'count', label: 'Count' },

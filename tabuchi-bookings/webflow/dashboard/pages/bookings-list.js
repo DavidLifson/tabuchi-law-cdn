@@ -88,7 +88,7 @@
     const sorted = Object.keys(cats).sort();
     let html = '<option value="">\u2014</option>';
     for (const cat of sorted) {
-      html += `<option value="${cat}"${currentCategory === cat ? ' selected' : ''}>${cat}</option>`;
+      html += `<option value="${escapeHtml(cat)}"${currentCategory === cat ? ' selected' : ''}>${escapeHtml(cat)}</option>`;
     }
     filterEl.innerHTML = html;
   }
@@ -108,7 +108,7 @@
       renderBookings();
     } catch (err) {
       if (err.status === 401) { window.location.href = '/login'; return; }
-      if (container) container.innerHTML = `<div class="tb-error">${err.error || 'Unable to load bookings.'}</div>`;
+      if (container) container.innerHTML = `<div class="tb-error">${escapeHtml(err.error || 'Unable to load bookings.')}</div>`;
     }
   }
 
@@ -173,20 +173,20 @@
         <div class="tb-booking-row" style="flex-wrap:wrap;">
           <div style="flex:1;min-width:200px;">
             <div style="display:flex;align-items:center;gap:0.5rem;">
-              <strong>${booking.clientName || 'Unknown'}</strong>
-              <span class="tb-status-badge ${statusClass}">${booking.status || 'confirmed'}</span>
+              <strong>${escapeHtml(booking.clientName || 'Unknown')}</strong>
+              <span class="tb-status-badge ${statusClass}">${escapeHtml(booking.status || 'confirmed')}</span>
             </div>
             <div style="font-size:0.85rem;color:var(--tb-text-light);margin-top:0.2rem;">
               ${time ? TabuchiAPI.util.formatTime(time) : ''} &middot;
-              ${booking.serviceName || booking.meetingTypeName || 'Appointment'} &middot;
-              ${booking.duration || ''} min
-              ${booking.witnessNames && booking.witnessNames.length > 0 ? ` &middot; <span style="color:#7C3AED;">Witnesses: ${booking.witnessNames.join(', ')}</span>` : ''}
+              ${escapeHtml(booking.serviceName || booking.meetingTypeName || 'Appointment')} &middot;
+              ${escapeHtml(String(booking.duration || ''))} min
+              ${booking.witnessNames && booking.witnessNames.length > 0 ? ` &middot; <span style="color:#7C3AED;">Witnesses: ${escapeHtml(booking.witnessNames.join(', '))}</span>` : ''}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-            ${booking.clientEmail ? `<a href="mailto:${booking.clientEmail}" style="font-size:0.8rem;color:var(--tb-accent);">${booking.clientEmail}</a>` : ''}
-            ${booking.clientPhone ? `<span style="font-size:0.8rem;color:var(--tb-text-light);">${booking.clientPhone}</span>` : ''}
-            ${booking.meetingLink && booking.status !== 'cancelled' ? `<a href="${booking.meetingLink}" target="_blank" class="tb-btn tb-btn-secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Join Meeting</a>` : ''}
+            ${booking.clientEmail ? `<a href="mailto:${encodeURI(booking.clientEmail)}" style="font-size:0.8rem;color:var(--tb-accent);">${escapeHtml(booking.clientEmail)}</a>` : ''}
+            ${booking.clientPhone ? `<span style="font-size:0.8rem;color:var(--tb-text-light);">${escapeHtml(booking.clientPhone)}</span>` : ''}
+            ${booking.meetingLink && booking.status !== 'cancelled' ? `<a href="${escapeHtml(booking.meetingLink)}" target="_blank" class="tb-btn tb-btn-secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Join Meeting</a>` : ''}
           </div>
         </div>
       `;
@@ -211,4 +211,10 @@
   }
 
   function setText(id, t) { const el = document.getElementById(id); if (el) el.textContent = t || ''; }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
 })();
