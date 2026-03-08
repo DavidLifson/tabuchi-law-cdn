@@ -31,7 +31,9 @@
 (async function MeetingTypesPage() {
   'use strict';
 
-  const _root = document.querySelector('#tb-page-root');
+  // Use last #tb-page-root to handle Webflow dual-embed (HTML Embed widget + Before </body> tag)
+  const _roots = document.querySelectorAll('#tb-page-root');
+  const _root = _roots[_roots.length - 1] || null;
   function $el(id) { return _root ? _root.querySelector('#' + id) : document.getElementById(id); }
   function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
@@ -700,18 +702,23 @@
   }
 
   function stripHtml(html) {
-    var d = document.createElement('div');
-    d.innerHTML = html || '';
-    return (d.textContent || d.innerText || '').trim();
+    try {
+      var doc = new DOMParser().parseFromString(html || '', 'text/html');
+      return (doc.body.textContent || '').trim();
+    } catch (e) {
+      return String(html || '').replace(/<[^>]*>/g, '').trim();
+    }
   }
 
   // ─── Reminders List Builder (Quill Rich Text for Email, Textarea for SMS) ───
   var _quillInstances = [];
+  var _reminderTemplates = [];
 
   function renderReminders(reminders) {
     var container = $el('tb-mt-reminders-list');
     if (!container) return;
     _quillInstances = [];
+    _reminderTemplates = [];
     container.innerHTML = '';
 
     (reminders || []).forEach(function(r, i) {
@@ -741,7 +748,9 @@
 
       var editorHtml;
       if (isEmail) {
-        editorHtml = '<div class="tb-quill-wrap"><div data-field="template" data-quill-idx="' + i + '">' + (r.template || '') + '</div></div>';
+        // Store template for safe insertion via Quill API after init (avoids raw innerHTML XSS)
+        _reminderTemplates[i] = r.template || '';
+        editorHtml = '<div class="tb-quill-wrap"><div data-field="template" data-quill-idx="' + i + '"></div></div>';
       } else {
         var plainText = stripHtml(r.template || '');
         editorHtml = '<textarea data-field="template" class="tb-sms-textarea">' + plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>';
@@ -753,6 +762,7 @@
 
     // Initialize Quill rich text editors for email reminders
     container.querySelectorAll('[data-quill-idx]').forEach(function(el) {
+      var idx = parseInt(el.dataset.quillIdx);
       var quill = new Quill(el, {
         theme: 'snow',
         modules: {
@@ -768,7 +778,11 @@
         },
         placeholder: 'Compose email reminder...'
       });
-      _quillInstances.push({ idx: parseInt(el.dataset.quillIdx), quill: quill });
+      // Set template content safely via Quill's API (sanitizes HTML through its content model)
+      if (_reminderTemplates[idx]) {
+        quill.clipboard.dangerouslyPasteHTML(_reminderTemplates[idx]);
+      }
+      _quillInstances.push({ idx: idx, quill: quill });
     });
 
     // Wire channel change to swap between rich text (email) and plain text (sms)

@@ -219,7 +219,7 @@
     if (!content || !state.data) return;
 
     var d = state.data.data;
-    var html = '<div class="cc-rpt-meta">Total leads in range: ' + (state.data.total_leads || 0) + '</div>';
+    var html = '<div class="cc-rpt-meta">Total leads in range: ' + escapeHtml(String(state.data.total_leads || 0)) + '</div>';
 
     switch (state.activeReport) {
       case 'close-ratio':

@@ -188,7 +188,7 @@
         container.innerHTML = '<p class="tb-no-slots">No available times on this date.</p>';
       } else {
         let html = '<div class="tb-slots-grid">';
-        result.slots.forEach(s => html += `<button class="tb-slot" data-time="${escapeHtml(s)}">${escapeHtml(TabuchiAPI.util.formatTime(s))}</button>`);
+        result.slots.forEach(s => html += `<button class="tb-slot" data-time="${escapeAttr(s)}">${escapeHtml(TabuchiAPI.util.formatTime(s))}</button>`);
         html += '</div><button id="tb-reschedule-confirm-btn" class="tb-btn tb-btn-primary" style="margin-top:1rem;display:none;">Confirm Reschedule</button>';
         container.innerHTML = html;
 
@@ -278,6 +278,7 @@
   }
 
   function escapeHtml(str) { if (str == null) return ''; var d = document.createElement('div'); d.textContent = String(str); return d.innerHTML; }
+  function escapeAttr(str) { return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function setText(id, t) { const el = document.getElementById(id); if (el) el.textContent = t || ''; }
   function showEl(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
   function hideEl(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }

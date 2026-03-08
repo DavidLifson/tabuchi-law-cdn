@@ -183,7 +183,7 @@
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-            ${booking.clientEmail ? `<a href="mailto:${encodeURI(booking.clientEmail)}" style="font-size:0.8rem;color:var(--tb-accent);">${escapeHtml(booking.clientEmail)}</a>` : ''}
+            ${booking.clientEmail ? `<a href="mailto:${encodeURIComponent(booking.clientEmail)}" style="font-size:0.8rem;color:var(--tb-accent);">${escapeHtml(booking.clientEmail)}</a>` : ''}
             ${booking.clientPhone ? `<span style="font-size:0.8rem;color:var(--tb-text-light);">${escapeHtml(booking.clientPhone)}</span>` : ''}
             ${booking.meetingLink && booking.status !== 'cancelled' && /^https?:\/\//i.test(booking.meetingLink) ? `<a href="${escapeHtml(booking.meetingLink)}" target="_blank" class="tb-btn tb-btn-secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem;">Join Meeting</a>` : ''}
           </div>

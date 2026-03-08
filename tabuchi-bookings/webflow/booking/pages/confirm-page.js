@@ -48,14 +48,20 @@
     joinContainer.style.display = 'none';
   }
 
-  // Reschedule / Cancel links
+  // Reschedule / Cancel links — restrict to same origin to prevent open redirects
+  function isSameOrigin(url) {
+    if (!url) return false;
+    if (url.startsWith('/')) return true;
+    try { return new URL(url).origin === window.location.origin; } catch (e) { return false; }
+  }
+
   const rescheduleLink = document.getElementById('tb-reschedule-link');
-  if (rescheduleLink && params.rescheduleUrl && /^https?:\/\/|^\//.test(params.rescheduleUrl)) {
+  if (rescheduleLink && isSameOrigin(params.rescheduleUrl)) {
     rescheduleLink.href = params.rescheduleUrl;
   }
 
   const cancelLink = document.getElementById('tb-cancel-link');
-  if (cancelLink && params.cancelUrl && /^https?:\/\/|^\//.test(params.cancelUrl)) {
+  if (cancelLink && isSameOrigin(params.cancelUrl)) {
     cancelLink.href = params.cancelUrl;
   }
 

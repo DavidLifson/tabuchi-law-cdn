@@ -405,7 +405,9 @@ const TabuchiAPI = (() => {
    * @returns {string} "Monday, February 15, 2025"
    */
   function formatDate(dateStr) {
+    if (!dateStr) return '';
     const date = new Date(dateStr + 'T12:00:00');
+    if (isNaN(date.getTime())) return '';
     return date.toLocaleDateString('en-US', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     });
@@ -417,7 +419,9 @@ const TabuchiAPI = (() => {
    * @returns {string} "2:00 PM"
    */
   function formatTime(time) {
+    if (!time || typeof time !== 'string') return '';
     const [h, m] = time.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return '';
     const ampm = h >= 12 ? 'PM' : 'AM';
     const hour = h % 12 || 12;
     return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;

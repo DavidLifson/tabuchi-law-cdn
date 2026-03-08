@@ -204,7 +204,7 @@
 
   // Avatar helper functions
   function getInitials(name) {
-    return (name || '').split(' ').map(function(n) { return n[0]; }).join('').toUpperCase().substring(0, 2);
+    return (name || '').split(' ').filter(function(n) { return n.length > 0; }).map(function(n) { return n[0]; }).join('').toUpperCase().substring(0, 2);
   }
 
   function updateAvatar(url, name) {

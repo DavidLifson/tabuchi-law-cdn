@@ -296,10 +296,10 @@
       var isOverdue = !isDone && t.Due_At && new Date(t.Due_At) < new Date();
       var cls = 'cc-task-item' + (isDone ? ' cc-task-done' : '') + (isOverdue ? ' cc-task-overdue' : '');
 
-      html += '<div class="' + cls + '" data-task-id="' + escapeHtml(t.id) + '">';
+      html += '<div class="' + cls + '" data-task-id="' + escapeAttr(t.id) + '">';
       html += '<div class="cc-task-check">';
       if (!isDone) {
-        html += '<button class="cc-task-complete-btn" data-task-id="' + escapeHtml(t.id) + '" title="Mark complete">&#9744;</button>';
+        html += '<button class="cc-task-complete-btn" data-task-id="' + escapeAttr(t.id) + '" title="Mark complete">&#9744;</button>';
       } else {
         html += '<span class="cc-task-completed-icon">&#9745;</span>';
       }
@@ -461,6 +461,10 @@
     var div = document.createElement('div');
     div.textContent = String(str);
     return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function formatPracticeArea(pa) {
