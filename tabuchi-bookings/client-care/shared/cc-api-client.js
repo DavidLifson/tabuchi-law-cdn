@@ -400,6 +400,38 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/config', { body: { action: 'delete', id } });
   }
 
+  // ─── Price Book ─────────────────────────────────────────────
+
+  async function listPriceBook(includeInactive) {
+    var body = { action: 'list' };
+    if (includeInactive) body.include_inactive = true;
+    return request('POST', '/cc/price-book', { body: body });
+  }
+
+  async function getPriceBookItem(id) {
+    return request('POST', '/cc/price-book', { body: { action: 'get', id: id } });
+  }
+
+  async function createPriceBookItem(data) {
+    return request('POST', '/cc/price-book', { body: { action: 'create', ...data } });
+  }
+
+  async function updatePriceBookItem(id, fields) {
+    return request('POST', '/cc/price-book', { body: { action: 'update', id: id, ...fields } });
+  }
+
+  async function createPriceBookTask(data) {
+    return request('POST', '/cc/price-book', { body: { action: 'create_task', ...data } });
+  }
+
+  async function updatePriceBookTask(id, fields) {
+    return request('POST', '/cc/price-book', { body: { action: 'update_task', id: id, ...fields } });
+  }
+
+  async function deletePriceBookTask(id) {
+    return request('POST', '/cc/price-book', { body: { action: 'delete_task', id: id } });
+  }
+
   // ─── Subscriptions ───────────────────────────────────────────
 
   async function unsubscribe(token) {
@@ -632,6 +664,13 @@ const ClientCareAPI = (() => {
     admin: {
       listUsers, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats,
       config: { list: listConfig, create: createConfig, update: updateConfig, delete: deleteConfig }
+    },
+    // Price Book
+    priceBook: {
+      list: listPriceBook, get: getPriceBookItem,
+      create: createPriceBookItem, update: updatePriceBookItem,
+      createTask: createPriceBookTask, updateTask: updatePriceBookTask,
+      deleteTask: deletePriceBookTask
     },
     // Subscriptions
     subscriptions: { unsubscribe },

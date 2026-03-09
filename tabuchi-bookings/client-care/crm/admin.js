@@ -50,7 +50,8 @@
     { key: 'stages', label: 'Stages' },
     { key: 'dispositions', label: 'Dispositions' },
     { key: 'activity-types', label: 'Activity Types' },
-    { key: 'entity-types', label: 'Entity Types' }
+    { key: 'entity-types', label: 'Entity Types' },
+    { key: 'price-book', label: 'Price Book' }
   ];
 
   var CONFIG_META = {
@@ -135,7 +136,12 @@
     categoriesLoading: false,
     // Config items (generic for lead sources, stages, etc.)
     configItems: {},
-    configLoading: {}
+    configLoading: {},
+    // Price Book
+    priceBookItems: [],
+    priceBookLoading: false,
+    priceBookDetail: null,
+    priceBookDetailLoading: false
   };
 
   // ─── Role Gate ─────────────────────────────────────────────
@@ -181,6 +187,7 @@
       case 'system':         renderSystemTab(); break;
       case 'staff':          renderStaffTab(); break;
       case 'categories':     renderCategoriesTab(); break;
+      case 'price-book':     renderPriceBookTab(); break;
       case 'lead-sources':
       case 'stages':
       case 'dispositions':
@@ -196,6 +203,7 @@
       case 'templates':   fetchTemplates(); break;
       case 'staff':       fetchStaff(); break;
       case 'categories':  fetchCategories(); break;
+      case 'price-book':  fetchPriceBookItems(); break;
       // system tab is static, no fetch needed
       default:
         var ck = tabToConfigKey(state.activeTab);
@@ -1487,6 +1495,396 @@
       activeModal.remove();
       activeModal = null;
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // PRICE BOOK TAB
+  // ═══════════════════════════════════════════════════════════
+
+  function formatCurrency(val) {
+    var n = parseFloat(val) || 0;
+    return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  async function fetchPriceBookItems() {
+    state.priceBookLoading = true;
+    renderPriceBookTab();
+    try {
+      var res = await API.priceBook.list(true);
+      state.priceBookItems = (res.items || []).sort(function(a, b) {
+        return (a.Sort_Order || 0) - (b.Sort_Order || 0);
+      });
+    } catch (err) {
+      showToast(err.error || 'Failed to load price book.', 'error');
+      state.priceBookItems = [];
+    }
+    state.priceBookLoading = false;
+    renderPriceBookTab();
+  }
+
+  function renderPriceBookTab() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    var items = state.priceBookItems || [];
+
+    var html = '<div class="cc-admin-config">';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">Price Book</h3>';
+    html += '<button id="cc-pb-add-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ Add Service</button>';
+    html += '</div>';
+
+    if (state.priceBookLoading) {
+      html += '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading...</p></div></div>';
+      content.innerHTML = html;
+      return;
+    }
+
+    // If detail view, render it
+    if (state.priceBookDetail) {
+      html += renderPriceBookDetailHtml(state.priceBookDetail);
+      html += '</div>';
+      content.innerHTML = html;
+      bindPriceBookDetailEvents();
+      return;
+    }
+
+    if (items.length === 0) {
+      html += '<div class="cc-empty"><p>No services configured yet.</p></div></div>';
+      content.innerHTML = html;
+      bindPriceBookAddBtn();
+      return;
+    }
+
+    html += '<table class="cc-table">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th">Service Name</th>';
+    html += '<th class="cc-th">Practice Area</th>';
+    html += '<th class="cc-th" style="width:120px;">List Price</th>';
+    html += '<th class="cc-th" style="width:80px;">Active</th>';
+    html += '<th class="cc-th" style="width:180px;">Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    items.forEach(function(item) {
+      var activeCls = item.Is_Active ? 'green' : 'gray';
+      var activeText = item.Is_Active ? 'Yes' : 'No';
+      html += '<tr>';
+      html += '<td><a href="#" class="cc-pb-detail-link" data-id="' + escapeAttr(item.id) + '">' + escapeHtml(item.Service_Name || '') + '</a></td>';
+      html += '<td>' + escapeHtml(item.Practice_Area || '---') + '</td>';
+      html += '<td>' + formatCurrency(item.List_Price) + '</td>';
+      html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
+      html += '<td>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-pb-edit-btn" data-id="' + escapeAttr(item.id) + '">Edit</button> ';
+      if (item.Is_Active) {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-pb-toggle-btn" data-id="' + escapeAttr(item.id) + '" data-active="false">Deactivate</button>';
+      } else {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-pb-toggle-btn" data-id="' + escapeAttr(item.id) + '" data-active="true">Activate</button>';
+      }
+      html += '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    content.innerHTML = html;
+    bindPriceBookAddBtn();
+    bindPriceBookTableEvents();
+  }
+
+  function bindPriceBookAddBtn() {
+    var btn = $el('cc-pb-add-btn');
+    if (btn) btn.addEventListener('click', function() { showPriceBookModal(null); });
+  }
+
+  function bindPriceBookTableEvents() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    content.querySelectorAll('.cc-pb-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var item = state.priceBookItems.find(function(i) { return i.id === btn.dataset.id; });
+        if (item) showPriceBookModal(item);
+      });
+    });
+
+    content.querySelectorAll('.cc-pb-toggle-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var activate = btn.dataset.active === 'true';
+        var label = activate ? 'activate' : 'deactivate';
+        if (!confirm('Are you sure you want to ' + label + ' this service?')) return;
+        try {
+          await API.priceBook.update(btn.dataset.id, { Is_Active: activate });
+          showToast('Service ' + label + 'd.', 'success');
+          await fetchPriceBookItems();
+        } catch (err) {
+          showToast(err.error || 'Failed to ' + label + '.', 'error');
+        }
+      });
+    });
+
+    content.querySelectorAll('.cc-pb-detail-link').forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        openPriceBookDetail(link.dataset.id);
+      });
+    });
+  }
+
+  async function openPriceBookDetail(serviceId) {
+    state.priceBookDetailLoading = true;
+    state.priceBookDetail = { id: serviceId };
+    renderPriceBookTab();
+    try {
+      var res = await API.priceBook.get(serviceId);
+      state.priceBookDetail = res.item || res;
+      state.priceBookDetail.tasks = res.tasks || [];
+    } catch (err) {
+      showToast(err.error || 'Failed to load service details.', 'error');
+      state.priceBookDetail = null;
+    }
+    state.priceBookDetailLoading = false;
+    renderPriceBookTab();
+  }
+
+  function renderPriceBookDetailHtml(detail) {
+    if (state.priceBookDetailLoading) {
+      return '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading details...</p></div>';
+    }
+
+    var html = '<div style="margin-bottom:12px;">';
+    html += '<button id="cc-pb-back-btn" class="cc-btn cc-btn-sm cc-btn-outline">&larr; Back to Price Book</button>';
+    html += '</div>';
+
+    html += '<div class="cc-card" style="margin-bottom:16px;padding:16px;">';
+    html += '<h4 style="margin:0 0 8px;">' + escapeHtml(detail.Service_Name || '') + '</h4>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;">';
+    html += '<div><strong>Practice Area:</strong> ' + escapeHtml(detail.Practice_Area || '---') + '</div>';
+    html += '<div><strong>List Price:</strong> ' + formatCurrency(detail.List_Price) + '</div>';
+    html += '<div style="grid-column:1/-1;"><strong>Description:</strong> ' + escapeHtml(detail.Description || '---') + '</div>';
+    html += '<div><strong>Active:</strong> ' + (detail.Is_Active ? 'Yes' : 'No') + '</div>';
+    html += '</div></div>';
+
+    // Tasks table
+    var tasks = (detail.tasks || []).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); });
+    html += '<div class="cc-admin-section-header">';
+    html += '<h4 class="cc-admin-section-title" style="font-size:15px;">Tasks & Costs</h4>';
+    html += '<button id="cc-pb-task-add-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ Add Task</button>';
+    html += '</div>';
+
+    if (tasks.length === 0) {
+      html += '<div class="cc-empty"><p>No tasks defined for this service.</p></div>';
+    } else {
+      html += '<table class="cc-table">';
+      html += '<thead><tr>';
+      html += '<th class="cc-th">Task Name</th>';
+      html += '<th class="cc-th" style="width:120px;">Assignee Role</th>';
+      html += '<th class="cc-th" style="width:100px;">Est. Hours</th>';
+      html += '<th class="cc-th" style="width:80px;">Order</th>';
+      html += '<th class="cc-th" style="width:80px;">Active</th>';
+      html += '<th class="cc-th" style="width:140px;">Actions</th>';
+      html += '</tr></thead><tbody>';
+
+      tasks.forEach(function(t) {
+        var activeCls = t.Is_Active ? 'green' : 'gray';
+        html += '<tr>';
+        html += '<td>' + escapeHtml(t.Task_Name || '') + '</td>';
+        html += '<td>' + escapeHtml(t.Default_Assignee_Role || '---') + '</td>';
+        html += '<td>' + (t.Estimated_Hours || 0) + '</td>';
+        html += '<td>' + (t.Sort_Order || 0) + '</td>';
+        html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + (t.Is_Active ? 'Yes' : 'No') + '</span></td>';
+        html += '<td>';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-pb-task-edit-btn" data-task-id="' + escapeAttr(t.id) + '">Edit</button> ';
+        if (t.Is_Active) {
+          html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-pb-task-del-btn" data-task-id="' + escapeAttr(t.id) + '">Deactivate</button>';
+        }
+        html += '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+    }
+
+    return html;
+  }
+
+  function bindPriceBookDetailEvents() {
+    var backBtn = $el('cc-pb-back-btn');
+    if (backBtn) backBtn.addEventListener('click', function() {
+      state.priceBookDetail = null;
+      renderPriceBookTab();
+    });
+
+    var addBtn = $el('cc-pb-task-add-btn');
+    if (addBtn) addBtn.addEventListener('click', function() {
+      showPriceBookTaskModal(null, state.priceBookDetail.id);
+    });
+
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    content.querySelectorAll('.cc-pb-task-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var task = (state.priceBookDetail.tasks || []).find(function(t) { return t.id === btn.dataset.taskId; });
+        if (task) showPriceBookTaskModal(task, state.priceBookDetail.id);
+      });
+    });
+
+    content.querySelectorAll('.cc-pb-task-del-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        if (!confirm('Deactivate this task?')) return;
+        try {
+          await API.priceBook.deleteTask(btn.dataset.taskId);
+          showToast('Task deactivated.', 'success');
+          await openPriceBookDetail(state.priceBookDetail.id);
+        } catch (err) {
+          showToast(err.error || 'Failed to deactivate task.', 'error');
+        }
+      });
+    });
+
+    bindPriceBookAddBtn();
+  }
+
+  function showPriceBookModal(existing) {
+    closeModal();
+    var isEdit = !!existing;
+    var title = isEdit ? 'Edit Service' : 'Add Service';
+
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal">' +
+        '<div class="cc-modal-header">' +
+          '<h3>' + title + '</h3>' +
+          '<button class="cc-modal-close">&times;</button>' +
+        '</div>' +
+        '<div class="cc-modal-body">' +
+          '<div class="cc-form-group"><label>Service Name *</label>' +
+          '<input type="text" id="cc-pb-name" class="cc-input" value="' + escapeAttr((existing && existing.Service_Name) || '') + '"></div>' +
+          '<div class="cc-form-group"><label>Practice Area</label>' +
+          '<select id="cc-pb-pa" class="cc-input">' +
+            '<option value="">-- Select --</option>' +
+            '<option value="ESTATE_PLANNING"' + (existing && existing.Practice_Area === 'ESTATE_PLANNING' ? ' selected' : '') + '>Estate Planning</option>' +
+            '<option value="PROBATE"' + (existing && existing.Practice_Area === 'PROBATE' ? ' selected' : '') + '>Probate</option>' +
+            '<option value="REAL_ESTATE"' + (existing && existing.Practice_Area === 'REAL_ESTATE' ? ' selected' : '') + '>Real Estate</option>' +
+            '<option value="CORPORATE"' + (existing && existing.Practice_Area === 'CORPORATE' ? ' selected' : '') + '>Corporate</option>' +
+            '<option value="FAMILY_LAW"' + (existing && existing.Practice_Area === 'FAMILY_LAW' ? ' selected' : '') + '>Family Law</option>' +
+            '<option value="OTHER"' + (existing && existing.Practice_Area === 'OTHER' ? ' selected' : '') + '>Other</option>' +
+          '</select></div>' +
+          '<div class="cc-form-group"><label>List Price ($)</label>' +
+          '<input type="number" id="cc-pb-price" class="cc-input" step="0.01" min="0" value="' + ((existing && existing.List_Price) || '') + '"></div>' +
+          '<div class="cc-form-group"><label>Description</label>' +
+          '<textarea id="cc-pb-desc" class="cc-input" rows="3">' + escapeHtml((existing && existing.Description) || '') + '</textarea></div>' +
+          '<div class="cc-form-group"><label>Sort Order</label>' +
+          '<input type="number" id="cc-pb-sort" class="cc-input" value="' + ((existing && existing.Sort_Order) || 0) + '"></div>' +
+        '</div>' +
+        '<div class="cc-modal-footer">' +
+          '<button class="cc-btn cc-btn-outline cc-modal-cancel">Cancel</button>' +
+          '<button id="cc-pb-save" class="cc-btn cc-btn-primary">' + (isEdit ? 'Update' : 'Create') + '</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+    activeModal = overlay;
+
+    overlay.querySelector('.cc-modal-close').addEventListener('click', closeModal);
+    overlay.querySelector('.cc-modal-cancel').addEventListener('click', closeModal);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+
+    $el('cc-pb-save').addEventListener('click', async function() {
+      var name = $el('cc-pb-name').value.trim();
+      if (!name) { showToast('Service Name is required.', 'error'); return; }
+
+      var data = {
+        Service_Name: name,
+        Practice_Area: $el('cc-pb-pa').value || undefined,
+        List_Price: parseFloat($el('cc-pb-price').value) || 0,
+        Description: $el('cc-pb-desc').value.trim(),
+        Sort_Order: parseInt($el('cc-pb-sort').value) || 0
+      };
+
+      try {
+        if (isEdit) {
+          await API.priceBook.update(existing.id, data);
+          showToast('Service updated.', 'success');
+        } else {
+          await API.priceBook.create(data);
+          showToast('Service created.', 'success');
+        }
+        closeModal();
+        await fetchPriceBookItems();
+      } catch (err) {
+        showToast(err.error || 'Failed to save service.', 'error');
+      }
+    });
+  }
+
+  function showPriceBookTaskModal(existing, parentServiceId) {
+    closeModal();
+    var isEdit = !!existing;
+    var title = isEdit ? 'Edit Task' : 'Add Task';
+
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal">' +
+        '<div class="cc-modal-header">' +
+          '<h3>' + title + '</h3>' +
+          '<button class="cc-modal-close">&times;</button>' +
+        '</div>' +
+        '<div class="cc-modal-body">' +
+          '<div class="cc-form-group"><label>Task Name *</label>' +
+          '<input type="text" id="cc-pbt-name" class="cc-input" value="' + escapeAttr((existing && existing.Task_Name) || '') + '"></div>' +
+          '<div class="cc-form-group"><label>Assignee Role</label>' +
+          '<select id="cc-pbt-role" class="cc-input">' +
+            '<option value="">-- Select --</option>' +
+            '<option value="LAWYER"' + (existing && existing.Default_Assignee_Role === 'LAWYER' ? ' selected' : '') + '>Lawyer</option>' +
+            '<option value="PARALEGAL"' + (existing && existing.Default_Assignee_Role === 'PARALEGAL' ? ' selected' : '') + '>Paralegal</option>' +
+            '<option value="CLERK"' + (existing && existing.Default_Assignee_Role === 'CLERK' ? ' selected' : '') + '>Clerk</option>' +
+          '</select></div>' +
+          '<div class="cc-form-group"><label>Estimated Hours</label>' +
+          '<input type="number" id="cc-pbt-hours" class="cc-input" step="0.25" min="0" value="' + ((existing && existing.Estimated_Hours) || '') + '"></div>' +
+          '<div class="cc-form-group"><label>Sort Order</label>' +
+          '<input type="number" id="cc-pbt-sort" class="cc-input" value="' + ((existing && existing.Sort_Order) || 0) + '"></div>' +
+        '</div>' +
+        '<div class="cc-modal-footer">' +
+          '<button class="cc-btn cc-btn-outline cc-modal-cancel">Cancel</button>' +
+          '<button id="cc-pbt-save" class="cc-btn cc-btn-primary">' + (isEdit ? 'Update' : 'Create') + '</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+    activeModal = overlay;
+
+    overlay.querySelector('.cc-modal-close').addEventListener('click', closeModal);
+    overlay.querySelector('.cc-modal-cancel').addEventListener('click', closeModal);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+
+    $el('cc-pbt-save').addEventListener('click', async function() {
+      var taskName = $el('cc-pbt-name').value.trim();
+      if (!taskName) { showToast('Task Name is required.', 'error'); return; }
+
+      var data = {
+        Task_Name: taskName,
+        Default_Assignee_Role: $el('cc-pbt-role').value || undefined,
+        Estimated_Hours: parseFloat($el('cc-pbt-hours').value) || 0,
+        Sort_Order: parseInt($el('cc-pbt-sort').value) || 0
+      };
+
+      try {
+        if (isEdit) {
+          await API.priceBook.updateTask(existing.id, data);
+          showToast('Task updated.', 'success');
+        } else {
+          data.Parent_Service = parentServiceId;
+          await API.priceBook.createTask(data);
+          showToast('Task created.', 'success');
+        }
+        closeModal();
+        await openPriceBookDetail(parentServiceId);
+      } catch (err) {
+        showToast(err.error || 'Failed to save task.', 'error');
+      }
+    });
   }
 
   // ═══════════════════════════════════════════════════════════

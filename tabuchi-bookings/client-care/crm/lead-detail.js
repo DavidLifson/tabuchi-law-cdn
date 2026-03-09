@@ -220,6 +220,8 @@
       { label: 'Created', value: API.util.formatDateTime(l.Created_At) },
       { label: 'Last Contact', value: API.util.formatRelativeTime(l.Last_Contacted_At) || '—' },
       { label: 'Next Action', value: API.util.formatDateTime(l.Next_Action_At) || '—' },
+      { label: 'Est. Closing Date', value: l.Estimated_Closing_Date ? API.util.formatDate(l.Estimated_Closing_Date) : '---' },
+      { label: 'Services Required', value: formatServicesRequired(l) },
       { label: 'Consent', value: l.Consent_Status || 'UNKNOWN' },
       { label: 'Lead ID', value: l.Lead_ID || l.id }
     ];
@@ -470,6 +472,16 @@
   function formatPracticeArea(pa) {
     if (!pa) return '—';
     return pa.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+  }
+
+  function formatServicesRequired(lead) {
+    var services = lead.Services_Required || [];
+    if (!services.length) return '---';
+    // If Airtable returns lookup names, use them; otherwise show count
+    if (typeof services[0] === 'string' && services[0].startsWith('rec')) {
+      return services.length + ' service' + (services.length > 1 ? 's' : '') + ' linked';
+    }
+    return services.join(', ');
   }
 
   function showError(msg) {

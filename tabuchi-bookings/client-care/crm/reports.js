@@ -46,7 +46,10 @@
     practiceArea: '',
     source: '',
     data: null,
-    loading: false
+    loading: false,
+    // Revenue projection
+    horizon: '3m',
+    groupBy: 'stage'
   };
 
   var REPORT_TYPES = [
@@ -56,7 +59,8 @@
     { key: 'rep-performance', label: 'Rep Performance' },
     { key: 'source-attribution', label: 'Source Attribution' },
     { key: 'sla-compliance', label: 'SLA Compliance' },
-    { key: 'lost-reasons', label: 'Lost Reasons' }
+    { key: 'lost-reasons', label: 'Lost Reasons' },
+    { key: 'revenue-projection', label: 'Revenue Projection' }
   ];
 
   // ─── Date Presets ──────────────────────────────────────────
@@ -104,11 +108,17 @@
     if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading report...</p></div>';
 
     try {
-      var params = { date_field: state.dateField };
-      if (state.startDate) params.start_date = state.startDate;
-      if (state.endDate) params.end_date = state.endDate;
-      if (state.practiceArea) params.practice_area = state.practiceArea;
-      if (state.source) params.source = state.source;
+      var params = {};
+      if (state.activeReport === 'revenue-projection') {
+        params.horizon = state.horizon;
+        params.group_by = state.groupBy;
+      } else {
+        params.date_field = state.dateField;
+        if (state.startDate) params.start_date = state.startDate;
+        if (state.endDate) params.end_date = state.endDate;
+        if (state.practiceArea) params.practice_area = state.practiceArea;
+        if (state.source) params.source = state.source;
+      }
 
       var result = await API.reports.get(state.activeReport, params);
       if (gen !== _fetchGen) return; // stale response, discard
@@ -133,6 +143,51 @@
   function renderFilters() {
     var el = $el('cc-report-filters');
     if (!el) return;
+
+    // Revenue Projection uses horizon + groupBy instead of date range
+    if (state.activeReport === 'revenue-projection') {
+      var horizons = [
+        { key: '1w', label: '1 Week' },
+        { key: '1m', label: '1 Month' },
+        { key: '3m', label: '3 Months' },
+        { key: '6m', label: '6 Months' },
+        { key: '1y', label: '1 Year' }
+      ];
+      var hBtns = '';
+      horizons.forEach(function(h) {
+        var cls = 'cc-rpt-preset' + (h.key === state.horizon ? ' cc-preset-active' : '');
+        hBtns += '<button class="' + cls + '" data-horizon="' + h.key + '">' + h.label + '</button>';
+      });
+
+      el.innerHTML =
+        '<div class="cc-rpt-date-row">' +
+          '<div class="cc-rpt-presets">' + hBtns + '</div>' +
+          '<div class="cc-rpt-date-field">' +
+            '<select id="cc-rpt-group-by" class="cc-input cc-input-sm">' +
+              '<option value="stage"' + (state.groupBy === 'stage' ? ' selected' : '') + '>Group by Stage</option>' +
+              '<option value="practice_area"' + (state.groupBy === 'practice_area' ? ' selected' : '') + '>Group by Practice Area</option>' +
+              '<option value="owner"' + (state.groupBy === 'owner' ? ' selected' : '') + '>Group by Owner</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>';
+
+      // Bind horizon buttons
+      el.querySelectorAll('[data-horizon]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          state.horizon = btn.dataset.horizon;
+          renderFilters();
+          fetchReport();
+        });
+      });
+
+      // Bind group-by
+      var gbEl = $el('cc-rpt-group-by');
+      if (gbEl) gbEl.addEventListener('change', function() {
+        state.groupBy = gbEl.value;
+        fetchReport();
+      });
+      return;
+    }
 
     el.innerHTML =
       '<div class="cc-rpt-date-row">' +
@@ -208,6 +263,7 @@
       btn.addEventListener('click', function() {
         state.activeReport = btn.dataset.report;
         renderTabs();
+        renderFilters();
         fetchReport();
       });
     });
@@ -219,7 +275,12 @@
     if (!content || !state.data) return;
 
     var d = state.data.data;
-    var html = '<div class="cc-rpt-meta">Total leads in range: ' + escapeHtml(String(state.data.total_leads || 0)) + '</div>';
+
+    // Revenue projection has its own meta line
+    var html = '';
+    if (state.activeReport !== 'revenue-projection') {
+      html += '<div class="cc-rpt-meta">Total leads in range: ' + escapeHtml(String(state.data.total_leads || 0)) + '</div>';
+    }
 
     switch (state.activeReport) {
       case 'close-ratio':
@@ -242,6 +303,9 @@
         break;
       case 'lost-reasons':
         html += renderLostReasons(d);
+        break;
+      case 'revenue-projection':
+        html += renderRevenueProjection(d);
         break;
       default:
         html += '<p>Unknown report type.</p>';
@@ -356,6 +420,65 @@
       { key: 'count', label: 'Count' },
       { key: 'pct', label: '% of Lost' }
     ], 'rpt-lost');
+    return html;
+  }
+
+  // ─── Revenue Projection ───────────────────────────────────
+  function formatCurrency(val) {
+    var n = Number(val);
+    if (isNaN(n)) return '$0.00';
+    return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function renderRevenueProjection(d) {
+    if (!d) return '<p class="cc-empty">No data available.</p>';
+
+    var horizonLabels = { '1w': '1 Week', '1m': '1 Month', '3m': '3 Months', '6m': '6 Months', '1y': '1 Year' };
+    var groupLabels = { stage: 'Stage', practice_area: 'Practice Area', owner: 'Owner' };
+
+    var html = '<div class="cc-rpt-meta">' +
+      'Horizon: <strong>' + escapeHtml(horizonLabels[d.horizon] || d.horizon) + '</strong>' +
+      ' &middot; Cutoff: <strong>' + escapeHtml(d.cutoff_date || '') + '</strong>' +
+      ' &middot; Grouped by: <strong>' + escapeHtml(groupLabels[d.group_by] || d.group_by) + '</strong>' +
+    '</div>';
+
+    // Headline cards
+    html += '<div class="cc-rpt-headline">' +
+      '<div class="cc-rpt-stat cc-text-green"><div class="cc-rpt-stat-value">' + escapeHtml(formatCurrency(d.total_weighted_revenue)) + '</div><div class="cc-rpt-stat-label">Weighted Revenue</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(formatCurrency(d.total_unweighted_revenue)) + '</div><div class="cc-rpt-stat-label">Unweighted Total</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.total_leads || 0)) + '</div><div class="cc-rpt-stat-label">Eligible Leads</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.avg_probability_pct != null ? d.avg_probability_pct : 0)) + '%</div><div class="cc-rpt-stat-label">Avg Probability</div></div>' +
+    '</div>';
+
+    // Grouped summary table
+    if (d.by_group && d.by_group.length) {
+      html += '<h3>Summary by ' + escapeHtml(groupLabels[d.group_by] || 'Group') + '</h3>';
+      html += buildSortableTable(d.by_group, [
+        { key: 'group', label: groupLabels[d.group_by] || 'Group', format: function(v) { return d.group_by === 'stage' ? API.util.stageLabel(v) : (v || '(none)'); } },
+        { key: 'count', label: 'Leads' },
+        { key: 'total_list_price', label: 'List Price', format: function(v) { return formatCurrency(v); } },
+        { key: 'weighted_revenue', label: 'Weighted Revenue', format: function(v) { return formatCurrency(v); } }
+      ], 'rpt-rev-group');
+    }
+
+    // Detail table
+    if (d.details && d.details.length) {
+      html += '<h3>Lead Details</h3>';
+      html += buildSortableTable(d.details, [
+        { key: 'client_name', label: 'Client' },
+        { key: 'stage', label: 'Stage', format: function(v) { return API.util.stageLabel(v); } },
+        { key: 'practice_area', label: 'Practice Area' },
+        { key: 'est_closing_date', label: 'Est. Close' },
+        { key: 'list_price', label: 'List Price', format: function(v) { return formatCurrency(v); } },
+        { key: 'probability_pct', label: 'Prob %' },
+        { key: 'weighted_revenue', label: 'Weighted Rev', format: function(v) { return formatCurrency(v); } }
+      ], 'rpt-rev-detail');
+    }
+
+    if (!d.total_leads) {
+      html += '<p class="cc-empty">No open leads with services and estimated closing dates within this horizon.</p>';
+    }
+
     return html;
   }
 
