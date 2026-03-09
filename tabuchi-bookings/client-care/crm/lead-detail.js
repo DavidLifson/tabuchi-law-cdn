@@ -321,13 +321,16 @@
     var el = $el('cc-task-list');
     if (!el) return;
 
-    if (state.tasks.length === 0) {
+    // Filter out ghost tasks (empty items from n8n alwaysOutputData)
+    var validTasks = state.tasks.filter(function(t) { return t.id; });
+
+    if (validTasks.length === 0) {
       el.innerHTML = '<div class="cc-empty">No tasks for this lead.</div>';
       return;
     }
 
     var html = '<div class="cc-task-list">';
-    state.tasks.forEach(function(t) {
+    validTasks.forEach(function(t) {
       var isDone = t.Status === 'DONE';
       var isOverdue = !isDone && t.Due_At && new Date(t.Due_At) < new Date();
       var cls = 'cc-task-item' + (isDone ? ' cc-task-done' : '') + (isOverdue ? ' cc-task-overdue' : '');
@@ -673,7 +676,7 @@
       '.cc-editable:hover{background:#f0f7ff}' +
       '.cc-edit-icon{font-size:11px;opacity:.4;margin-left:2px}' +
       '.cc-editable:hover .cc-edit-icon{opacity:.8}' +
-      '.cc-info-label{margin-bottom:4px}' +
+      '.cc-info-label{display:block;margin-bottom:4px}' +
       '.cc-inline-date{padding:2px 6px;border:1px solid #94a3b8;border-radius:4px;font-size:13px}' +
       '.cc-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}' +
       '.cc-modal{background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.2);width:90%;max-width:480px}' +
