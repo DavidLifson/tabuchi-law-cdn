@@ -446,6 +446,40 @@ const ClientCareAPI = (() => {
     });
   }
 
+  // ─── Contacts ──────────────────────────────────────────────
+
+  /**
+   * Get contact history (activities + campaign sends + conversion)
+   * @param {string} leadId - Lead record ID
+   * @returns {{ activities, campaign_sends, conversion: { converted, date, campaign_name } }}
+   */
+  async function getContactHistory(leadId) {
+    return request('POST', '/cc/contacts', { body: { action: 'get_history', id: leadId } });
+  }
+
+  /**
+   * Bulk update tags on multiple contacts
+   * @param {string[]} ids - Lead record IDs
+   * @param {string} tagAction - 'add' or 'remove'
+   * @param {string[]} tags - Tag names to add/remove
+   */
+  async function bulkUpdateTags(ids, tagAction, tags) {
+    return request('POST', '/cc/contacts', {
+      body: { action: 'bulk_update_tags', ids, tag_action: tagAction, tags }
+    });
+  }
+
+  /**
+   * Bulk update contact status on multiple contacts
+   * @param {string[]} ids - Lead record IDs
+   * @param {string} contactStatus - PROSPECT, ACTIVE_CLIENT, FORMER_CLIENT, OTHER
+   */
+  async function bulkUpdateStatus(ids, contactStatus) {
+    return request('POST', '/cc/contacts', {
+      body: { action: 'bulk_update_status', ids, contact_status: contactStatus }
+    });
+  }
+
   // ─── Utility Functions ───────────────────────────────────────
 
   function formatDate(dateStr) {
@@ -502,6 +536,22 @@ const ClientCareAPI = (() => {
     LOW: 'green', MEDIUM: 'yellow', HIGH: 'red'
   };
 
+  /** Contact status display labels */
+  const CONTACT_STATUS_LABELS = {
+    PROSPECT: 'Prospect',
+    ACTIVE_CLIENT: 'Active Client',
+    FORMER_CLIENT: 'Former Client',
+    OTHER: 'Other'
+  };
+
+  /** Contact status badge colors (CSS class suffixes) */
+  const CONTACT_STATUS_COLORS = {
+    PROSPECT: 'blue',
+    ACTIVE_CLIENT: 'green',
+    FORMER_CLIENT: 'gray',
+    OTHER: 'yellow'
+  };
+
   function stageLabel(stage) {
     return STAGE_LABELS[stage] || stage;
   }
@@ -512,6 +562,14 @@ const ClientCareAPI = (() => {
 
   function priorityColor(priority) {
     return PRIORITY_COLORS[priority] || 'gray';
+  }
+
+  function contactStatusLabel(status) {
+    return CONTACT_STATUS_LABELS[status] || status;
+  }
+
+  function contactStatusColor(status) {
+    return CONTACT_STATUS_COLORS[status] || 'gray';
   }
 
   function showLoading(containerId) {
@@ -545,6 +603,8 @@ const ClientCareAPI = (() => {
     },
     // Leads
     leads: { list: listLeads, get: getLead, create: createLead, update: updateLead, updateStage },
+    // Contacts
+    contacts: { getHistory: getContactHistory, bulkUpdateTags, bulkUpdateStatus },
     // Activities
     activities: { list: listActivities, create: createActivity },
     // Tasks
@@ -581,8 +641,10 @@ const ClientCareAPI = (() => {
     util: {
       formatDate, formatDateTime, formatRelativeTime,
       stageLabel, stageColor, priorityColor,
+      contactStatusLabel, contactStatusColor,
       showLoading, showError, getUrlParams, getPathSegments,
-      STAGE_LABELS, STAGE_COLORS
+      STAGE_LABELS, STAGE_COLORS,
+      CONTACT_STATUS_LABELS, CONTACT_STATUS_COLORS
     }
   };
 })();
