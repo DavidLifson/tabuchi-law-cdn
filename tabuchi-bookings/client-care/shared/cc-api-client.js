@@ -277,9 +277,11 @@ const ClientCareAPI = (() => {
    * @param {Object} [opts] - { notes, disposition, close_reason }
    */
   async function updateStage(leadId, newStage, opts = {}) {
-    return request('POST', '/cc/stage-update', {
+    var result = await request('POST', '/cc/stage-update', {
       body: { lead_id: leadId, new_stage: newStage, ...opts }
     });
+    if (result.success) _invalidatePrefix('/cc/leads');
+    return result;
   }
 
   // ─── Activities ──────────────────────────────────────────────
