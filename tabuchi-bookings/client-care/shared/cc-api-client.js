@@ -655,20 +655,20 @@ const ClientCareAPI = (() => {
   const STAGE_LABELS = {
     NEW_LEAD: 'New Lead',
     CONTACTED: 'Contacted',
-    MEETING1_BOOKED: 'Meeting #1 Booked',
-    MEETING1_COMPLETED: 'Meeting #1 Completed',
-    INTAKE_COMPLETE_READY_TO_DRAFT: 'Ready to Draft',
-    CLOSED_INTAKE_RECEIVED: 'Intake Received'
+    INTAKE_RECEIVED: 'Intake Received',
+    DISCOVERY_MEETING_BOOKED: 'Discovery Meeting Booked',
+    MEETING_DONE: 'Meeting Done',
+    READY_TO_DRAFT: 'Ready to Draft'
   };
 
   /** Stage badge colors (CSS class suffixes) */
   const STAGE_COLORS = {
     NEW_LEAD: 'blue',
     CONTACTED: 'cyan',
-    MEETING1_BOOKED: 'teal',
-    MEETING1_COMPLETED: 'green',
-    INTAKE_COMPLETE_READY_TO_DRAFT: 'yellow',
-    CLOSED_INTAKE_RECEIVED: 'purple'
+    INTAKE_RECEIVED: 'purple',
+    DISCOVERY_MEETING_BOOKED: 'teal',
+    MEETING_DONE: 'green',
+    READY_TO_DRAFT: 'yellow'
   };
 
   const PRIORITY_COLORS = {

@@ -848,10 +848,10 @@
     var stages = [
       { key: 'NEW_LEAD', label: 'New Lead', gate: 'None' },
       { key: 'CONTACTED', label: 'Contacted', gate: 'None' },
-      { key: 'MEETING1_BOOKED', label: 'Meeting #1 Booked', gate: 'None' },
-      { key: 'MEETING1_COMPLETED', label: 'Meeting #1 Completed', gate: 'Meeting notes required' },
-      { key: 'INTAKE_COMPLETE_READY_TO_DRAFT', label: 'Ready to Draft', gate: 'Checklist complete' },
-      { key: 'CLOSED_INTAKE_RECEIVED', label: 'Intake Received (Closed)', gate: 'Disposition + Clio sync (CC-07)' }
+      { key: 'INTAKE_RECEIVED', label: 'Intake Received', gate: 'None' },
+      { key: 'DISCOVERY_MEETING_BOOKED', label: 'Discovery Meeting Booked', gate: 'None' },
+      { key: 'MEETING_DONE', label: 'Meeting Done', gate: 'Meeting notes required' },
+      { key: 'READY_TO_DRAFT', label: 'Ready to Draft', gate: 'Disposition + Clio sync (CC-07)' }
     ];
 
     stages.forEach(function(s, i) {

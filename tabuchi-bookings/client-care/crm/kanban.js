@@ -46,10 +46,10 @@
   var STAGES = [
     { key: 'NEW_LEAD', label: 'New Lead', color: 'blue' },
     { key: 'CONTACTED', label: 'Contacted', color: 'cyan' },
-    { key: 'MEETING1_BOOKED', label: 'Meeting Booked', color: 'teal' },
-    { key: 'MEETING1_COMPLETED', label: 'Meeting Done', color: 'green' },
-    { key: 'INTAKE_COMPLETE_READY_TO_DRAFT', label: 'Ready to Draft', color: 'yellow' },
-    { key: 'CLOSED_INTAKE_RECEIVED', label: 'Intake Received', color: 'purple' }
+    { key: 'INTAKE_RECEIVED', label: 'Intake Received', color: 'purple' },
+    { key: 'DISCOVERY_MEETING_BOOKED', label: 'Discovery Meeting Booked', color: 'teal' },
+    { key: 'MEETING_DONE', label: 'Meeting Done', color: 'green' },
+    { key: 'READY_TO_DRAFT', label: 'Ready to Draft', color: 'yellow' }
   ];
 
   // ─── State ───────────────────────────────────────────────────
@@ -277,7 +277,7 @@
 
     // Close gate — need extra fields
     var opts = {};
-    if (newStage === 'CLOSED_INTAKE_RECEIVED') {
+    if (newStage === 'READY_TO_DRAFT') {
       var disposition = prompt('Set disposition:\n\nWON = Client retained\nLOST = Client not retained\n\nEnter WON or LOST:');
       if (!disposition || (disposition.toUpperCase() !== 'WON' && disposition.toUpperCase() !== 'LOST')) {
         showToast('Stage change cancelled — disposition required.', 'error');

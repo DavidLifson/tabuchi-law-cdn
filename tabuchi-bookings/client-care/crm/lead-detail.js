@@ -62,10 +62,10 @@
   var STAGES = [
     { key: 'NEW_LEAD', label: 'New Lead' },
     { key: 'CONTACTED', label: 'Contacted' },
-    { key: 'MEETING1_BOOKED', label: 'Meeting Booked' },
-    { key: 'MEETING1_COMPLETED', label: 'Meeting Done' },
-    { key: 'INTAKE_COMPLETE_READY_TO_DRAFT', label: 'Ready to Draft' },
-    { key: 'CLOSED_INTAKE_RECEIVED', label: 'Intake Received' }
+    { key: 'INTAKE_RECEIVED', label: 'Intake Received' },
+    { key: 'DISCOVERY_MEETING_BOOKED', label: 'Discovery Meeting Booked' },
+    { key: 'MEETING_DONE', label: 'Meeting Done' },
+    { key: 'READY_TO_DRAFT', label: 'Ready to Draft' }
   ];
 
   // ─── Load All Data ──────────────────────────────────────────
@@ -188,7 +188,7 @@
       var nextStage = STAGES[currentIdx + 1];
       html += '<div class="cc-stage-actions">';
       html += '<button class="cc-btn cc-btn-primary" id="cc-advance-stage-btn">Advance to ' + nextStage.label + '</button>';
-      if (currentIdx >= 3) { // After MEETING1_COMPLETED, allow close
+      if (currentIdx >= 3) { // After MEETING_DONE, allow close
         html += ' <button class="cc-btn cc-btn-success" id="cc-close-won-btn">Close — Won</button>';
         html += ' <button class="cc-btn cc-btn-danger" id="cc-close-lost-btn">Close — Lost</button>';
       }
@@ -209,7 +209,7 @@
     var wonBtn = $el('cc-close-won-btn');
     if (wonBtn) {
       wonBtn.addEventListener('click', function() {
-        advanceStage('CLOSED_INTAKE_RECEIVED', { disposition: 'WON' });
+        advanceStage('READY_TO_DRAFT', { disposition: 'WON' });
       });
     }
 
@@ -219,7 +219,7 @@
       lostBtn.addEventListener('click', function() {
         var reason = prompt('Close reason (PRICE, NOT_QUALIFIED, NO_RESPONSE, TIMING, COMPETITOR, DUPLICATE, OTHER):');
         if (!reason) return;
-        advanceStage('CLOSED_INTAKE_RECEIVED', { disposition: 'LOST', close_reason: reason.toUpperCase() });
+        advanceStage('READY_TO_DRAFT', { disposition: 'LOST', close_reason: reason.toUpperCase() });
       });
     }
   }
