@@ -67,6 +67,7 @@
     activeTemplate: null,
     contentBlocks: [],
     editorDirty: false,
+    listStale: false,
     detailLoading: false,
     user: API.auth.getUser()
   };
@@ -327,7 +328,12 @@
     state.contentBlocks = [];
     state.editorDirty = false;
     toggleViews();
-    fetchTemplates();
+    if (state.listStale) {
+      state.listStale = false;
+      fetchTemplates();
+    } else {
+      renderTable();
+    }
   }
 
   function toggleViews() {
@@ -645,6 +651,7 @@
       });
       if (result.success) {
         state.editorDirty = false;
+        state.listStale = true;
         showToast('Template saved.', 'success');
         state.activeTemplate.content_json = getContentJSON();
         state.activeTemplate.Content_JSON = getContentJSON();
@@ -697,6 +704,7 @@
         if (result.success) {
           showToast('Template deleted.', 'success');
           closeModal();
+          state.listStale = true;
           if (state.view === 'detail') closeDetail();
           else fetchTemplates();
         } else {
@@ -891,6 +899,7 @@
     try {
       var result = await API.campaignTemplates.update(state.activeTemplate.id, updates);
       if (result.success) {
+        state.listStale = true;
         showToast('Template updated.', 'success');
         closeModal();
         fetchDetail(state.activeTemplate.id);

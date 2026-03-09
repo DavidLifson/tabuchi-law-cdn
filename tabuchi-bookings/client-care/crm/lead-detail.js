@@ -100,6 +100,38 @@
     if (container) container.classList.remove('cc-loading-state');
   }
 
+  // ─── Selective Re-fetch Helpers ────────────────────────────
+  async function reloadLead() {
+    try {
+      API.cache.invalidate('/cc/leads');
+      var result = await API.leads.get(leadId);
+      if (result.success && result.lead) {
+        state.lead = result.lead;
+        renderHeader();
+        renderStageBar();
+        renderInfo();
+      }
+    } catch (err) { /* silently fail, data will be stale */ }
+  }
+
+  async function reloadActivities() {
+    try {
+      API.cache.invalidate('/cc/activities');
+      var result = await API.activities.list(leadId);
+      state.activities = (result.success && result.activities) || [];
+      renderActivities();
+    } catch (err) { /* silently fail */ }
+  }
+
+  async function reloadTasks() {
+    try {
+      API.cache.invalidate('/cc/tasks');
+      var result = await API.tasks.list({ lead_id: leadId });
+      state.tasks = (result.success && result.tasks) || [];
+      renderTasks();
+    } catch (err) { /* silently fail */ }
+  }
+
   // ─── Render All Sections ────────────────────────────────────
   function render() {
     renderHeader();
@@ -196,7 +228,7 @@
     try {
       var result = await API.leads.updateStage(leadId, newStage, opts || {});
       if (result.success) {
-        loadData(); // Reload all
+        reloadLead(); // Only reload lead (stage changed)
       } else {
         alert('Stage update failed: ' + (result.error || 'Unknown error'));
       }
@@ -327,7 +359,7 @@
         var taskId = btn.dataset.taskId;
         try {
           var result = await API.tasks.update(taskId, { status: 'DONE' });
-          if (result.success) loadData();
+          if (result.success) reloadTasks(); // Only reload tasks
         } catch (err) {
           alert('Failed to complete task: ' + (err.error || 'Unknown error'));
         }
@@ -391,7 +423,7 @@
           $el('cc-act-body').value = '';
           $el('cc-act-duration').value = '';
           $el('cc-act-outcome').value = '';
-          loadData();
+          reloadActivities(); // Only reload activities
         }
       } catch (err) {
         alert('Failed: ' + (err.error || 'Unknown error'));
@@ -440,7 +472,7 @@
         if (result.success) {
           $el('cc-task-title').value = '';
           $el('cc-task-due').value = '';
-          loadData();
+          reloadTasks(); // Only reload tasks
         }
       } catch (err) {
         alert('Failed: ' + (err.error || 'Unknown error'));
@@ -540,8 +572,9 @@
   }
 
   // ─── Services Selector Modal ────────────────────────────────
+  var _priceBookCache = null;
+
   async function showServicesModal() {
-    // Fetch active price book items
     var overlay = document.createElement('div');
     overlay.className = 'cc-modal-overlay';
     overlay.id = 'cc-services-modal-overlay';
@@ -559,8 +592,11 @@
     overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
 
     try {
-      var res = await API.priceBook.list();
-      var items = (res.items || []).filter(function(i) { return i.Is_Active; });
+      if (!_priceBookCache) {
+        var res = await API.priceBook.list();
+        _priceBookCache = (res.items || []).filter(function(i) { return i.Is_Active; });
+      }
+      var items = _priceBookCache;
       var currentIds = (state.lead.Services_Required || []).filter(function(s) {
         return typeof s === 'string' && s.startsWith('rec');
       });

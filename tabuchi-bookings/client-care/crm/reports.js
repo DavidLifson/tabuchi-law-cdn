@@ -52,6 +52,18 @@
     groupBy: 'stage'
   };
 
+  // ─── Report Tab Cache ────────────────────────────────────────
+  var _reportCache = {};
+
+  function _reportCacheKey() {
+    if (state.activeReport === 'revenue-projection') {
+      return state.activeReport + '|' + state.horizon + '|' + state.groupBy;
+    }
+    return state.activeReport + '|' + state.dateField + '|' + state.startDate + '|' + state.endDate + '|' + state.practiceArea + '|' + state.source;
+  }
+
+  function clearReportCache() { _reportCache = {}; }
+
   var REPORT_TYPES = [
     { key: 'close-ratio', label: 'Close Ratio' },
     { key: 'funnel', label: 'Pipeline Funnel' },
@@ -100,7 +112,16 @@
 
   // ─── Fetch Report ──────────────────────────────────────────
   var _fetchGen = 0;
-  async function fetchReport() {
+  async function fetchReport(forceRefresh) {
+    var cacheKey = _reportCacheKey();
+
+    // Use cached data if available and not forcing refresh
+    if (!forceRefresh && _reportCache[cacheKey]) {
+      state.data = _reportCache[cacheKey];
+      renderReport();
+      return;
+    }
+
     var gen = ++_fetchGen;
     state.loading = true;
 
@@ -125,6 +146,7 @@
       state.data = result;
 
       if (result.success) {
+        _reportCache[cacheKey] = result;
         renderReport();
       } else {
         var msg = typeof result.error === 'string' ? result.error : 'Failed to load report.';

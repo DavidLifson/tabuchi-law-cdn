@@ -14,6 +14,75 @@ const ClientCareAPI = (() => {
 
   const WH = 'https://tabuchilaw.app.n8n.cloud/webhook';
 
+  // ─── Response Cache ────────────────────────────────────────────
+  // TTL-based cache for GET-like requests. Keyed by endpoint + body JSON.
+  // Mutations (create/update/delete actions) bypass and invalidate cache.
+  var _cache = {};
+  var _inflight = {};
+
+  var CACHE_TTL = {
+    default: 30000,       // 30s for most list/get endpoints
+    config: 300000,       // 5min for config (rarely changes)
+    price_book: 300000,   // 5min for price book (rarely changes)
+    system_stats: 60000,  // 1min for admin stats
+    reports: 60000        // 1min for report data
+  };
+
+  // Actions that are read-only (safe to cache)
+  var READ_ACTIONS = ['list', 'get', 'get_history', 'list_users', 'list_templates',
+    'system_stats', 'list_recipients', 'report', 'preview_audience', 'list_steps'];
+
+  // Actions that mutate data (invalidate cache)
+  var WRITE_ACTIONS = ['create', 'update', 'delete', 'bulk_update_tags',
+    'bulk_update_status', 'create_step', 'delete_step', 'enroll',
+    'schedule', 'send_now', 'cancel', 'duplicate', 'test_send',
+    'resend_non_openers', 'create_template', 'update_template',
+    'create_task', 'update_task', 'delete_task'];
+
+  function _cacheKey(path, body) {
+    return path + '|' + JSON.stringify(body || {});
+  }
+
+  function _getCacheTTL(path) {
+    if (path.indexOf('/cc/config') !== -1) return CACHE_TTL.config;
+    if (path.indexOf('/cc/price-book') !== -1) return CACHE_TTL.price_book;
+    if (path.indexOf('/cc/admin') !== -1 && path.indexOf('stats') !== -1) return CACHE_TTL.system_stats;
+    if (path.indexOf('/cc/reports') !== -1) return CACHE_TTL.reports;
+    return CACHE_TTL.default;
+  }
+
+  function _isCacheable(path, body) {
+    if (!body || !body.action) return false;
+    return READ_ACTIONS.indexOf(body.action) !== -1;
+  }
+
+  function _isWrite(body) {
+    if (!body || !body.action) return false;
+    return WRITE_ACTIONS.indexOf(body.action) !== -1;
+  }
+
+  function _invalidatePrefix(prefix) {
+    var keys = Object.keys(_cache);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf(prefix) === 0) delete _cache[keys[i]];
+    }
+    // Also clear inflight for the prefix
+    keys = Object.keys(_inflight);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf(prefix) === 0) delete _inflight[keys[i]];
+    }
+  }
+
+  /** Invalidate all cached responses for a given endpoint path */
+  function invalidateCache(path) {
+    if (path) {
+      _invalidatePrefix(path);
+    } else {
+      _cache = {};
+      _inflight = {};
+    }
+  }
+
   // ─── Auth Token ──────────────────────────────────────────────
   function getToken() {
     return localStorage.getItem('app_token') || localStorage.getItem('dashboard_token') || '';
@@ -52,6 +121,27 @@ const ClientCareAPI = (() => {
 
   // ─── Core Request ────────────────────────────────────────────
   async function request(method, path, options = {}) {
+    var body = options.body;
+
+    // ── Cache: invalidate on writes ──
+    if (_isWrite(body)) {
+      _invalidatePrefix(path);
+    }
+
+    // ── Cache: return cached response for reads ──
+    var cacheKey = null;
+    if (method === 'POST' && _isCacheable(path, body) && !options.skipCache) {
+      cacheKey = _cacheKey(path, body);
+      var cached = _cache[cacheKey];
+      if (cached && (Date.now() - cached.time) < _getCacheTTL(path)) {
+        return cached.data;
+      }
+      // ── Deduplication: reuse inflight request for same key ──
+      if (_inflight[cacheKey]) {
+        return _inflight[cacheKey];
+      }
+    }
+
     const url = new URL(`${WH}${path}`);
 
     if (options.params) {
@@ -75,31 +165,46 @@ const ClientCareAPI = (() => {
 
     const fetchOptions = { method, headers };
 
-    if (options.body && method !== 'GET') {
-      fetchOptions.body = JSON.stringify(options.body);
+    if (body && method !== 'GET') {
+      fetchOptions.body = JSON.stringify(body);
     }
 
-    try {
-      const response = await fetch(url.toString(), fetchOptions);
+    var promise = (async function() {
+      try {
+        const response = await fetch(url.toString(), fetchOptions);
 
-      // Handle 401 — redirect to login
-      if (response.status === 401) {
-        clearToken();
-        window.location.href = '/login?expired=1';
-        throw { status: 401, error: 'Session expired. Please sign in again.' };
-      }
+        // Handle 401 — redirect to login
+        if (response.status === 401) {
+          clearToken();
+          window.location.href = '/login?expired=1';
+          throw { status: 401, error: 'Session expired. Please sign in again.' };
+        }
 
-      const text = await response.text();
-      let data = {};
-      try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { error: 'Invalid response from server' }; }
-      if (!response.ok) {
-        throw { status: response.status, ...data };
+        const text = await response.text();
+        let data = {};
+        try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { error: 'Invalid response from server' }; }
+        if (!response.ok) {
+          throw { status: response.status, ...data };
+        }
+
+        // ── Cache: store successful read responses ──
+        if (cacheKey) {
+          _cache[cacheKey] = { data: data, time: Date.now() };
+        }
+
+        return data;
+      } catch (error) {
+        if (error.status) throw error;
+        throw { status: 0, success: false, error: 'Network error. Please try again.' };
+      } finally {
+        if (cacheKey) delete _inflight[cacheKey];
       }
-      return data;
-    } catch (error) {
-      if (error.status) throw error;
-      throw { status: 0, success: false, error: 'Network error. Please try again.' };
-    }
+    })();
+
+    // ── Store inflight promise for deduplication ──
+    if (cacheKey) _inflight[cacheKey] = promise;
+
+    return promise;
   }
 
   // ─── Auth / SSO ──────────────────────────────────────────────
@@ -676,6 +781,8 @@ const ClientCareAPI = (() => {
     subscriptions: { unsubscribe },
     // Intake (public)
     intake: { save: saveIntakeForm, resume: resumeIntakeForm, submit: submitIntakeForm },
+    // Cache management
+    cache: { invalidate: invalidateCache },
     // Utilities
     util: {
       formatDate, formatDateTime, formatRelativeTime,

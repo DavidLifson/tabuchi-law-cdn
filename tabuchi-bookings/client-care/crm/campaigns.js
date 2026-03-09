@@ -107,6 +107,7 @@
     // Editor
     contentBlocks: [],
     editorDirty: false,
+    listStale: false,
     // Audience
     audiencePreview: null,
     // Validation
@@ -464,7 +465,12 @@
     state.contentBlocks = [];
     state.editorDirty = false;
     toggleViews();
-    fetchCampaigns();
+    if (state.listStale) {
+      state.listStale = false;
+      fetchCampaigns();
+    } else {
+      renderTable();
+    }
   }
 
   function toggleViews() {
@@ -1311,6 +1317,7 @@
       });
       if (result.success) {
         state.editorDirty = false;
+        state.listStale = true;
         showToast('Content saved.', 'success');
         // Update local campaign object
         state.activeCampaign.content_json = getContentJSON();
@@ -1344,6 +1351,7 @@
         audience_rules_json: JSON.stringify(aud)
       });
       if (result.success) {
+        state.listStale = true;
         showToast('Audience definition saved.', 'success');
         state.activeCampaign.audience_rules_json = JSON.stringify(aud);
         state.activeCampaign.Audience_Rules_JSON = JSON.stringify(aud);
@@ -1518,6 +1526,7 @@
     try {
       var result = await API.campaigns.update(state.activeCampaign.id, { status: newStatus });
       if (result.success) {
+        state.listStale = true;
         showToast('Status updated to ' + newStatus, 'success');
         fetchDetail(state.activeCampaign.id);
       } else {
@@ -1776,6 +1785,7 @@
     try {
       var result = await API.campaigns.update(state.activeCampaign.id, updates);
       if (result.success) {
+        state.listStale = true;
         showToast('Campaign updated.', 'success');
         closeModal();
         fetchDetail(state.activeCampaign.id);
@@ -1863,6 +1873,7 @@
     try {
       var result = await API.campaigns.schedule(state.activeCampaign.id, scheduledAt, timezone);
       if (result.success) {
+        state.listStale = true;
         showToast('Campaign scheduled.', 'success');
         closeModal();
         fetchDetail(state.activeCampaign.id);

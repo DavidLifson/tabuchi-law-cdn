@@ -114,6 +114,42 @@
     if (container) container.classList.remove('cc-loading-state');
   }
 
+  // ─── Selective Re-fetch Helpers ────────────────────────────
+  async function reloadContact() {
+    try {
+      API.cache.invalidate('/cc/leads');
+      var result = await API.leads.get(contactId);
+      if (result.success && result.lead) {
+        state.contact = result.lead;
+        renderHeader();
+        renderTabContent();
+      }
+    } catch (err) { /* silently fail, data will be stale */ }
+  }
+
+  async function reloadHistory() {
+    try {
+      API.cache.invalidate('/cc/contacts');
+      API.cache.invalidate('/cc/activities');
+      var result = await API.contacts.getHistory(contactId);
+      if (result.success) {
+        state.activities = result.activities || [];
+        state.campaignSends = result.campaign_sends || [];
+        state.conversion = result.conversion || { converted: false };
+        if (state.activeTab === 'history') renderTabContent();
+      }
+    } catch (err) { /* silently fail */ }
+  }
+
+  async function reloadTasks() {
+    try {
+      API.cache.invalidate('/cc/tasks');
+      var result = await API.tasks.list({ lead_id: contactId });
+      state.tasks = (result.success && result.tasks) || [];
+      if (state.activeTab === 'history') renderTabContent();
+    } catch (err) { /* silently fail */ }
+  }
+
   // ─── Render All Sections ────────────────────────────────────
   function render() {
     renderHeader();
@@ -548,7 +584,7 @@
         var result = await API.leads.update(contactId, updates);
         if (result.success) {
           state.editMode = false;
-          loadData();
+          reloadContact();
         } else {
           alert(result.error || 'Failed to save changes');
         }
@@ -572,7 +608,7 @@
 
         try {
           var result = await API.leads.update(contactId, { Tags: currentTags });
-          if (result.success) loadData();
+          if (result.success) reloadContact();
         } catch (err) {
           alert('Failed to remove tag: ' + (err.error || 'Unknown error'));
         }
@@ -607,7 +643,7 @@
 
     try {
       var result = await API.leads.update(contactId, { Tags: currentTags });
-      if (result.success) loadData();
+      if (result.success) reloadContact();
     } catch (err) {
       alert('Failed to add tags: ' + (err.error || 'Unknown error'));
     }
@@ -651,7 +687,7 @@
         var taskId = btn.dataset.taskId;
         try {
           var result = await API.tasks.update(taskId, { status: 'DONE' });
-          if (result.success) loadData();
+          if (result.success) reloadTasks();
         } catch (err) {
           alert('Failed to complete task: ' + (err.error || 'Unknown error'));
         }
@@ -705,7 +741,7 @@
           document.getElementById('cc-act-body').value = '';
           document.getElementById('cc-act-duration').value = '';
           document.getElementById('cc-act-outcome').value = '';
-          loadData();
+          reloadHistory();
         }
       } catch (err) {
         alert('Failed: ' + (err.error || 'Unknown error'));
@@ -753,7 +789,7 @@
         if (result.success) {
           document.getElementById('cc-task-title').value = '';
           document.getElementById('cc-task-due').value = '';
-          loadData();
+          reloadTasks();
         }
       } catch (err) {
         alert('Failed: ' + (err.error || 'Unknown error'));
