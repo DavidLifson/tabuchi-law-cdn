@@ -220,8 +220,8 @@
       { label: 'Created', value: API.util.formatDateTime(l.Created_At) },
       { label: 'Last Contact', value: API.util.formatRelativeTime(l.Last_Contacted_At) || '—' },
       { label: 'Next Action', value: API.util.formatDateTime(l.Next_Action_At) || '—' },
-      { label: 'Est. Closing Date', value: l.Estimated_Closing_Date ? API.util.formatDate(l.Estimated_Closing_Date) : '---' },
-      { label: 'Services Required', value: formatServicesRequired(l) },
+      { label: 'Est. Closing Date', html: renderClosingDateField(l) },
+      { label: 'Services Required', html: renderServicesField(l) },
       { label: 'Consent', value: l.Consent_Status || 'UNKNOWN' },
       { label: 'Lead ID', value: l.Lead_ID || l.id }
     ];
@@ -237,10 +237,12 @@
 
     var html = '<div class="cc-info-grid">';
     fields.forEach(function(f) {
-      html += '<div class="cc-info-item"><span class="cc-info-label">' + f.label + '</span><span class="cc-info-value">' + escapeHtml(f.value || '') + '</span></div>';
+      var valHtml = f.html ? f.html : '<span class="cc-info-value">' + escapeHtml(f.value || '') + '</span>';
+      html += '<div class="cc-info-item"><span class="cc-info-label">' + f.label + '</span>' + valHtml + '</div>';
     });
     html += '</div>';
     el.innerHTML = html;
+    bindInfoEdits();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────
@@ -474,7 +476,145 @@
     return pa.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
   }
 
+  // ─── Inline Edit: Closing Date ───────────────────────────────
+  function renderClosingDateField(l) {
+    var val = l.Estimated_Closing_Date ? API.util.formatDate(l.Estimated_Closing_Date) : '---';
+    return '<span class="cc-info-value cc-editable" id="cc-closing-date-val" title="Click to edit">' +
+      escapeHtml(val) + ' <span class="cc-edit-icon">&#9998;</span></span>' +
+      '<input type="date" id="cc-closing-date-input" class="cc-inline-date" style="display:none" ' +
+      'value="' + escapeAttr(l.Estimated_Closing_Date || '') + '">';
+  }
+
+  function renderServicesField(l) {
+    var display = formatServicesRequired(l);
+    return '<span class="cc-info-value cc-editable" id="cc-services-val" title="Click to edit">' +
+      escapeHtml(display) + ' <span class="cc-edit-icon">&#9998;</span></span>';
+  }
+
+  function bindInfoEdits() {
+    // Closing Date: click to show date input
+    var dateVal = document.getElementById('cc-closing-date-val');
+    var dateInput = document.getElementById('cc-closing-date-input');
+    if (dateVal && dateInput) {
+      dateVal.addEventListener('click', function() {
+        dateVal.style.display = 'none';
+        dateInput.style.display = 'inline-block';
+        dateInput.focus();
+      });
+      dateInput.addEventListener('change', async function() {
+        var newDate = dateInput.value || null;
+        try {
+          var res = await API.leads.update(leadId, { Estimated_Closing_Date: newDate });
+          if (res.success) {
+            state.lead.Estimated_Closing_Date = newDate;
+            renderInfo();
+          } else {
+            alert('Save failed: ' + (res.error || 'Unknown error'));
+            dateInput.style.display = 'none';
+            dateVal.style.display = '';
+          }
+        } catch (err) {
+          alert('Save failed: ' + (err.error || 'Network error'));
+          dateInput.style.display = 'none';
+          dateVal.style.display = '';
+        }
+      });
+      dateInput.addEventListener('blur', function() {
+        // Re-show label if no change
+        setTimeout(function() {
+          if (dateInput.style.display !== 'none') {
+            dateInput.style.display = 'none';
+            dateVal.style.display = '';
+          }
+        }, 200);
+      });
+    }
+
+    // Services: click to open modal
+    var svcVal = document.getElementById('cc-services-val');
+    if (svcVal) {
+      svcVal.addEventListener('click', function() {
+        showServicesModal();
+      });
+    }
+  }
+
+  // ─── Services Selector Modal ────────────────────────────────
+  async function showServicesModal() {
+    // Fetch active price book items
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.id = 'cc-services-modal-overlay';
+    overlay.innerHTML = '<div class="cc-modal" style="max-width:480px"><div class="cc-modal-header"><h3>Select Services</h3>' +
+      '<button class="cc-modal-close" id="cc-svc-modal-close">&times;</button></div>' +
+      '<div class="cc-modal-body" id="cc-svc-modal-body"><p>Loading services...</p></div>' +
+      '<div class="cc-modal-footer"><button class="cc-btn cc-btn-primary" id="cc-svc-modal-save">Save</button> ' +
+      '<button class="cc-btn" id="cc-svc-modal-cancel">Cancel</button></div></div>';
+    document.body.appendChild(overlay);
+
+    // Bind close/cancel
+    var closeModal = function() { overlay.remove(); };
+    document.getElementById('cc-svc-modal-close').addEventListener('click', closeModal);
+    document.getElementById('cc-svc-modal-cancel').addEventListener('click', closeModal);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+
+    try {
+      var res = await API.priceBook.list();
+      var items = (res.items || []).filter(function(i) { return i.Is_Active; });
+      var currentIds = (state.lead.Services_Required || []).filter(function(s) {
+        return typeof s === 'string' && s.startsWith('rec');
+      });
+
+      var body = document.getElementById('cc-svc-modal-body');
+      if (!items.length) {
+        body.innerHTML = '<p>No active services in price book. <a href="/crm/admin">Add services</a> first.</p>';
+        return;
+      }
+
+      var html = '<div style="max-height:300px;overflow-y:auto">';
+      items.forEach(function(item) {
+        var checked = currentIds.indexOf(item.id) !== -1 ? ' checked' : '';
+        html += '<label style="display:block;padding:6px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">' +
+          '<input type="checkbox" class="cc-svc-checkbox" value="' + escapeAttr(item.id) + '"' + checked + '> ' +
+          '<strong>' + escapeHtml(item.Service_Name) + '</strong>' +
+          (item.Practice_Area ? ' <span style="color:#888;font-size:12px">(' + escapeHtml(item.Practice_Area) + ')</span>' : '') +
+          (item.List_Price ? ' <span style="color:#2563eb;font-size:12px">$' + Number(item.List_Price).toLocaleString() + '</span>' : '') +
+          '</label>';
+      });
+      html += '</div>';
+      body.innerHTML = html;
+
+      // Bind save
+      document.getElementById('cc-svc-modal-save').addEventListener('click', async function() {
+        var checkboxes = overlay.querySelectorAll('.cc-svc-checkbox');
+        var selectedIds = [];
+        checkboxes.forEach(function(cb) { if (cb.checked) selectedIds.push(cb.value); });
+
+        try {
+          var saveRes = await API.leads.update(leadId, { Services_Required: selectedIds });
+          if (saveRes.success) {
+            state.lead.Services_Required = selectedIds;
+            // Update names from items for display
+            state.lead._serviceNames = items.filter(function(i) { return selectedIds.indexOf(i.id) !== -1; })
+              .map(function(i) { return i.Service_Name; });
+            renderInfo();
+            closeModal();
+          } else {
+            alert('Save failed: ' + (saveRes.error || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Save failed: ' + (err.error || 'Network error'));
+        }
+      });
+    } catch (err) {
+      var body = document.getElementById('cc-svc-modal-body');
+      if (body) body.innerHTML = '<p class="cc-error">Failed to load services: ' + escapeHtml(err.error || 'Network error') + '</p>';
+    }
+  }
+
   function formatServicesRequired(lead) {
+    // Use cached names if available
+    if (lead._serviceNames && lead._serviceNames.length) return lead._serviceNames.join(', ');
     var services = lead.Services_Required || [];
     if (!services.length) return '---';
     // If Airtable returns lookup names, use them; otherwise show count
@@ -490,7 +630,26 @@
   }
 
   // ─── Initialize ──────────────────────────────────────────────
+  function injectStyles() {
+    var s = document.createElement('style');
+    s.textContent =
+      '.cc-editable{cursor:pointer;border-bottom:1px dashed #cbd5e1;transition:background .15s}' +
+      '.cc-editable:hover{background:#f0f7ff}' +
+      '.cc-edit-icon{font-size:11px;opacity:.4;margin-left:2px}' +
+      '.cc-editable:hover .cc-edit-icon{opacity:.8}' +
+      '.cc-inline-date{padding:2px 6px;border:1px solid #94a3b8;border-radius:4px;font-size:13px}' +
+      '.cc-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}' +
+      '.cc-modal{background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.2);width:90%;max-width:480px}' +
+      '.cc-modal-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e2e8f0}' +
+      '.cc-modal-header h3{margin:0;font-size:16px}' +
+      '.cc-modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#64748b}' +
+      '.cc-modal-body{padding:16px 20px}' +
+      '.cc-modal-footer{padding:12px 20px;border-top:1px solid #e2e8f0;text-align:right}';
+    document.head.appendChild(s);
+  }
+
   function init() {
+    injectStyles();
     var user = API.auth.getUser();
     var userNameEl = $el('cc-user-name');
     if (user && userNameEl) userNameEl.textContent = user.name || user.email;
