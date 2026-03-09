@@ -1511,7 +1511,7 @@
     renderPriceBookTab();
     try {
       var res = await API.priceBook.list(true);
-      state.priceBookItems = (res.items || []).sort(function(a, b) {
+      state.priceBookItems = (res.services || []).sort(function(a, b) {
         return (a.Sort_Order || 0) - (b.Sort_Order || 0);
       });
     } catch (err) {
@@ -1635,7 +1635,7 @@
     renderPriceBookTab();
     try {
       var res = await API.priceBook.get(serviceId);
-      state.priceBookDetail = res.item || res;
+      state.priceBookDetail = res.service || res;
       state.priceBookDetail.tasks = res.tasks || [];
     } catch (err) {
       showToast(err.error || 'Failed to load service details.', 'error');
