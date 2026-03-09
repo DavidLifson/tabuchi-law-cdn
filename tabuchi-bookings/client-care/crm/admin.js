@@ -1562,7 +1562,7 @@
     html += '<th class="cc-th">Practice Area</th>';
     html += '<th class="cc-th" style="width:120px;">List Price</th>';
     html += '<th class="cc-th" style="width:80px;">Active</th>';
-    html += '<th class="cc-th" style="width:180px;">Actions</th>';
+    html += '<th class="cc-th" style="width:260px;">Actions</th>';
     html += '</tr></thead><tbody>';
 
     items.forEach(function(item) {
@@ -1575,6 +1575,7 @@
       html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
       html += '<td>';
       html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-pb-edit-btn" data-id="' + escapeAttr(item.id) + '">Edit</button> ';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-pb-cost-btn" data-id="' + escapeAttr(item.id) + '" style="color:#059669;border-color:#059669;">Cost</button> ';
       if (item.Is_Active) {
         html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-pb-toggle-btn" data-id="' + escapeAttr(item.id) + '" data-active="false">Deactivate</button>';
       } else {
@@ -1603,6 +1604,12 @@
       btn.addEventListener('click', function() {
         var item = state.priceBookItems.find(function(i) { return i.id === btn.dataset.id; });
         if (item) showPriceBookModal(item);
+      });
+    });
+
+    content.querySelectorAll('.cc-pb-cost-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        openPriceBookDetail(btn.dataset.id);
       });
     });
 
@@ -1678,6 +1685,8 @@
       html += '<th class="cc-th">Task Name</th>';
       html += '<th class="cc-th" style="width:120px;">Assignee Role</th>';
       html += '<th class="cc-th" style="width:100px;">Est. Hours</th>';
+      html += '<th class="cc-th" style="width:100px;">Cost/Hr</th>';
+      html += '<th class="cc-th" style="width:100px;">Total Cost</th>';
       html += '<th class="cc-th" style="width:80px;">Order</th>';
       html += '<th class="cc-th" style="width:80px;">Active</th>';
       html += '<th class="cc-th" style="width:140px;">Actions</th>';
@@ -1689,6 +1698,8 @@
         html += '<td>' + escapeHtml(t.Task_Name || '') + '</td>';
         html += '<td>' + escapeHtml(t.Default_Assignee_Role || '---') + '</td>';
         html += '<td>' + (t.Estimated_Hours || 0) + '</td>';
+        html += '<td>' + formatCurrency(t.Cost_Per_Hour) + '</td>';
+        html += '<td>' + formatCurrency(t.Total_Cost) + '</td>';
         html += '<td>' + (t.Sort_Order || 0) + '</td>';
         html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + (t.Is_Active ? 'Yes' : 'No') + '</span></td>';
         html += '<td>';
@@ -1843,6 +1854,8 @@
           '</select></div>' +
           '<div class="cc-form-group"><label>Estimated Hours</label>' +
           '<input type="number" id="cc-pbt-hours" class="cc-input" step="0.25" min="0" value="' + ((existing && existing.Estimated_Hours) || '') + '"></div>' +
+          '<div class="cc-form-group"><label>Cost Per Hour ($)</label>' +
+          '<input type="number" id="cc-pbt-costhr" class="cc-input" step="0.01" min="0" value="' + ((existing && existing.Cost_Per_Hour) || '') + '"></div>' +
           '<div class="cc-form-group"><label>Sort Order</label>' +
           '<input type="number" id="cc-pbt-sort" class="cc-input" value="' + ((existing && existing.Sort_Order) || 0) + '"></div>' +
         '</div>' +
@@ -1867,6 +1880,7 @@
         Task_Name: taskName,
         Default_Assignee_Role: $el('cc-pbt-role').value || undefined,
         Estimated_Hours: parseFloat($el('cc-pbt-hours').value) || 0,
+        Cost_Per_Hour: parseFloat($el('cc-pbt-costhr').value) || 0,
         Sort_Order: parseInt($el('cc-pbt-sort').value) || 0
       };
 
