@@ -1889,7 +1889,7 @@
           await API.priceBook.updateTask(existing.id, data);
           showToast('Task updated.', 'success');
         } else {
-          data.Parent_Service = parentServiceId;
+          data.parent_service_id = parentServiceId;
           await API.priceBook.createTask(data);
           showToast('Task created.', 'success');
         }
