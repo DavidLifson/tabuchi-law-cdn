@@ -7,7 +7,7 @@
  * Features:
  * - Date range selector with presets (7d, 30d, 90d, MTD, QTD, YTD, All)
  * - Date field toggle (Created At / Closed At)
- * - Report tabs: Close Ratio, Funnel, Stage Aging, Rep Performance, Source, SLA, Lost Reasons
+ * - Report tabs: Close Ratio, Funnel, Stage Aging, Rep Performance, Source, Service Level, Lost Reasons
  * - All tables sortable
  *
  * Page element IDs:
@@ -58,7 +58,7 @@
     { key: 'stage-aging', label: 'Stage Aging' },
     { key: 'rep-performance', label: 'Rep Performance' },
     { key: 'source-attribution', label: 'Source Attribution' },
-    { key: 'sla-compliance', label: 'SLA Compliance' },
+    { key: 'sla-compliance', label: 'Service Level' },
     { key: 'lost-reasons', label: 'Lost Reasons' },
     { key: 'revenue-projection', label: 'Revenue Projection' }
   ];
@@ -403,7 +403,7 @@
   function renderSLACompliance(d) {
     if (!d) return '';
     var html = '<div class="cc-rpt-headline">' +
-      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.compliance_pct != null ? d.compliance_pct : 0)) + '%</div><div class="cc-rpt-stat-label">SLA Compliance</div></div>' +
+      '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.compliance_pct != null ? d.compliance_pct : 0)) + '%</div><div class="cc-rpt-stat-label">Service Level Compliance</div></div>' +
       '<div class="cc-rpt-stat"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.total || 0)) + '</div><div class="cc-rpt-stat-label">Total</div></div>' +
       '<div class="cc-rpt-stat cc-text-green"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.within_sla || 0)) + '</div><div class="cc-rpt-stat-label">Within ' + escapeHtml(String(d.sla_hours || 24)) + 'h</div></div>' +
       '<div class="cc-rpt-stat cc-text-red"><div class="cc-rpt-stat-value">' + escapeHtml(String(d.breached || 0)) + '</div><div class="cc-rpt-stat-label">Breached</div></div>' +

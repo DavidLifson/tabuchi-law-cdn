@@ -5,10 +5,10 @@
  * Requires: cc-api-client.js loaded first
  *
  * Features:
- * - System overview dashboard (pipeline stats, Clio sync failures, SLA breaches)
+ * - System overview dashboard (pipeline stats, Clio sync failures, service level breaches)
  * - User management (list, update roles/teams, activate/deactivate)
  * - Template management (list, create, edit email/SMS templates)
- * - System configuration (SLA thresholds, integration status)
+ * - System configuration (service level thresholds, integration status)
  * - Role restricted: ADMIN only
  *
  * Page element IDs:
@@ -809,19 +809,19 @@
 
     var html = '<div class="cc-admin-system">';
 
-    // SLA Configuration
-    html += '<h3 class="cc-admin-section-title">SLA Configuration</h3>';
+    // Service Level Configuration
+    html += '<h3 class="cc-admin-section-title">Service Level Configuration</h3>';
     html += '<div class="cc-admin-config-card">';
     html += '<table class="cc-table cc-admin-config-table">';
     html += '<thead><tr><th class="cc-th">Setting</th><th class="cc-th">Value</th><th class="cc-th">Description</th></tr></thead>';
     html += '<tbody>';
-    html += '<tr><td>Initial Contact SLA</td><td><strong>4 hours</strong></td><td>New leads must be contacted within this window (CC-13 checks every 15 min)</td></tr>';
-    html += '<tr><td>Follow-Up SLA</td><td><strong>48 hours</strong></td><td>Maximum time between touchpoints for open leads</td></tr>';
+    html += '<tr><td>Initial Contact Service Level</td><td><strong>4 hours</strong></td><td>New leads must be contacted within this window (CC-13 checks every 15 min)</td></tr>';
+    html += '<tr><td>Follow-Up Service Level</td><td><strong>48 hours</strong></td><td>Maximum time between touchpoints for open leads</td></tr>';
     html += '<tr><td>Form Session Expiry</td><td><strong>7 days</strong></td><td>Intake form save/resume sessions expire after this period</td></tr>';
     html += '<tr><td>Clio Retry Attempts</td><td><strong>3</strong></td><td>Number of retries before marking as MANUAL_REVIEW (CC-08 runs every 15 min)</td></tr>';
     html += '<tr><td>Drip Sender Interval</td><td><strong>1 hour</strong></td><td>CC-14 checks for pending drip steps every hour</td></tr>';
     html += '</tbody></table>';
-    html += '<p class="cc-admin-hint">SLA thresholds are configured in n8n workflows. To change, edit the CC-13 (SLA Checker) and CC-08 (Clio Retry) workflows.</p>';
+    html += '<p class="cc-admin-hint">Service level thresholds are configured in n8n workflows. To change, edit the CC-13 (Service Level Checker) and CC-08 (Clio Retry) workflows.</p>';
     html += '</div>';
 
     // Integration Status
@@ -833,7 +833,7 @@
     html += '<tr><td>Airtable</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Base: appPccm6NkaJdvqwy &mdash; 13 CC_ tables</td></tr>';
     html += '<tr><td>Microsoft Entra SSO</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>App: tabuchi-dashboard-spa (4df869dd-...)</td></tr>';
     html += '<tr><td>Clio Manage</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>OAuth credentials in n8n. Contact/Matter creation on close.</td></tr>';
-    html += '<tr><td>Microsoft Graph (Mail)</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Mail.Send permission granted. Used for drip campaigns & SLA notifications.</td></tr>';
+    html += '<tr><td>Microsoft Graph (Mail)</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Mail.Send permission granted. Used for drip campaigns & service level notifications.</td></tr>';
     html += '<tr><td>Twilio SMS</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Phone: +16479553886. Used for SMS campaigns.</td></tr>';
     html += '</tbody></table>';
     html += '</div>';
@@ -901,7 +901,7 @@
       { id: 'CC-10', name: 'Reports API', trigger: 'Webhook' },
       { id: 'CC-11', name: 'Campaign CRUD', trigger: 'Webhook' },
       { id: 'CC-12', name: 'Subscribe/Unsubscribe', trigger: 'Webhook' },
-      { id: 'CC-13', name: 'SLA Breach Checker', trigger: 'Schedule (15 min)' },
+      { id: 'CC-13', name: 'Service Level Breach Checker', trigger: 'Schedule (15 min)' },
       { id: 'CC-14', name: 'Drip Step Sender', trigger: 'Schedule (1 hour)' }
     ];
 

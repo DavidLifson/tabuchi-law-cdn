@@ -414,7 +414,7 @@
         '<select id="cc-task-type" class="cc-input">' +
           '<option value="CUSTOM">Custom</option>' +
           '<option value="FOLLOW_UP">Follow-up</option>' +
-          '<option value="SLA_CONTACT">SLA Contact</option>' +
+          '<option value="SLA_CONTACT">Service Level Contact</option>' +
           '<option value="MEETING2_SCHEDULE">Schedule Meeting #2</option>' +
           '<option value="DRAFTING">Drafting</option>' +
         '</select>' +
