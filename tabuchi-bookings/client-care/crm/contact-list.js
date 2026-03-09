@@ -235,8 +235,8 @@
     // Attach row click handlers (not on checkbox cell)
     tbody.querySelectorAll('.cc-contact-row').forEach(function(row) {
       row.addEventListener('click', function(e) {
-        // Don't navigate if clicking checkbox
-        if (e.target.classList.contains('cc-row-check')) return;
+        // Don't navigate if clicking checkbox or its cell
+        if (e.target.closest('.cc-cell-checkbox') || e.target.classList.contains('cc-row-check')) return;
         window.location.href = '/crm/contact?id=' + row.dataset.id;
       });
       row.style.cursor = 'pointer';
@@ -255,6 +255,18 @@
         // Toggle row highlight
         var row = cb.closest('.cc-contact-row');
         if (row) row.classList.toggle('cc-row-selected', cb.checked);
+      });
+    });
+
+    // Make checkbox cell clicks toggle the checkbox
+    tbody.querySelectorAll('.cc-cell-checkbox').forEach(function(cell) {
+      cell.addEventListener('click', function(e) {
+        if (e.target.tagName === 'INPUT') return; // Already handled by change event
+        var cb = cell.querySelector('.cc-row-check');
+        if (cb) {
+          cb.checked = !cb.checked;
+          cb.dispatchEvent(new Event('change'));
+        }
       });
     });
   }
