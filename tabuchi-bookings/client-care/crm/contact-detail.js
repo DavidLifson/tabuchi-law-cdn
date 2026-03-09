@@ -117,7 +117,7 @@
   // ─── Selective Re-fetch Helpers ────────────────────────────
   async function reloadContact() {
     try {
-      API.cache.invalidate('/cc/leads');
+      if (API.cache) API.cache.invalidate('/cc/leads');
       var result = await API.leads.get(contactId);
       if (result.success && result.lead) {
         state.contact = result.lead;
@@ -129,8 +129,8 @@
 
   async function reloadHistory() {
     try {
-      API.cache.invalidate('/cc/contacts');
-      API.cache.invalidate('/cc/activities');
+      if (API.cache) API.cache.invalidate('/cc/contacts');
+      if (API.cache) API.cache.invalidate('/cc/activities');
       var result = await API.contacts.getHistory(contactId);
       if (result.success) {
         state.activities = result.activities || [];
@@ -143,7 +143,7 @@
 
   async function reloadTasks() {
     try {
-      API.cache.invalidate('/cc/tasks');
+      if (API.cache) API.cache.invalidate('/cc/tasks');
       var result = await API.tasks.list({ lead_id: contactId });
       state.tasks = (result.success && result.tasks) || [];
       if (state.activeTab === 'history') renderTabContent();

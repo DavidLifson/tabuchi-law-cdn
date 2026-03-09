@@ -103,7 +103,7 @@
   // ─── Selective Re-fetch Helpers ────────────────────────────
   async function reloadLead() {
     try {
-      API.cache.invalidate('/cc/leads');
+      if (API.cache) API.cache.invalidate('/cc/leads');
       var result = await API.leads.get(leadId);
       if (result.success && result.lead) {
         state.lead = result.lead;
@@ -116,7 +116,7 @@
 
   async function reloadActivities() {
     try {
-      API.cache.invalidate('/cc/activities');
+      if (API.cache) API.cache.invalidate('/cc/activities');
       var result = await API.activities.list(leadId);
       state.activities = (result.success && result.activities) || [];
       renderActivities();
@@ -125,7 +125,7 @@
 
   async function reloadTasks() {
     try {
-      API.cache.invalidate('/cc/tasks');
+      if (API.cache) API.cache.invalidate('/cc/tasks');
       var result = await API.tasks.list({ lead_id: leadId });
       state.tasks = (result.success && result.tasks) || [];
       renderTasks();
