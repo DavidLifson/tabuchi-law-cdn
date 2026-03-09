@@ -1,5 +1,6 @@
 /**
  * Tabuchi Law Client Care CRM - Lead Detail (360 View)
+ * v2.1 — 6-stage pipeline
  * Handles: /crm/lead/:id
  *
  * Requires: cc-api-client.js loaded first
