@@ -673,6 +673,7 @@
       '.cc-editable:hover{background:#f0f7ff}' +
       '.cc-edit-icon{font-size:11px;opacity:.4;margin-left:2px}' +
       '.cc-editable:hover .cc-edit-icon{opacity:.8}' +
+      '.cc-info-label{margin-bottom:4px}' +
       '.cc-inline-date{padding:2px 6px;border:1px solid #94a3b8;border-radius:4px;font-size:13px}' +
       '.cc-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center}' +
       '.cc-modal{background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.2);width:90%;max-width:480px}' +
