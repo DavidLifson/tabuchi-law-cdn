@@ -1,6 +1,5 @@
 /**
  * Tabuchi Law Client Care CRM - Lead Detail (360 View)
- * v2.1 — 6-stage pipeline
  * Handles: /crm/lead/:id
  *
  * Requires: cc-api-client.js loaded first
@@ -270,8 +269,8 @@
 
     var html = '<div class="cc-info-grid">';
     fields.forEach(function(f) {
-      var valHtml = f.html ? f.html : '<span class="cc-info-value">' + escapeHtml(f.value || '') + '</span>';
-      html += '<div class="cc-info-item"><span class="cc-info-label">' + f.label + '</span>' + valHtml + '</div>';
+      var valHtml = f.html ? f.html : '<div class="cc-info-value">' + escapeHtml(f.value || '') + '</div>';
+      html += '<div class="cc-info-item"><div class="cc-info-label">' + f.label + '</div>' + valHtml + '</div>';
     });
     html += '</div>';
     el.innerHTML = html;
@@ -512,16 +511,16 @@
   // ─── Inline Edit: Closing Date ───────────────────────────────
   function renderClosingDateField(l) {
     var val = l.Estimated_Closing_Date ? API.util.formatDate(l.Estimated_Closing_Date) : '---';
-    return '<span class="cc-info-value cc-editable" id="cc-closing-date-val" title="Click to edit">' +
-      escapeHtml(val) + ' <span class="cc-edit-icon">&#9998;</span></span>' +
+    return '<div class="cc-info-value cc-editable" id="cc-closing-date-val" title="Click to edit">' +
+      escapeHtml(val) + ' <span class="cc-edit-icon">&#9998;</span></div>' +
       '<input type="date" id="cc-closing-date-input" class="cc-inline-date" style="display:none" ' +
       'value="' + escapeAttr(l.Estimated_Closing_Date || '') + '">';
   }
 
   function renderServicesField(l) {
     var display = formatServicesRequired(l);
-    return '<span class="cc-info-value cc-editable" id="cc-services-val" title="Click to edit">' +
-      escapeHtml(display) + ' <span class="cc-edit-icon">&#9998;</span></span>';
+    return '<div class="cc-info-value cc-editable" id="cc-services-val" title="Click to edit">' +
+      escapeHtml(display) + ' <span class="cc-edit-icon">&#9998;</span></div>';
   }
 
   function bindInfoEdits() {

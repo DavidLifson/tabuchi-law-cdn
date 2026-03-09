@@ -1,6 +1,5 @@
 /**
  * Tabuchi Law Client Care CRM - API Client
- * v2.1 — 6-stage pipeline + response cache
  * Shared helper for all Client Care Webflow pages to communicate with n8n backend.
  *
  * Usage: Include this script before page-specific scripts.
