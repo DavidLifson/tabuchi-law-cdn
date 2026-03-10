@@ -68,12 +68,13 @@
 
   // ─── Column Definitions ──────────────────────────────────────
   var COLUMNS = [
-    { key: 'Client_Name',    label: 'Client',        sortable: true, width: '18%' },
-    { key: 'Lead_Stage',     label: 'Stage',          sortable: true, width: '14%' },
-    { key: 'Practice_Area',  label: 'Practice Area',  sortable: true, width: '14%' },
-    { key: 'Priority',       label: 'Priority',       sortable: true, width: '8%' },
-    { key: 'Lead_Owner',     label: 'Owner',          sortable: true, width: '12%' },
-    { key: 'Source',         label: 'Source',          sortable: true, width: '8%' },
+    { key: 'Client_Name',    label: 'Client',        sortable: true, width: '17%' },
+    { key: 'Client_Phone',   label: 'Phone',          sortable: false, width: '10%' },
+    { key: 'Lead_Stage',     label: 'Stage',          sortable: true, width: '13%' },
+    { key: 'Practice_Area',  label: 'Practice Area',  sortable: true, width: '12%' },
+    { key: 'Priority',       label: 'Priority',       sortable: true, width: '7%' },
+    { key: 'Lead_Owner',     label: 'Owner',          sortable: true, width: '10%' },
+    { key: 'Source',         label: 'Source',          sortable: true, width: '7%' },
     { key: 'Last_Contacted_At', label: 'Last Contact', sortable: true, width: '12%' },
     { key: 'Created_At',    label: 'Created',         sortable: true, width: '10%' }
   ];
@@ -171,6 +172,7 @@
       html += '<div class="cc-lead-name">' + escapeHtml(lead.Client_Name || '—') + '</div>';
       html += '<div class="cc-lead-email">' + escapeHtml(lead.Client_Email || '') + '</div>';
       html += '</td>';
+      html += '<td>' + escapeHtml(lead.Client_Phone || '—') + '</td>';
       html += '<td><span class="cc-badge cc-badge-' + API.util.stageColor(lead.Lead_Stage) + '">' + escapeHtml(API.util.stageLabel(lead.Lead_Stage)) + '</span></td>';
       html += '<td>' + escapeHtml(formatPracticeArea(lead.Practice_Area)) + '</td>';
       html += '<td><span class="cc-badge cc-badge-' + API.util.priorityColor(lead.Priority) + '">' + escapeHtml(lead.Priority || '—') + '</span></td>';

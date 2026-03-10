@@ -244,6 +244,12 @@
     var l = state.lead;
 
     var fields = [
+      { label: 'First Name', value: l.First_Name || '—' },
+      { label: 'Last Name', value: l.Last_Name || '—' },
+      { label: 'Email', value: l.Client_Email || '—' },
+      { label: 'Phone', value: l.Client_Phone || '—' },
+      { label: 'Address', value: l.Client_Address || '—' },
+      { label: 'Company', value: l.Company || '—' },
       { label: 'Practice Area', value: formatPracticeArea(l.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
       { label: 'Source', value: l.Source || '—' },
