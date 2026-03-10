@@ -753,63 +753,79 @@
         return grouped[pa.key] && grouped[pa.key].length > 0;
       });
 
-      // Render practice area tabs + service lists
-      var html = '';
+      // Render accordion — all practice areas collapsed by default
+      var html = '<div style="max-height:400px;overflow-y:auto;">';
 
-      // Practice area tab bar
-      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
-      activePAs.forEach(function(pa, idx) {
-        var count = grouped[pa.key].length;
-        var selectedInPa = grouped[pa.key].filter(function(i) { return currentIds.indexOf(i.id) !== -1; }).length;
-        var badge = selectedInPa > 0 ? ' <span style="background:#2563eb;color:#fff;border-radius:10px;padding:0 6px;font-size:11px;margin-left:4px;">' + selectedInPa + '</span>' : '';
-        html += '<button class="cc-svc-pa-tab cc-btn cc-btn-sm' + (idx === 0 ? ' cc-btn-primary' : ' cc-btn-outline') + '" ' +
-          'data-pa="' + escapeAttr(pa.key) + '" style="font-size:13px;">' +
-          escapeHtml(pa.label) + ' (' + count + ')' + badge + '</button>';
-      });
-      html += '</div>';
+      activePAs.forEach(function(pa) {
+        var paItems = grouped[pa.key];
+        var selectedInPa = paItems.filter(function(i) { return currentIds.indexOf(i.id) !== -1; }).length;
+        var badge = selectedInPa > 0 ? ' <span class="cc-svc-pa-badge" data-pa="' + escapeAttr(pa.key) + '" style="background:#2563eb;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px;">' + selectedInPa + '</span>' : '<span class="cc-svc-pa-badge" data-pa="' + escapeAttr(pa.key) + '"></span>';
 
-      // Service lists per practice area (only first visible by default)
-      activePAs.forEach(function(pa, idx) {
-        html += '<div class="cc-svc-pa-panel" data-pa="' + escapeAttr(pa.key) + '" style="' + (idx === 0 ? '' : 'display:none;') + '">';
-        html += '<div style="max-height:280px;overflow-y:auto;">';
-        grouped[pa.key].forEach(function(item) {
+        // Accordion header
+        html += '<div class="cc-svc-pa-header" data-pa="' + escapeAttr(pa.key) + '" ' +
+          'style="display:flex;align-items:center;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:4px;cursor:pointer;user-select:none;">' +
+          '<span class="cc-svc-pa-arrow" data-pa="' + escapeAttr(pa.key) + '" style="margin-right:8px;font-size:12px;color:#64748b;transition:transform 0.15s;">&#9654;</span>' +
+          '<strong style="flex:1;font-size:14px;color:#334155;">' + escapeHtml(pa.label) + '</strong>' +
+          '<span style="color:#94a3b8;font-size:13px;margin-right:4px;">' + paItems.length + ' service' + (paItems.length > 1 ? 's' : '') + '</span>' +
+          badge +
+          '</div>';
+
+        // Accordion body (hidden by default)
+        html += '<div class="cc-svc-pa-body" data-pa="' + escapeAttr(pa.key) + '" style="display:none;margin:0 0 8px 0;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 6px 6px;padding:4px 0;">';
+        paItems.forEach(function(item) {
           var checked = currentIds.indexOf(item.id) !== -1 ? ' checked' : '';
-          html += '<label style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid #f0f0f0;cursor:pointer;gap:8px;">' +
-            '<input type="checkbox" class="cc-svc-checkbox" value="' + escapeAttr(item.id) + '"' + checked + '> ' +
-            '<span style="flex:1;"><strong>' + escapeHtml(item.Service_Name) + '</strong></span>' +
+          html += '<label style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer;gap:8px;">' +
+            '<input type="checkbox" class="cc-svc-checkbox" data-pa="' + escapeAttr(pa.key) + '" value="' + escapeAttr(item.id) + '"' + checked + '> ' +
+            '<span style="flex:1;">' + escapeHtml(item.Service_Name) + '</span>' +
             (item.List_Price ? '<span style="color:#2563eb;font-size:13px;white-space:nowrap;">$' + Number(item.List_Price).toLocaleString() + '</span>' : '') +
             '</label>';
         });
-        html += '</div></div>';
+        html += '</div>';
       });
 
+      html += '</div>';
       body.innerHTML = html;
 
-      // Update selected count display
+      // Update selected count + per-area badges
       function updateSelectedCount() {
         var total = overlay.querySelectorAll('.cc-svc-checkbox:checked').length;
         var countEl = document.getElementById('cc-svc-selected-count');
         if (countEl) countEl.textContent = total > 0 ? total + ' service' + (total > 1 ? 's' : '') + ' selected' : '';
+        // Update per-area badges
+        activePAs.forEach(function(pa) {
+          var count = overlay.querySelectorAll('.cc-svc-checkbox[data-pa="' + pa.key + '"]:checked').length;
+          var badgeEl = overlay.querySelector('.cc-svc-pa-badge[data-pa="' + pa.key + '"]');
+          if (badgeEl) {
+            if (count > 0) {
+              badgeEl.textContent = count;
+              badgeEl.style.cssText = 'background:#2563eb;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px;';
+            } else {
+              badgeEl.textContent = '';
+              badgeEl.style.cssText = '';
+            }
+          }
+        });
       }
       updateSelectedCount();
 
-      // Bind checkbox changes to update count
+      // Bind checkbox changes
       overlay.querySelectorAll('.cc-svc-checkbox').forEach(function(cb) {
         cb.addEventListener('change', updateSelectedCount);
       });
 
-      // Bind practice area tab switching
-      overlay.querySelectorAll('.cc-svc-pa-tab').forEach(function(tab) {
-        tab.addEventListener('click', function() {
-          var pa = tab.dataset.pa;
-          // Update active tab style
-          overlay.querySelectorAll('.cc-svc-pa-tab').forEach(function(t) {
-            t.className = t.dataset.pa === pa ? 'cc-svc-pa-tab cc-btn cc-btn-sm cc-btn-primary' : 'cc-svc-pa-tab cc-btn cc-btn-sm cc-btn-outline';
-          });
-          // Show/hide panels
-          overlay.querySelectorAll('.cc-svc-pa-panel').forEach(function(p) {
-            p.style.display = p.dataset.pa === pa ? '' : 'none';
-          });
+      // Bind accordion toggle
+      overlay.querySelectorAll('.cc-svc-pa-header').forEach(function(header) {
+        header.addEventListener('click', function() {
+          var pa = header.dataset.pa;
+          var bodyEl = overlay.querySelector('.cc-svc-pa-body[data-pa="' + pa + '"]');
+          var arrow = overlay.querySelector('.cc-svc-pa-arrow[data-pa="' + pa + '"]');
+          if (bodyEl.style.display === 'none') {
+            bodyEl.style.display = '';
+            arrow.style.transform = 'rotate(90deg)';
+          } else {
+            bodyEl.style.display = 'none';
+            arrow.style.transform = '';
+          }
         });
       });
 
