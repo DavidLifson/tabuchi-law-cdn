@@ -700,10 +700,18 @@
     { key: 'ESTATE_PLANNING', label: 'Estate Planning' },
     { key: 'PROBATE', label: 'Probate' },
     { key: 'REAL_ESTATE', label: 'Real Estate' },
-    { key: 'CORPORATE', label: 'Corporate' },
+    { key: 'CORPORATE', label: 'Corporate Law' },
     { key: 'FAMILY_LAW', label: 'Family Law' },
+    { key: 'COMMISSION_NOTARY', label: 'Commission & Notary' },
     { key: 'OTHER', label: 'Other' }
   ];
+
+  // Build label→key lookup for mapping Airtable Practice_Area values to PA keys
+  var PA_LABEL_TO_KEY = {};
+  PRACTICE_AREAS.forEach(function(pa) { PA_LABEL_TO_KEY[pa.label] = pa.key; });
+  PA_LABEL_TO_KEY['Corporate'] = 'CORPORATE';
+  PA_LABEL_TO_KEY['Probat & Estate Admin'] = 'PROBATE';
+  PA_LABEL_TO_KEY['Miscellaneous'] = 'OTHER';
 
   async function showServicesModal() {
     var overlay = document.createElement('div');
@@ -739,11 +747,12 @@
         return;
       }
 
-      // Group items by Practice_Area
+      // Group items by Practice_Area (map Airtable labels to PA keys)
       var grouped = {};
       PRACTICE_AREAS.forEach(function(pa) { grouped[pa.key] = []; });
       items.forEach(function(item) {
-        var key = item.Practice_Area || 'OTHER';
+        var raw = item.Practice_Area || '';
+        var key = PA_LABEL_TO_KEY[raw] || 'OTHER';
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(item);
       });
