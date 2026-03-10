@@ -383,7 +383,7 @@
         name: u.name || (staff ? staff.name : ''),
         email: u.email || '',
         role: u.role || '',
-        team: u.team_name || '',
+        team: u.team_name || '',  // kept for data but removed from table display
         is_active: u.is_active !== false,
         bookingActive: staff ? staff.active : null,
         slug: staff ? staff.slug : '',
@@ -452,7 +452,6 @@
       { key: 'name', label: 'Name' },
       { key: 'email', label: 'Email' },
       { key: 'role', label: 'Role' },
-      { key: 'team', label: 'Team' },
       { key: 'slug', label: 'Booking Slug' },
       { key: 'hours', label: 'Hours' },
       { key: 'is_active', label: 'Status' },
@@ -494,7 +493,6 @@
       html += '<td class="cc-td-name">' + escapeHtml(row.name) + '</td>';
       html += '<td>' + escapeHtml(row.email) + '</td>';
       html += '<td>' + (row.role ? '<span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(row.role) + '</span>' : '<span class="cc-text-muted">\u2014</span>') + '</td>';
-      html += '<td>' + escapeHtml(row.team || '\u2014') + '</td>';
       html += '<td>' + (row.slug ? '<code>' + escapeHtml(row.slug) + '</code>' : '<span class="cc-text-muted">\u2014</span>') + '</td>';
       html += '<td>' + escapeHtml(row.hours || '\u2014') + '</td>';
       html += '<td>' + statusHtml + '</td>';
@@ -651,13 +649,20 @@
   async function handleUpdateUser(row, form) {
     var promises = [];
 
+    var role = form.querySelector('#cc-modal-user-role').value;
+
     // Update CRM user if applicable
     if (row.id) {
-      var role = form.querySelector('#cc-modal-user-role').value;
       var isActive = form.querySelector('#cc-modal-user-active').value === 'true';
       promises.push(
         API.admin.updateUser(row.id, { role: role, is_active: isActive })
           .then(function(r) { if (!r.success) throw { error: r.error || 'Failed to update CRM user.' }; })
+      );
+    } else if (role) {
+      // Booking-only user getting a role → create a CRM user record
+      promises.push(
+        API.admin.createUser({ name: row.name, email: row.email, role: role })
+          .then(function(r) { if (!r.success) throw { error: r.error || 'Failed to create CRM user.' }; })
       );
     }
 

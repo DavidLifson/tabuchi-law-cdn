@@ -454,6 +454,10 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/admin', { body: { action: 'update_user', user_id: userId, ...fields } });
   }
 
+  async function createUser(data) {
+    return request('POST', '/cc/admin', { body: { action: 'create_user', ...data } });
+  }
+
   async function listTemplates(params = {}) {
     return request('POST', '/cc/admin', { body: { action: 'list_templates', ...params } });
   }
@@ -769,7 +773,7 @@ const ClientCareAPI = (() => {
     },
     // Admin
     admin: {
-      listUsers, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats,
+      listUsers, createUser, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats,
       config: { list: listConfig, create: createConfig, update: updateConfig, delete: deleteConfig }
     },
     // Price Book
