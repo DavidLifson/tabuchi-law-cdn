@@ -26,7 +26,7 @@
   // If already logged in, redirect based on role
   if (ClientCareAPI.auth.isAuthenticated() && !window.location.search.includes('logout')) {
     var _u = ClientCareAPI.auth.getUser();
-    window.location.href = (_u && _u.role === 'BOOKINGS') ? '/dashboard' : '/crm';
+    window.location.href = (_u && _u.role === 'BOOKINGS') ? '/dashboard' : '/crm/dashboard';
     return;
   }
 
@@ -113,7 +113,7 @@
       }
 
       // Step 4: Redirect based on role
-      var _dest = '/crm';
+      var _dest = '/crm/dashboard';
       if (result.user && result.user.role === 'BOOKINGS') _dest = '/dashboard';
       window.location.href = _dest;
 

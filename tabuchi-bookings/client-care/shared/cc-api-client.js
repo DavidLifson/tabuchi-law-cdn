@@ -48,6 +48,7 @@ const ClientCareAPI = (() => {
     if (path.indexOf('/cc/price-book') !== -1) return CACHE_TTL.price_book;
     if (path.indexOf('/cc/admin') !== -1 && path.indexOf('stats') !== -1) return CACHE_TTL.system_stats;
     if (path.indexOf('/cc/reports') !== -1) return CACHE_TTL.reports;
+    if (path.indexOf('/cc/dashboard') !== -1) return CACHE_TTL.reports;
     return CACHE_TTL.default;
   }
 
@@ -341,6 +342,12 @@ const ClientCareAPI = (() => {
    */
   async function getReport(type, params = {}) {
     return request('POST', '/cc/reports', { body: { action: type, ...params } });
+  }
+
+  // ─── Dashboard ──────────────────────────────────────────────
+
+  async function getDashboard() {
+    return request('POST', '/cc/dashboard', { body: { action: 'get' } });
   }
 
   // ─── Campaigns ───────────────────────────────────────────────
@@ -783,6 +790,8 @@ const ClientCareAPI = (() => {
       createTask: createPriceBookTask, updateTask: updatePriceBookTask,
       deleteTask: deletePriceBookTask
     },
+    // Dashboard
+    dashboard: { get: getDashboard },
     // Subscriptions
     subscriptions: { unsubscribe },
     // Intake (public)
