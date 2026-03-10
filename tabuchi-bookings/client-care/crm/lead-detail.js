@@ -238,18 +238,25 @@
   }
 
   // ─── Lead Info Grid ─────────────────────────────────────────
+  function editableInput(field, value, type, placeholder) {
+    var val = value || '';
+    return '<input type="' + type + '" class="cc-info-input" data-field="' + escapeAttr(field) + '" ' +
+      'data-original="' + escapeAttr(val) + '" value="' + escapeAttr(val) + '" ' +
+      'placeholder="' + escapeAttr(placeholder) + '">';
+  }
+
   function renderInfo() {
     var el = $el('cc-lead-info');
     if (!el || !state.lead) return;
     var l = state.lead;
 
     var fields = [
-      { label: 'First Name', value: l.First_Name || '—' },
-      { label: 'Last Name', value: l.Last_Name || '—' },
-      { label: 'Email', value: l.Client_Email || '—' },
-      { label: 'Phone', value: l.Client_Phone || '—' },
-      { label: 'Address', value: l.Client_Address || '—' },
-      { label: 'Company', value: l.Company || '—' },
+      { label: 'First Name', html: editableInput('First_Name', l.First_Name, 'text', 'Enter first name') },
+      { label: 'Last Name', html: editableInput('Last_Name', l.Last_Name, 'text', 'Enter last name') },
+      { label: 'Email', html: editableInput('Client_Email', l.Client_Email, 'email', 'Enter email') },
+      { label: 'Phone', html: editableInput('Client_Phone', l.Client_Phone, 'tel', 'Enter phone') },
+      { label: 'Address', html: editableInput('Client_Address', l.Client_Address, 'text', 'Enter address') },
+      { label: 'Company', html: editableInput('Company', l.Company, 'text', 'Enter company') },
       { label: 'Practice Area', value: formatPracticeArea(l.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
       { label: 'Source', value: l.Source || '—' },
@@ -578,6 +585,35 @@
         showServicesModal();
       });
     }
+
+    // Editable contact inputs: save on blur
+    document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+      inp.addEventListener('blur', async function() {
+        var field = inp.getAttribute('data-field');
+        var original = inp.getAttribute('data-original');
+        var newVal = inp.value.trim();
+        if (newVal === original) return;
+        try {
+          var update = {};
+          update[field] = newVal;
+          var res = await API.leads.update(leadId, update);
+          if (res.success) {
+            inp.setAttribute('data-original', newVal);
+            state.lead[field] = newVal;
+            inp.classList.add('cc-save-ok');
+            setTimeout(function() { inp.classList.remove('cc-save-ok'); }, 1200);
+          } else {
+            inp.value = original;
+            inp.classList.add('cc-save-err');
+            setTimeout(function() { inp.classList.remove('cc-save-err'); }, 1500);
+          }
+        } catch (err) {
+          inp.value = original;
+          inp.classList.add('cc-save-err');
+          setTimeout(function() { inp.classList.remove('cc-save-err'); }, 1500);
+        }
+      });
+    });
   }
 
   // ─── Services Selector Modal ────────────────────────────────
@@ -690,7 +726,12 @@
       '.cc-modal-header h3{margin:0;font-size:16px}' +
       '.cc-modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#64748b}' +
       '.cc-modal-body{padding:16px 20px}' +
-      '.cc-modal-footer{padding:12px 20px;border-top:1px solid #e2e8f0;text-align:right}';
+      '.cc-modal-footer{padding:12px 20px;border-top:1px solid #e2e8f0;text-align:right}' +
+      '.cc-info-input{width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem;color:#1F2937;background:#fff;box-sizing:border-box;transition:border-color .15s,box-shadow .15s}' +
+      '.cc-info-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}' +
+      '.cc-info-input::placeholder{color:#9ca3af}' +
+      '.cc-info-input.cc-save-ok{border-color:#22c55e;background:#f0fdf4}' +
+      '.cc-info-input.cc-save-err{border-color:#ef4444;background:#fef2f2}';
     document.head.appendChild(s);
   }
 
