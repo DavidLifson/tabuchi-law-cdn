@@ -502,9 +502,7 @@
 
       // Action buttons
       html += '<td class="cc-td-actions">';
-      if (row.id) {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-user-btn" data-user-id="' + escapeAttr(row.id) + '" title="Edit CRM role">Edit</button>';
-      }
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-user-btn" data-email="' + escapeAttr(row.email) + '" title="Edit">Edit</button>';
       if (row.staffId) {
         var toggleCls = row.bookingActive ? 'cc-btn-danger-outline' : 'cc-btn-success-outline';
         var toggleTxt = row.bookingActive ? 'Deactivate' : 'Activate';
@@ -542,9 +540,10 @@
     // Edit CRM user buttons
     content.querySelectorAll('.cc-edit-user-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        var userId = btn.dataset.userId;
-        var user = state.users.find(function(u) { return u.id === userId; });
-        if (user) showEditUserModal(user);
+        var email = btn.dataset.email;
+        var merged = mergeStaffUsers();
+        var row = merged.find(function(r) { return r.email === email; });
+        if (row) showEditUserModal(row);
       });
     });
 
@@ -576,60 +575,118 @@
     bindStaffImportBtn();
   }
 
-  function showEditUserModal(user) {
+  function showEditUserModal(row) {
     var html = '<div class="cc-modal-form">';
 
     html += '<div class="cc-form-group">';
     html += '<label class="cc-label">Name</label>';
-    html += '<input type="text" id="cc-modal-user-name" class="cc-input" value="' + escapeAttr(user.name) + '" readonly />';
+    html += '<input type="text" id="cc-modal-user-name" class="cc-input" value="' + escapeAttr(row.name) + '" readonly />';
     html += '</div>';
 
     html += '<div class="cc-form-group">';
     html += '<label class="cc-label">Email</label>';
-    html += '<input type="text" class="cc-input" value="' + escapeAttr(user.email) + '" readonly />';
+    html += '<input type="text" class="cc-input" value="' + escapeAttr(row.email) + '" readonly />';
     html += '</div>';
 
-    html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Role</label>';
-    html += '<select id="cc-modal-user-role" class="cc-input">';
-    ROLE_OPTIONS.forEach(function(r) {
-      html += '<option value="' + r + '"' + (user.role === r ? ' selected' : '') + '>' + r + '</option>';
-    });
-    html += '</select>';
+    // CRM fields (only if this person has a CRM user record)
+    if (row.id) {
+      html += '<div class="cc-form-group">';
+      html += '<label class="cc-label">CRM Role</label>';
+      html += '<select id="cc-modal-user-role" class="cc-input">';
+      ROLE_OPTIONS.forEach(function(r) {
+        html += '<option value="' + r + '"' + (row.role === r ? ' selected' : '') + '>' + r + '</option>';
+      });
+      html += '</select>';
+      html += '</div>';
+
+      html += '<div class="cc-form-group">';
+      html += '<label class="cc-label">CRM Active</label>';
+      html += '<select id="cc-modal-user-active" class="cc-input">';
+      html += '<option value="true"' + (row.is_active ? ' selected' : '') + '>Active</option>';
+      html += '<option value="false"' + (!row.is_active ? ' selected' : '') + '>Inactive</option>';
+      html += '</select>';
+      html += '</div>';
+    }
+
+    // Booking fields (only if this person has a booking staff record)
+    if (row.staffId) {
+      html += '<div class="cc-form-group">';
+      html += '<label class="cc-label">Booking Slug</label>';
+      html += '<input type="text" id="cc-modal-staff-slug" class="cc-input" value="' + escapeAttr(row.slug || '') + '" />';
+      html += '</div>';
+
+      var hParts = (row.hours || '').split(' \u2013 ');
+      var hStart = hParts[0] ? hParts[0].trim() : '09:00';
+      var hEnd = hParts[1] ? hParts[1].trim() : '17:00';
+
+      html += '<div class="cc-form-row" style="display:flex;gap:12px;">';
+      html += '<div class="cc-form-group" style="flex:1">';
+      html += '<label class="cc-label">Work Hours Start</label>';
+      html += '<input type="time" id="cc-modal-staff-hours-start" class="cc-input" value="' + escapeAttr(hStart) + '" />';
+      html += '</div>';
+      html += '<div class="cc-form-group" style="flex:1">';
+      html += '<label class="cc-label">Work Hours End</label>';
+      html += '<input type="time" id="cc-modal-staff-hours-end" class="cc-input" value="' + escapeAttr(hEnd) + '" />';
+      html += '</div>';
+      html += '</div>';
+
+      html += '<div class="cc-form-group">';
+      html += '<label class="cc-label">Booking Active</label>';
+      html += '<select id="cc-modal-staff-active" class="cc-input">';
+      html += '<option value="true"' + (row.bookingActive ? ' selected' : '') + '>Active</option>';
+      html += '<option value="false"' + (!row.bookingActive ? ' selected' : '') + '>Inactive</option>';
+      html += '</select>';
+      html += '</div>';
+    }
+
     html += '</div>';
 
-    html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Active</label>';
-    html += '<select id="cc-modal-user-active" class="cc-input">';
-    html += '<option value="true"' + (user.is_active ? ' selected' : '') + '>Active</option>';
-    html += '<option value="false"' + (!user.is_active ? ' selected' : '') + '>Inactive</option>';
-    html += '</select>';
-    html += '</div>';
-
-    html += '</div>';
-
-    showModal('Edit User: ' + user.name, html, function(form) {
-      return handleUpdateUser(user.id, form);
+    showModal('Edit: ' + row.name, html, function(form) {
+      return handleUpdateUser(row, form);
     });
   }
 
-  async function handleUpdateUser(userId, form) {
-    var role = form.querySelector('#cc-modal-user-role').value;
-    var isActive = form.querySelector('#cc-modal-user-active').value === 'true';
+  async function handleUpdateUser(row, form) {
+    var promises = [];
+
+    // Update CRM user if applicable
+    if (row.id) {
+      var role = form.querySelector('#cc-modal-user-role').value;
+      var isActive = form.querySelector('#cc-modal-user-active').value === 'true';
+      promises.push(
+        API.admin.updateUser(row.id, { role: role, is_active: isActive })
+          .then(function(r) { if (!r.success) throw { error: r.error || 'Failed to update CRM user.' }; })
+      );
+    }
+
+    // Update booking staff if applicable
+    if (row.staffId) {
+      var slug = form.querySelector('#cc-modal-staff-slug').value.trim();
+      var hoursStart = form.querySelector('#cc-modal-staff-hours-start').value;
+      var hoursEnd = form.querySelector('#cc-modal-staff-hours-end').value;
+      var staffActive = form.querySelector('#cc-modal-staff-active').value === 'true';
+      promises.push(
+        bookingAdminFetch('staff', {
+          action: 'update-staff',
+          staffId: row.staffId,
+          slug: slug,
+          workingHoursStart: hoursStart,
+          workingHoursEnd: hoursEnd,
+          active: staffActive
+        })
+      );
+    }
+
+    if (promises.length === 0) return true;
 
     try {
-      var result = await API.admin.updateUser(userId, { role: role, is_active: isActive });
-      if (result.success) {
-        showToast('User updated.', 'success');
-        closeModal();
-        fetchStaffUsers();
-        return true;
-      } else {
-        showToast(result.error || 'Failed to update user.', 'error');
-        return false;
-      }
+      await Promise.all(promises);
+      showToast('Updated successfully.', 'success');
+      closeModal();
+      fetchStaffUsers();
+      return true;
     } catch (err) {
-      showToast(err.error || 'Error updating user.', 'error');
+      showToast(err.error || 'Error updating.', 'error');
       return false;
     }
   }

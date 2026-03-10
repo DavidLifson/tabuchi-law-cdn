@@ -696,18 +696,28 @@
   // ─── Services Selector Modal ────────────────────────────────
   var _priceBookCache = null;
 
+  var PRACTICE_AREAS = [
+    { key: 'ESTATE_PLANNING', label: 'Estate Planning' },
+    { key: 'PROBATE', label: 'Probate' },
+    { key: 'REAL_ESTATE', label: 'Real Estate' },
+    { key: 'CORPORATE', label: 'Corporate' },
+    { key: 'FAMILY_LAW', label: 'Family Law' },
+    { key: 'OTHER', label: 'Other' }
+  ];
+
   async function showServicesModal() {
     var overlay = document.createElement('div');
     overlay.className = 'cc-modal-overlay';
     overlay.id = 'cc-services-modal-overlay';
-    overlay.innerHTML = '<div class="cc-modal" style="max-width:480px"><div class="cc-modal-header"><h3>Select Services</h3>' +
+    overlay.innerHTML = '<div class="cc-modal" style="max-width:520px"><div class="cc-modal-header"><h3>Select Services</h3>' +
       '<button class="cc-modal-close" id="cc-svc-modal-close">&times;</button></div>' +
       '<div class="cc-modal-body" id="cc-svc-modal-body"><p>Loading services...</p></div>' +
-      '<div class="cc-modal-footer"><button class="cc-btn cc-btn-primary" id="cc-svc-modal-save">Save</button> ' +
+      '<div class="cc-modal-footer">' +
+      '<span id="cc-svc-selected-count" style="font-size:13px;color:#666;margin-right:auto;"></span>' +
+      '<button class="cc-btn cc-btn-primary" id="cc-svc-modal-save">Save</button> ' +
       '<button class="cc-btn" id="cc-svc-modal-cancel">Cancel</button></div></div>';
     document.body.appendChild(overlay);
 
-    // Bind close/cancel
     var closeModal = function() { overlay.remove(); };
     document.getElementById('cc-svc-modal-close').addEventListener('click', closeModal);
     document.getElementById('cc-svc-modal-cancel').addEventListener('click', closeModal);
@@ -729,20 +739,81 @@
         return;
       }
 
-      var html = '<div style="max-height:300px;overflow-y:auto">';
+      // Group items by Practice_Area
+      var grouped = {};
+      PRACTICE_AREAS.forEach(function(pa) { grouped[pa.key] = []; });
       items.forEach(function(item) {
-        var checked = currentIds.indexOf(item.id) !== -1 ? ' checked' : '';
-        html += '<label style="display:block;padding:6px 0;border-bottom:1px solid #f0f0f0;cursor:pointer">' +
-          '<input type="checkbox" class="cc-svc-checkbox" value="' + escapeAttr(item.id) + '"' + checked + '> ' +
-          '<strong>' + escapeHtml(item.Service_Name) + '</strong>' +
-          (item.Practice_Area ? ' <span style="color:#888;font-size:12px">(' + escapeHtml(item.Practice_Area) + ')</span>' : '') +
-          (item.List_Price ? ' <span style="color:#2563eb;font-size:12px">$' + Number(item.List_Price).toLocaleString() + '</span>' : '') +
-          '</label>';
+        var key = item.Practice_Area || 'OTHER';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(item);
+      });
+
+      // Only show practice areas that have services
+      var activePAs = PRACTICE_AREAS.filter(function(pa) {
+        return grouped[pa.key] && grouped[pa.key].length > 0;
+      });
+
+      // Render practice area tabs + service lists
+      var html = '';
+
+      // Practice area tab bar
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
+      activePAs.forEach(function(pa, idx) {
+        var count = grouped[pa.key].length;
+        var selectedInPa = grouped[pa.key].filter(function(i) { return currentIds.indexOf(i.id) !== -1; }).length;
+        var badge = selectedInPa > 0 ? ' <span style="background:#2563eb;color:#fff;border-radius:10px;padding:0 6px;font-size:11px;margin-left:4px;">' + selectedInPa + '</span>' : '';
+        html += '<button class="cc-svc-pa-tab cc-btn cc-btn-sm' + (idx === 0 ? ' cc-btn-primary' : ' cc-btn-outline') + '" ' +
+          'data-pa="' + escapeAttr(pa.key) + '" style="font-size:13px;">' +
+          escapeHtml(pa.label) + ' (' + count + ')' + badge + '</button>';
       });
       html += '</div>';
+
+      // Service lists per practice area (only first visible by default)
+      activePAs.forEach(function(pa, idx) {
+        html += '<div class="cc-svc-pa-panel" data-pa="' + escapeAttr(pa.key) + '" style="' + (idx === 0 ? '' : 'display:none;') + '">';
+        html += '<div style="max-height:280px;overflow-y:auto;">';
+        grouped[pa.key].forEach(function(item) {
+          var checked = currentIds.indexOf(item.id) !== -1 ? ' checked' : '';
+          html += '<label style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid #f0f0f0;cursor:pointer;gap:8px;">' +
+            '<input type="checkbox" class="cc-svc-checkbox" value="' + escapeAttr(item.id) + '"' + checked + '> ' +
+            '<span style="flex:1;"><strong>' + escapeHtml(item.Service_Name) + '</strong></span>' +
+            (item.List_Price ? '<span style="color:#2563eb;font-size:13px;white-space:nowrap;">$' + Number(item.List_Price).toLocaleString() + '</span>' : '') +
+            '</label>';
+        });
+        html += '</div></div>';
+      });
+
       body.innerHTML = html;
 
-      // Bind save
+      // Update selected count display
+      function updateSelectedCount() {
+        var total = overlay.querySelectorAll('.cc-svc-checkbox:checked').length;
+        var countEl = document.getElementById('cc-svc-selected-count');
+        if (countEl) countEl.textContent = total > 0 ? total + ' service' + (total > 1 ? 's' : '') + ' selected' : '';
+      }
+      updateSelectedCount();
+
+      // Bind checkbox changes to update count
+      overlay.querySelectorAll('.cc-svc-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', updateSelectedCount);
+      });
+
+      // Bind practice area tab switching
+      overlay.querySelectorAll('.cc-svc-pa-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          var pa = tab.dataset.pa;
+          // Update active tab style
+          overlay.querySelectorAll('.cc-svc-pa-tab').forEach(function(t) {
+            t.className = t.dataset.pa === pa ? 'cc-svc-pa-tab cc-btn cc-btn-sm cc-btn-primary' : 'cc-svc-pa-tab cc-btn cc-btn-sm cc-btn-outline';
+          });
+          // Show/hide panels
+          overlay.querySelectorAll('.cc-svc-pa-panel').forEach(function(p) {
+            p.style.display = p.dataset.pa === pa ? '' : 'none';
+          });
+        });
+      });
+
+      // Bind save — collect ALL checked checkboxes across all panels
       document.getElementById('cc-svc-modal-save').addEventListener('click', async function() {
         var checkboxes = overlay.querySelectorAll('.cc-svc-checkbox');
         var selectedIds = [];
@@ -752,7 +823,6 @@
           var saveRes = await API.leads.update(leadId, { Services_Required: selectedIds });
           if (saveRes.success) {
             state.lead.Services_Required = selectedIds;
-            // Update names from items for display
             state.lead._serviceNames = items.filter(function(i) { return selectedIds.indexOf(i.id) !== -1; })
               .map(function(i) { return i.Service_Name; });
             renderInfo();
