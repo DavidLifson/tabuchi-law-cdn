@@ -48,7 +48,7 @@
   var params = API.util.getUrlParams();
   var leadId = params.id || '';
 
-  if (!leadId || leadId === 'new') return; // 'new' is handled by a different script
+  var isNewLead = (!leadId || leadId === 'new');
 
   // ─── State ───────────────────────────────────────────────────
   var state = {
@@ -70,6 +70,14 @@
 
   // ─── Load All Data ──────────────────────────────────────────
   async function loadData() {
+    // New lead: show empty form immediately
+    if (isNewLead) {
+      state.lead = {};
+      state.loading = false;
+      render();
+      return;
+    }
+
     state.loading = true;
     var container = $el('cc-lead-detail');
     if (container) container.classList.add('cc-loading-state');
@@ -147,6 +155,14 @@
     var el = $el('cc-lead-header');
     if (!el || !state.lead) return;
     var l = state.lead;
+
+    if (isNewLead) {
+      el.innerHTML =
+        '<div class="cc-lead-header-main">' +
+          '<h1 class="cc-lead-title">New Lead</h1>' +
+        '</div>';
+      return;
+    }
 
     el.innerHTML =
       '<div class="cc-lead-header-main">' +
@@ -250,13 +266,34 @@
     if (!el || !state.lead) return;
     var l = state.lead;
 
-    var fields = [
+    // ── Contact fields (editable) ──
+    var contactFields = [
       { label: 'First Name', html: editableInput('First_Name', l.First_Name, 'text', 'Enter first name') },
       { label: 'Last Name', html: editableInput('Last_Name', l.Last_Name, 'text', 'Enter last name') },
       { label: 'Email', html: editableInput('Client_Email', l.Client_Email, 'email', 'Enter email') },
       { label: 'Phone', html: editableInput('Client_Phone', l.Client_Phone, 'tel', 'Enter phone') },
       { label: 'Address', html: editableInput('Client_Address', l.Client_Address, 'text', 'Enter address') },
-      { label: 'Company', html: editableInput('Company', l.Company, 'text', 'Enter company') },
+      { label: 'Company', html: editableInput('Company', l.Company, 'text', 'Enter company') }
+    ];
+
+    var html = '<div class="cc-info-section-label">Contact Information</div>';
+    html += '<div class="cc-info-grid">';
+    contactFields.forEach(function(f) {
+      html += '<div class="cc-info-item"><div class="cc-info-label">' + f.label + '</div>' + f.html + '</div>';
+    });
+    html += '</div>';
+
+    // For new leads, show only contact fields + Create button
+    if (isNewLead) {
+      html += '<div style="margin-top:1rem;text-align:right">' +
+        '<button id="cc-create-lead-btn" class="cc-btn cc-btn-primary">Create Lead</button></div>';
+      el.innerHTML = html;
+      bindInfoEdits();
+      return;
+    }
+
+    // ── Lead details (read-only) ──
+    var detailFields = [
       { label: 'Practice Area', value: formatPracticeArea(l.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
       { label: 'Source', value: l.Source || '—' },
@@ -267,25 +304,27 @@
       { label: 'Next Action', value: API.util.formatDateTime(l.Next_Action_At) || '—' },
       { label: 'Est. Closing Date', html: renderClosingDateField(l) },
       { label: 'Services Required', html: renderServicesField(l) },
-      { label: 'Consent', value: l.Consent_Status || 'UNKNOWN' },
-      { label: 'Lead ID', value: l.Lead_ID || l.id }
+      { label: 'Consent', value: l.Consent_Status || 'UNKNOWN' }
     ];
 
     if (l.Disposition !== 'OPEN') {
-      fields.push({ label: 'Disposition', value: l.Disposition });
-      if (l.Close_Reason) fields.push({ label: 'Close Reason', value: l.Close_Reason });
-      if (l.Intake_Received_At) fields.push({ label: 'Closed At', value: API.util.formatDateTime(l.Intake_Received_At) });
+      detailFields.push({ label: 'Disposition', value: l.Disposition });
+      if (l.Close_Reason) detailFields.push({ label: 'Close Reason', value: l.Close_Reason });
+      if (l.Intake_Received_At) detailFields.push({ label: 'Closed At', value: API.util.formatDateTime(l.Intake_Received_At) });
     }
 
-    if (l.Clio_Contact_ID) fields.push({ label: 'Clio Contact', value: l.Clio_Contact_ID });
-    if (l.Clio_Matter_ID) fields.push({ label: 'Clio Matter', value: l.Clio_Matter_ID });
+    if (l.Clio_Contact_ID) detailFields.push({ label: 'Clio Contact', value: l.Clio_Contact_ID });
+    if (l.Clio_Matter_ID) detailFields.push({ label: 'Clio Matter', value: l.Clio_Matter_ID });
 
-    var html = '<div class="cc-info-grid">';
-    fields.forEach(function(f) {
+    html += '<div class="cc-info-divider"></div>';
+    html += '<div class="cc-info-section-label">Lead Details</div>';
+    html += '<div class="cc-info-grid">';
+    detailFields.forEach(function(f) {
       var valHtml = f.html ? f.html : '<div class="cc-info-value">' + escapeHtml(f.value || '') + '</div>';
       html += '<div class="cc-info-item"><div class="cc-info-label">' + f.label + '</div>' + valHtml + '</div>';
     });
     html += '</div>';
+
     el.innerHTML = html;
     bindInfoEdits();
   }
@@ -586,34 +625,72 @@
       });
     }
 
-    // Editable contact inputs: save on blur
-    document.querySelectorAll('.cc-info-input').forEach(function(inp) {
-      inp.addEventListener('blur', async function() {
-        var field = inp.getAttribute('data-field');
-        var original = inp.getAttribute('data-original');
-        var newVal = inp.value.trim();
-        if (newVal === original) return;
-        try {
-          var update = {};
-          update[field] = newVal;
-          var res = await API.leads.update(leadId, update);
-          if (res.success) {
-            inp.setAttribute('data-original', newVal);
-            state.lead[field] = newVal;
-            inp.classList.add('cc-save-ok');
-            setTimeout(function() { inp.classList.remove('cc-save-ok'); }, 1200);
-          } else {
+    // Editable contact inputs: save on blur (skip for new leads — no record yet)
+    if (!isNewLead) {
+      document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+        inp.addEventListener('blur', async function() {
+          var field = inp.getAttribute('data-field');
+          var original = inp.getAttribute('data-original');
+          var newVal = inp.value.trim();
+          if (newVal === original) return;
+          try {
+            var update = {};
+            update[field] = newVal;
+            var res = await API.leads.update(leadId, update);
+            if (res.success) {
+              inp.setAttribute('data-original', newVal);
+              state.lead[field] = newVal;
+              inp.classList.add('cc-save-ok');
+              setTimeout(function() { inp.classList.remove('cc-save-ok'); }, 1200);
+            } else {
+              inp.value = original;
+              inp.classList.add('cc-save-err');
+              setTimeout(function() { inp.classList.remove('cc-save-err'); }, 1500);
+            }
+          } catch (err) {
             inp.value = original;
             inp.classList.add('cc-save-err');
             setTimeout(function() { inp.classList.remove('cc-save-err'); }, 1500);
           }
+        });
+      });
+    }
+
+    // Create Lead button (new lead mode)
+    var createBtn = document.getElementById('cc-create-lead-btn');
+    if (createBtn) {
+      createBtn.addEventListener('click', async function() {
+        var data = {};
+        document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+          var v = inp.value.trim();
+          if (v) data[inp.getAttribute('data-field')] = v;
+        });
+        if (!data.First_Name && !data.Last_Name && !data.Client_Email) {
+          alert('Please enter at least a name or email.');
+          return;
+        }
+        // Build Client_Name from first + last
+        var parts = [data.First_Name, data.Last_Name].filter(Boolean);
+        if (parts.length) data.Client_Name = parts.join(' ');
+
+        createBtn.disabled = true;
+        createBtn.textContent = 'Creating...';
+        try {
+          var res = await API.leads.create(data);
+          if (res.success && res.id) {
+            window.location.href = '/crm/lead?id=' + res.id;
+          } else {
+            alert('Create failed: ' + (res.error || 'Unknown error'));
+            createBtn.disabled = false;
+            createBtn.textContent = 'Create Lead';
+          }
         } catch (err) {
-          inp.value = original;
-          inp.classList.add('cc-save-err');
-          setTimeout(function() { inp.classList.remove('cc-save-err'); }, 1500);
+          alert('Create failed: ' + (err.error || 'Network error'));
+          createBtn.disabled = false;
+          createBtn.textContent = 'Create Lead';
         }
       });
-    });
+    }
   }
 
   // ─── Services Selector Modal ────────────────────────────────
@@ -731,7 +808,9 @@
       '.cc-info-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}' +
       '.cc-info-input::placeholder{color:#9ca3af}' +
       '.cc-info-input.cc-save-ok{border-color:#22c55e;background:#f0fdf4}' +
-      '.cc-info-input.cc-save-err{border-color:#ef4444;background:#fef2f2}';
+      '.cc-info-input.cc-save-err{border-color:#ef4444;background:#fef2f2}' +
+      '.cc-info-section-label{font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:8px;padding-bottom:4px}' +
+      '.cc-info-divider{border:none;border-top:1px solid #e2e8f0;margin:16px 0}';
     document.head.appendChild(s);
   }
 
