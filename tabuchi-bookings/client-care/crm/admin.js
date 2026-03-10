@@ -1671,14 +1671,20 @@
     html += '</div>';
 
     if (filterPa === 'ALL') {
-      // Grouped view: render each practice area as a section
-      activePAs.forEach(function(pa) {
+      // Accordion view: each practice area is a collapsible section
+      activePAs.forEach(function(pa, idx) {
         var paItems = grouped[pa.key];
-        html += '<div style="margin-bottom:20px;">';
-        html += '<h4 style="margin:0 0 8px;padding:8px 12px;background:#f8fafc;border-radius:6px;font-size:14px;color:#334155;">' +
-          escapeHtml(pa.label) + ' <span style="color:#94a3b8;font-weight:normal;">(' + paItems.length + ' service' + (paItems.length > 1 ? 's' : '') + ')</span></h4>';
+        var accId = 'cc-pb-acc-' + pa.key;
+        html += '<div style="margin-bottom:8px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">';
+        html += '<div class="cc-pb-acc-header" data-target="' + accId + '" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#f8fafc;cursor:pointer;user-select:none;">';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
+        html += '<span class="cc-pb-acc-arrow" style="display:inline-block;transition:transform .2s;transform:rotate(0deg);font-size:12px;color:#64748b;">&#9654;</span>';
+        html += '<span style="font-weight:600;font-size:14px;color:#334155;">' + escapeHtml(pa.label) + '</span>';
+        html += '<span style="color:#94a3b8;font-size:13px;">(' + paItems.length + ' service' + (paItems.length > 1 ? 's' : '') + ')</span>';
+        html += '</div></div>';
+        html += '<div id="' + accId + '" style="display:none;">';
         html += renderPriceBookTable(paItems);
-        html += '</div>';
+        html += '</div></div>';
       });
     } else {
       html += renderPriceBookTable(grouped[filterPa] || []);
@@ -1730,6 +1736,18 @@
       btn.addEventListener('click', function() {
         state.priceBookFilterPA = btn.dataset.pa;
         renderPriceBookTab();
+      });
+    });
+    // Accordion toggle for "All" grouped view
+    content.querySelectorAll('.cc-pb-acc-header').forEach(function(header) {
+      header.addEventListener('click', function() {
+        var targetId = header.dataset.target;
+        var body = document.getElementById(targetId);
+        var arrow = header.querySelector('.cc-pb-acc-arrow');
+        if (!body) return;
+        var isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
       });
     });
   }
