@@ -41,10 +41,9 @@
   // ─── Constants ─────────────────────────────────────────────
   var TABS = [
     { key: 'overview', label: 'Overview' },
-    { key: 'users', label: 'Users' },
+    { key: 'staff-users', label: 'Staff & Users' },
     { key: 'templates', label: 'Templates' },
     { key: 'system', label: 'System' },
-    { key: 'staff', label: 'Staff' },
     { key: 'categories', label: 'Categories' },
     { key: 'lead-sources', label: 'Lead Sources' },
     { key: 'stages', label: 'Stages' },
@@ -114,11 +113,12 @@
     // Overview
     stats: null,
     statsLoading: false,
-    // Users
+    // Staff & Users (merged)
     users: [],
-    usersLoading: false,
-    usersSortKey: 'name',
-    usersSortDir: 'asc',
+    staffList: [],
+    staffUsersLoading: false,
+    staffUsersSortKey: 'name',
+    staffUsersSortDir: 'asc',
     // Templates
     templates: [],
     templatesLoading: false,
@@ -128,9 +128,7 @@
     // Clio sync failures
     clioFailures: [],
     clioLoading: false,
-    // Staff Management
-    staffList: [],
-    staffLoading: false,
+    // (staff state merged into staffList above)
     // Categories
     categories: [],
     categoriesLoading: false,
@@ -182,10 +180,9 @@
   function renderActiveTab() {
     switch (state.activeTab) {
       case 'overview':       renderOverview(); break;
-      case 'users':          renderUsersTab(); break;
+      case 'staff-users':    renderStaffUsersTab(); break;
       case 'templates':      renderTemplatesTab(); break;
       case 'system':         renderSystemTab(); break;
-      case 'staff':          renderStaffTab(); break;
       case 'categories':     renderCategoriesTab(); break;
       case 'price-book':     renderPriceBookTab(); break;
       case 'lead-sources':
@@ -198,12 +195,11 @@
     }
     // Fetch fresh data for the active tab
     switch (state.activeTab) {
-      case 'overview':    fetchOverviewData(); break;
-      case 'users':       fetchUsers(); break;
-      case 'templates':   fetchTemplates(); break;
-      case 'staff':       fetchStaff(); break;
-      case 'categories':  fetchCategories(); break;
-      case 'price-book':  fetchPriceBookItems(); break;
+      case 'overview':      fetchOverviewData(); break;
+      case 'staff-users':   fetchStaffUsers(); break;
+      case 'templates':     fetchTemplates(); break;
+      case 'categories':    fetchCategories(); break;
+      case 'price-book':    fetchPriceBookItems(); break;
       // system tab is static, no fetch needed
       default:
         var ck = tabToConfigKey(state.activeTab);
@@ -331,93 +327,189 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // USERS TAB
+  // STAFF & USERS TAB (merged)
   // ═══════════════════════════════════════════════════════════
 
-  async function fetchUsers() {
-    state.usersLoading = true;
+  async function fetchStaffUsers() {
+    state.staffUsersLoading = true;
     var content = $el('cc-admin-content');
-    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading users...</p></div>';
+    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading staff &amp; users...</p></div>';
 
     try {
-      var result = await API.admin.listUsers();
-      if (result.success) {
-        state.users = result.users || [];
+      var results = await Promise.allSettled([
+        API.admin.listUsers(),
+        bookingAdminFetch('staff', { action: 'list-staff' })
+      ]);
+
+      if (results[0].status === 'fulfilled' && results[0].value.success) {
+        state.users = results[0].value.users || [];
       } else {
         state.users = [];
-        showToast(result.error || 'Failed to load users.', 'error');
+      }
+
+      if (results[1].status === 'fulfilled') {
+        state.staffList = results[1].value.staff || [];
+      } else {
+        state.staffList = [];
       }
     } catch (err) {
       state.users = [];
-      showToast(err.error || 'Error loading users.', 'error');
+      state.staffList = [];
+      showToast('Error loading staff & users.', 'error');
     }
 
-    state.usersLoading = false;
-    renderUsersTab();
+    state.staffUsersLoading = false;
+    renderStaffUsersTab();
   }
 
-  function renderUsersTab() {
+  function mergeStaffUsers() {
+    // Build a lookup of booking staff by lowercase email
+    var staffByEmail = {};
+    state.staffList.forEach(function(s) {
+      if (s.email) staffByEmail[s.email.toLowerCase()] = s;
+    });
+
+    var merged = [];
+    var seenEmails = {};
+
+    // Start with CRM users, enrich with booking staff data
+    state.users.forEach(function(u) {
+      var email = (u.email || '').toLowerCase();
+      seenEmails[email] = true;
+      var staff = staffByEmail[email] || null;
+      merged.push({
+        id: u.id,
+        staffId: staff ? staff.id : null,
+        name: u.name || (staff ? staff.name : ''),
+        email: u.email || '',
+        role: u.role || '',
+        team: u.team_name || '',
+        is_active: u.is_active !== false,
+        bookingActive: staff ? staff.active : null,
+        slug: staff ? staff.slug : '',
+        hours: (staff && staff.workingHoursStart && staff.workingHoursEnd)
+          ? (staff.workingHoursStart + ' \u2013 ' + staff.workingHoursEnd) : '',
+        lastLogin: u.last_login_at || '',
+        source: staff ? 'both' : 'crm'
+      });
+    });
+
+    // Add booking-only staff not in CRM
+    state.staffList.forEach(function(s) {
+      var email = (s.email || '').toLowerCase();
+      if (!seenEmails[email]) {
+        merged.push({
+          id: null,
+          staffId: s.id,
+          name: s.name || '',
+          email: s.email || '',
+          role: '',
+          team: '',
+          is_active: null,
+          bookingActive: s.active,
+          slug: s.slug || '',
+          hours: (s.workingHoursStart && s.workingHoursEnd)
+            ? (s.workingHoursStart + ' \u2013 ' + s.workingHoursEnd) : '',
+          lastLogin: '',
+          source: 'booking'
+        });
+      }
+    });
+
+    return merged;
+  }
+
+  function renderStaffUsersTab() {
     var content = $el('cc-admin-content');
     if (!content) return;
 
-    // Sort users
-    var sorted = state.users.slice().sort(function(a, b) {
-      var av = a[state.usersSortKey];
-      var bv = b[state.usersSortKey];
-      av = String(av || '');
-      bv = String(bv || '');
-      return state.usersSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    var merged = mergeStaffUsers();
+
+    // Sort
+    var sorted = merged.slice().sort(function(a, b) {
+      var key = state.staffUsersSortKey;
+      var av = String(a[key] || '');
+      var bv = String(b[key] || '');
+      return state.staffUsersSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
 
-    var html = '<div class="cc-admin-users">';
-    html += '<h3 class="cc-admin-section-title">User Management</h3>';
-    html += '<p class="cc-admin-hint">Manage CRM user roles and access. Users are provisioned via Microsoft Entra SSO on first login.</p>';
+    var html = '<div class="cc-admin-staff-users">';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">Staff &amp; Users</h3>';
+    html += '<button id="cc-import-staff-btn" class="cc-btn cc-btn-primary cc-btn-sm">Import from Office 365</button>';
+    html += '</div>';
+    html += '<p class="cc-admin-hint">CRM users are provisioned on first SSO login. Booking staff can be imported from Office 365.</p>';
 
-    if (sorted.length === 0 && !state.usersLoading) {
-      html += '<div class="cc-empty"><p>No users found. Users are created automatically on first SSO login.</p></div>';
+    if (sorted.length === 0 && !state.staffUsersLoading) {
+      html += '<div class="cc-empty"><p>No staff or users found.</p></div>';
       html += '</div>';
       content.innerHTML = html;
+      bindStaffImportBtn();
       return;
     }
 
     var columns = [
       { key: 'name', label: 'Name' },
       { key: 'email', label: 'Email' },
-      { key: 'role', label: 'Role' },
-      { key: 'team_name', label: 'Team' },
+      { key: 'role', label: 'CRM Role' },
+      { key: 'team', label: 'Team' },
+      { key: 'slug', label: 'Booking Slug' },
+      { key: 'hours', label: 'Hours' },
       { key: 'is_active', label: 'Status' },
-      { key: 'last_login_at', label: 'Last Login' }
+      { key: 'lastLogin', label: 'Last Login' }
     ];
 
-    html += '<table class="cc-table cc-admin-users-table">';
+    html += '<table class="cc-table cc-admin-staff-users-table">';
     html += '<thead><tr>';
     columns.forEach(function(col) {
       var arrow = '';
       var cls = 'cc-th cc-th-sortable';
-      if (state.usersSortKey === col.key) {
+      if (state.staffUsersSortKey === col.key) {
         cls += ' cc-th-sorted';
-        arrow = state.usersSortDir === 'asc' ? ' &#9650;' : ' &#9660;';
+        arrow = state.staffUsersSortDir === 'asc' ? ' &#9650;' : ' &#9660;';
       }
       html += '<th class="' + cls + '" data-col="' + col.key + '">' + col.label + arrow + '</th>';
     });
     html += '<th class="cc-th">Actions</th>';
     html += '</tr></thead><tbody>';
 
-    sorted.forEach(function(u) {
-      var roleCls = ROLE_COLORS[u.role] || 'gray';
-      var statusBadge = u.is_active
-        ? '<span class="cc-badge cc-badge-green">Active</span>'
-        : '<span class="cc-badge cc-badge-gray">Inactive</span>';
+    sorted.forEach(function(row) {
+      var roleCls = ROLE_COLORS[row.role] || 'gray';
 
-      html += '<tr data-user-id="' + escapeAttr(u.id) + '">';
-      html += '<td>' + escapeHtml(u.name || '') + '</td>';
-      html += '<td>' + escapeHtml(u.email || '') + '</td>';
-      html += '<td><span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(u.role || '') + '</span></td>';
-      html += '<td>' + escapeHtml(u.team_name || '\u2014') + '</td>';
-      html += '<td>' + statusBadge + '</td>';
-      html += '<td>' + (u.last_login_at ? escapeHtml(API.util.formatRelativeTime(u.last_login_at)) : 'Never') + '</td>';
-      html += '<td>';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-user-btn" data-user-id="' + escapeAttr(u.id) + '">Edit</button>';
+      // Build status badges
+      var statusHtml = '';
+      if (row.source === 'crm' || row.source === 'both') {
+        statusHtml += row.is_active
+          ? '<span class="cc-badge cc-badge-green">CRM Active</span>'
+          : '<span class="cc-badge cc-badge-gray">CRM Inactive</span>';
+      }
+      if (row.source === 'booking' || row.source === 'both') {
+        if (statusHtml) statusHtml += ' ';
+        statusHtml += row.bookingActive
+          ? '<span class="cc-badge cc-badge-teal">Booking Active</span>'
+          : '<span class="cc-badge cc-badge-red">Booking Off</span>';
+      }
+
+      html += '<tr>';
+      html += '<td class="cc-td-name">' + escapeHtml(row.name) + '</td>';
+      html += '<td>' + escapeHtml(row.email) + '</td>';
+      html += '<td>' + (row.role ? '<span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(row.role) + '</span>' : '<span class="cc-text-muted">\u2014</span>') + '</td>';
+      html += '<td>' + escapeHtml(row.team || '\u2014') + '</td>';
+      html += '<td>' + (row.slug ? '<code>' + escapeHtml(row.slug) + '</code>' : '<span class="cc-text-muted">\u2014</span>') + '</td>';
+      html += '<td>' + escapeHtml(row.hours || '\u2014') + '</td>';
+      html += '<td>' + statusHtml + '</td>';
+      html += '<td>' + (row.lastLogin ? escapeHtml(API.util.formatRelativeTime(row.lastLogin)) : '\u2014') + '</td>';
+
+      // Action buttons
+      html += '<td class="cc-td-actions">';
+      if (row.id) {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-user-btn" data-user-id="' + escapeAttr(row.id) + '" title="Edit CRM role">Edit</button>';
+      }
+      if (row.staffId) {
+        var toggleCls = row.bookingActive ? 'cc-btn-danger-outline' : 'cc-btn-success-outline';
+        var toggleTxt = row.bookingActive ? 'Deactivate' : 'Activate';
+        html += ' <button class="cc-btn cc-btn-sm ' + toggleCls + ' cc-toggle-staff-btn" data-staff-id="' + escapeAttr(row.staffId) + '" data-active="' + (row.bookingActive ? 'true' : 'false') + '" title="Toggle booking status">' + toggleTxt + '</button>';
+      }
       html += '</td>';
       html += '</tr>';
     });
@@ -426,28 +518,28 @@
     html += '</div>';
     content.innerHTML = html;
 
-    bindUsersEvents();
+    bindStaffUsersEvents();
   }
 
-  function bindUsersEvents() {
+  function bindStaffUsersEvents() {
     var content = $el('cc-admin-content');
     if (!content) return;
 
     // Sort headers
-    content.querySelectorAll('.cc-admin-users-table .cc-th-sortable').forEach(function(th) {
+    content.querySelectorAll('.cc-admin-staff-users-table .cc-th-sortable').forEach(function(th) {
       th.addEventListener('click', function() {
         var col = th.dataset.col;
-        if (state.usersSortKey === col) {
-          state.usersSortDir = state.usersSortDir === 'asc' ? 'desc' : 'asc';
+        if (state.staffUsersSortKey === col) {
+          state.staffUsersSortDir = state.staffUsersSortDir === 'asc' ? 'desc' : 'asc';
         } else {
-          state.usersSortKey = col;
-          state.usersSortDir = 'asc';
+          state.staffUsersSortKey = col;
+          state.staffUsersSortDir = 'asc';
         }
-        renderUsersTab();
+        renderStaffUsersTab();
       });
     });
 
-    // Edit buttons
+    // Edit CRM user buttons
     content.querySelectorAll('.cc-edit-user-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var userId = btn.dataset.userId;
@@ -455,6 +547,33 @@
         if (user) showEditUserModal(user);
       });
     });
+
+    // Toggle booking staff buttons
+    content.querySelectorAll('.cc-toggle-staff-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var staffId = btn.dataset.staffId;
+        var currentActive = btn.dataset.active === 'true';
+        btn.textContent = 'Updating...';
+        btn.disabled = true;
+        try {
+          await bookingAdminFetch('staff', { action: 'toggle-staff', staffId: staffId, active: !currentActive });
+          for (var i = 0; i < state.staffList.length; i++) {
+            if (state.staffList[i].id === staffId) {
+              state.staffList[i].active = !currentActive;
+              break;
+            }
+          }
+          renderStaffUsersTab();
+        } catch (err) {
+          btn.textContent = currentActive ? 'Deactivate' : 'Activate';
+          btn.disabled = false;
+          showToast(err.error || 'Failed to toggle staff status.', 'error');
+        }
+      });
+    });
+
+    // Import from Office 365 button
+    bindStaffImportBtn();
   }
 
   function showEditUserModal(user) {
@@ -503,7 +622,7 @@
       if (result.success) {
         showToast('User updated.', 'success');
         closeModal();
-        fetchUsers();
+        fetchStaffUsers();
         return true;
       } else {
         showToast(result.error || 'Failed to update user.', 'error');
@@ -917,111 +1036,11 @@
     content.innerHTML = html;
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // STAFF MANAGEMENT TAB
-  // ═══════════════════════════════════════════════════════════
-
-  async function fetchStaff() {
-    state.staffLoading = true;
-    var content = $el('cc-admin-content');
-    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading staff...</p></div>';
-
-    try {
-      var result = await bookingAdminFetch('staff', { action: 'list-staff' });
-      state.staffList = result.staff || [];
-    } catch (err) {
-      state.staffList = [];
-      showToast(err.error || 'Failed to load staff.', 'error');
-    }
-
-    state.staffLoading = false;
-    renderStaffTab();
-  }
-
-  function renderStaffTab() {
-    var content = $el('cc-admin-content');
-    if (!content) return;
-
-    var html = '<div class="cc-admin-staff">';
-    html += '<div class="cc-admin-section-header">';
-    html += '<h3 class="cc-admin-section-title">Staff Management</h3>';
-    html += '<button id="cc-import-staff-btn" class="cc-btn cc-btn-primary cc-btn-sm">Import from Office 365</button>';
-    html += '</div>';
-    html += '<p class="cc-admin-hint">Manage booking staff members. Import users from Office 365 and toggle active status.</p>';
-
-    if (state.staffList.length === 0 && !state.staffLoading) {
-      html += '<div class="cc-empty"><p>No staff members yet. Click "Import from Office 365" to add staff.</p></div>';
-      html += '</div>';
-      content.innerHTML = html;
-      bindStaffImportBtn();
-      return;
-    }
-
-    html += '<table class="cc-table cc-admin-staff-table">';
-    html += '<thead><tr>';
-    html += '<th class="cc-th">Name</th>';
-    html += '<th class="cc-th">Email</th>';
-    html += '<th class="cc-th">Slug</th>';
-    html += '<th class="cc-th">Hours</th>';
-    html += '<th class="cc-th">Status</th>';
-    html += '<th class="cc-th">Action</th>';
-    html += '</tr></thead><tbody>';
-
-    state.staffList.forEach(function(s) {
-      var statusCls = s.active ? 'green' : 'red';
-      var statusText = s.active ? 'Active' : 'Inactive';
-      var btnText = s.active ? 'Deactivate' : 'Activate';
-      var btnCls = s.active ? 'cc-btn-danger-outline' : 'cc-btn-success-outline';
-      var hours = (s.workingHoursStart && s.workingHoursEnd) ? (s.workingHoursStart + ' \u2013 ' + s.workingHoursEnd) : '\u2014';
-
-      html += '<tr>';
-      html += '<td>' + escapeHtml(s.name || '') + '</td>';
-      html += '<td>' + escapeHtml(s.email || '') + '</td>';
-      html += '<td><code>' + escapeHtml(s.slug || '') + '</code></td>';
-      html += '<td>' + hours + '</td>';
-      html += '<td><span class="cc-badge cc-badge-' + statusCls + '">' + statusText + '</span></td>';
-      html += '<td><button class="cc-btn cc-btn-sm ' + btnCls + ' cc-toggle-staff-btn" data-staff-id="' + escapeAttr(s.id) + '" data-active="' + (s.active ? 'true' : 'false') + '">' + btnText + '</button></td>';
-      html += '</tr>';
-    });
-
-    html += '</tbody></table>';
-    html += '</div>';
-    content.innerHTML = html;
-
-    bindStaffImportBtn();
-    bindStaffToggleButtons();
-  }
+  // ─── Staff Import Modal (used by Staff & Users tab) ──────
 
   function bindStaffImportBtn() {
     var btn = $el('cc-import-staff-btn');
     if (btn) btn.addEventListener('click', showStaffImportModal);
-  }
-
-  function bindStaffToggleButtons() {
-    var content = $el('cc-admin-content');
-    if (!content) return;
-    content.querySelectorAll('.cc-toggle-staff-btn').forEach(function(btn) {
-      btn.addEventListener('click', async function() {
-        var staffId = btn.dataset.staffId;
-        var currentActive = btn.dataset.active === 'true';
-        btn.textContent = 'Updating...';
-        btn.disabled = true;
-        try {
-          await bookingAdminFetch('staff', { action: 'toggle-staff', staffId: staffId, active: !currentActive });
-          for (var i = 0; i < state.staffList.length; i++) {
-            if (state.staffList[i].id === staffId) {
-              state.staffList[i].active = !currentActive;
-              break;
-            }
-          }
-          renderStaffTab();
-        } catch (err) {
-          btn.textContent = currentActive ? 'Deactivate' : 'Activate';
-          btn.disabled = false;
-          showToast(err.error || 'Failed to toggle staff status.', 'error');
-        }
-      });
-    });
   }
 
   async function showStaffImportModal() {
@@ -1077,7 +1096,7 @@
             });
             if (result.staff) state.staffList.push(result.staff);
             btn.parentElement.innerHTML = '<span class="cc-badge cc-badge-green">Imported</span>';
-            renderStaffTab();
+            renderStaffUsersTab();
           } catch (err) {
             btn.textContent = 'Import';
             btn.disabled = false;
@@ -1961,8 +1980,9 @@
 
     if (!checkRole()) return;
 
-    // Hash-based tab routing
+    // Hash-based tab routing (redirect legacy hashes)
     var hash = location.hash.replace('#', '');
+    if (hash === 'users' || hash === 'staff') hash = 'staff-users';
     if (hash && TABS.find(function(t) { return t.key === hash; })) {
       state.activeTab = hash;
     }
@@ -1973,6 +1993,7 @@
     // Handle browser back/forward hash changes
     window.addEventListener('hashchange', function() {
       var h = location.hash.replace('#', '');
+      if (h === 'users' || h === 'staff') h = 'staff-users';
       if (h && TABS.find(function(t) { return t.key === h; })) {
         state.activeTab = h;
         renderTabs();
