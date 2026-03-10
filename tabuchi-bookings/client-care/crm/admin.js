@@ -452,7 +452,6 @@
       { key: 'name', label: 'Name' },
       { key: 'email', label: 'Email' },
       { key: 'role', label: 'Role' },
-      { key: 'slug', label: 'Booking Slug' },
       { key: 'hours', label: 'Hours' },
       { key: 'is_active', label: 'Status' },
       { key: 'lastLogin', label: 'Last Login' }
@@ -493,7 +492,6 @@
       html += '<td class="cc-td-name">' + escapeHtml(row.name) + '</td>';
       html += '<td>' + escapeHtml(row.email) + '</td>';
       html += '<td>' + (row.role ? '<span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(row.role) + '</span>' : '<span class="cc-text-muted">\u2014</span>') + '</td>';
-      html += '<td>' + (row.slug ? '<code>' + escapeHtml(row.slug) + '</code>' : '<span class="cc-text-muted">\u2014</span>') + '</td>';
       html += '<td>' + escapeHtml(row.hours || '\u2014') + '</td>';
       html += '<td>' + statusHtml + '</td>';
       html += '<td>' + (row.lastLogin ? escapeHtml(API.util.formatRelativeTime(row.lastLogin)) : '\u2014') + '</td>';
