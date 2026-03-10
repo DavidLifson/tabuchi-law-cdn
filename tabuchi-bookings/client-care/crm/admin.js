@@ -451,7 +451,7 @@
     var columns = [
       { key: 'name', label: 'Name' },
       { key: 'email', label: 'Email' },
-      { key: 'role', label: 'CRM Role' },
+      { key: 'role', label: 'Role' },
       { key: 'team', label: 'Team' },
       { key: 'slug', label: 'Booking Slug' },
       { key: 'hours', label: 'Hours' },
@@ -588,17 +588,19 @@
     html += '<input type="text" class="cc-input" value="' + escapeAttr(row.email) + '" readonly />';
     html += '</div>';
 
-    // CRM fields (only if this person has a CRM user record)
-    if (row.id) {
-      html += '<div class="cc-form-group">';
-      html += '<label class="cc-label">CRM Role</label>';
-      html += '<select id="cc-modal-user-role" class="cc-input">';
-      ROLE_OPTIONS.forEach(function(r) {
-        html += '<option value="' + r + '"' + (row.role === r ? ' selected' : '') + '>' + r + '</option>';
-      });
-      html += '</select>';
-      html += '</div>';
+    // Role selector (available for all users)
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Role</label>';
+    html += '<select id="cc-modal-user-role" class="cc-input">';
+    html += '<option value=""' + (!row.role ? ' selected' : '') + '>— None —</option>';
+    ROLE_OPTIONS.forEach(function(r) {
+      html += '<option value="' + r + '"' + (row.role === r ? ' selected' : '') + '>' + r + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
 
+    // CRM Active (only if this person has a CRM user record)
+    if (row.id) {
       html += '<div class="cc-form-group">';
       html += '<label class="cc-label">CRM Active</label>';
       html += '<select id="cc-modal-user-active" class="cc-input">';
@@ -1598,6 +1600,15 @@
     renderPriceBookTab();
   }
 
+  var PB_PRACTICE_AREAS = [
+    { key: 'ESTATE_PLANNING', label: 'Estate Planning' },
+    { key: 'PROBATE', label: 'Probate' },
+    { key: 'REAL_ESTATE', label: 'Real Estate' },
+    { key: 'CORPORATE', label: 'Corporate' },
+    { key: 'FAMILY_LAW', label: 'Family Law' },
+    { key: 'OTHER', label: 'Other' }
+  ];
+
   function renderPriceBookTab() {
     var content = $el('cc-admin-content');
     if (!content) return;
@@ -1632,21 +1643,65 @@
       return;
     }
 
-    html += '<table class="cc-table">';
+    // Group items by Practice_Area
+    var grouped = {};
+    PB_PRACTICE_AREAS.forEach(function(pa) { grouped[pa.key] = []; });
+    items.forEach(function(item) {
+      var key = item.Practice_Area || 'OTHER';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(item);
+    });
+
+    var activePAs = PB_PRACTICE_AREAS.filter(function(pa) {
+      return grouped[pa.key] && grouped[pa.key].length > 0;
+    });
+
+    // Practice area filter tabs
+    var filterPa = state.priceBookFilterPA || 'ALL';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">';
+    html += '<button class="cc-pb-pa-filter cc-btn cc-btn-sm' + (filterPa === 'ALL' ? ' cc-btn-primary' : ' cc-btn-outline') + '" data-pa="ALL">All (' + items.length + ')</button>';
+    activePAs.forEach(function(pa) {
+      var count = grouped[pa.key].length;
+      html += '<button class="cc-pb-pa-filter cc-btn cc-btn-sm' + (filterPa === pa.key ? ' cc-btn-primary' : ' cc-btn-outline') + '" ' +
+        'data-pa="' + escapeAttr(pa.key) + '">' + escapeHtml(pa.label) + ' (' + count + ')</button>';
+    });
+    html += '</div>';
+
+    if (filterPa === 'ALL') {
+      // Grouped view: render each practice area as a section
+      activePAs.forEach(function(pa) {
+        var paItems = grouped[pa.key];
+        html += '<div style="margin-bottom:20px;">';
+        html += '<h4 style="margin:0 0 8px;padding:8px 12px;background:#f8fafc;border-radius:6px;font-size:14px;color:#334155;">' +
+          escapeHtml(pa.label) + ' <span style="color:#94a3b8;font-weight:normal;">(' + paItems.length + ' service' + (paItems.length > 1 ? 's' : '') + ')</span></h4>';
+        html += renderPriceBookTable(paItems);
+        html += '</div>';
+      });
+    } else {
+      html += renderPriceBookTable(grouped[filterPa] || []);
+    }
+
+    html += '</div>';
+    content.innerHTML = html;
+    bindPriceBookAddBtn();
+    bindPriceBookTableEvents();
+    bindPriceBookPAFilter();
+  }
+
+  function renderPriceBookTable(tableItems) {
+    var html = '<table class="cc-table">';
     html += '<thead><tr>';
     html += '<th class="cc-th">Service Name</th>';
-    html += '<th class="cc-th">Practice Area</th>';
     html += '<th class="cc-th" style="width:120px;">List Price</th>';
     html += '<th class="cc-th" style="width:80px;">Active</th>';
     html += '<th class="cc-th" style="width:260px;">Actions</th>';
     html += '</tr></thead><tbody>';
 
-    items.forEach(function(item) {
+    tableItems.forEach(function(item) {
       var activeCls = item.Is_Active ? 'green' : 'gray';
       var activeText = item.Is_Active ? 'Yes' : 'No';
       html += '<tr>';
       html += '<td><a href="#" class="cc-pb-detail-link" data-id="' + escapeAttr(item.id) + '">' + escapeHtml(item.Service_Name || '') + '</a></td>';
-      html += '<td>' + escapeHtml(item.Practice_Area || '---') + '</td>';
       html += '<td>' + formatCurrency(item.List_Price) + '</td>';
       html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
       html += '<td>';
@@ -1661,15 +1716,28 @@
       html += '</tr>';
     });
 
-    html += '</tbody></table></div>';
-    content.innerHTML = html;
-    bindPriceBookAddBtn();
-    bindPriceBookTableEvents();
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function bindPriceBookPAFilter() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+    content.querySelectorAll('.cc-pb-pa-filter').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        state.priceBookFilterPA = btn.dataset.pa;
+        renderPriceBookTab();
+      });
+    });
   }
 
   function bindPriceBookAddBtn() {
     var btn = $el('cc-pb-add-btn');
-    if (btn) btn.addEventListener('click', function() { showPriceBookModal(null); });
+    if (btn) btn.addEventListener('click', function() {
+      // Pre-select current filter PA if filtering by a specific practice area
+      var defaultPa = (state.priceBookFilterPA && state.priceBookFilterPA !== 'ALL') ? state.priceBookFilterPA : null;
+      showPriceBookModal(null, defaultPa);
+    });
   }
 
   function bindPriceBookTableEvents() {
@@ -1831,10 +1899,17 @@
     bindPriceBookAddBtn();
   }
 
-  function showPriceBookModal(existing) {
+  function showPriceBookModal(existing, defaultPa) {
     closeModal();
     var isEdit = !!existing;
     var title = isEdit ? 'Edit Service' : 'Add Service';
+    var selectedPa = (existing && existing.Practice_Area) || defaultPa || '';
+
+    // Build practice area options from PB_PRACTICE_AREAS
+    var paOptions = '<option value="">-- Select --</option>';
+    PB_PRACTICE_AREAS.forEach(function(pa) {
+      paOptions += '<option value="' + escapeAttr(pa.key) + '"' + (selectedPa === pa.key ? ' selected' : '') + '>' + escapeHtml(pa.label) + '</option>';
+    });
 
     var overlay = document.createElement('div');
     overlay.className = 'cc-modal-overlay';
@@ -1847,16 +1922,8 @@
         '<div class="cc-modal-body">' +
           '<div class="cc-form-group"><label>Service Name *</label>' +
           '<input type="text" id="cc-pb-name" class="cc-input" value="' + escapeAttr((existing && existing.Service_Name) || '') + '"></div>' +
-          '<div class="cc-form-group"><label>Practice Area</label>' +
-          '<select id="cc-pb-pa" class="cc-input">' +
-            '<option value="">-- Select --</option>' +
-            '<option value="ESTATE_PLANNING"' + (existing && existing.Practice_Area === 'ESTATE_PLANNING' ? ' selected' : '') + '>Estate Planning</option>' +
-            '<option value="PROBATE"' + (existing && existing.Practice_Area === 'PROBATE' ? ' selected' : '') + '>Probate</option>' +
-            '<option value="REAL_ESTATE"' + (existing && existing.Practice_Area === 'REAL_ESTATE' ? ' selected' : '') + '>Real Estate</option>' +
-            '<option value="CORPORATE"' + (existing && existing.Practice_Area === 'CORPORATE' ? ' selected' : '') + '>Corporate</option>' +
-            '<option value="FAMILY_LAW"' + (existing && existing.Practice_Area === 'FAMILY_LAW' ? ' selected' : '') + '>Family Law</option>' +
-            '<option value="OTHER"' + (existing && existing.Practice_Area === 'OTHER' ? ' selected' : '') + '>Other</option>' +
-          '</select></div>' +
+          '<div class="cc-form-group"><label>Practice Area *</label>' +
+          '<select id="cc-pb-pa" class="cc-input">' + paOptions + '</select></div>' +
           '<div class="cc-form-group"><label>List Price ($)</label>' +
           '<input type="number" id="cc-pb-price" class="cc-input" step="0.01" min="0" value="' + ((existing && existing.List_Price) || '') + '"></div>' +
           '<div class="cc-form-group"><label>Description</label>' +
