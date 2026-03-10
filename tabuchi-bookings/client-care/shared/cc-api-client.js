@@ -809,3 +809,9 @@ const ClientCareAPI = (() => {
     }
   };
 })();
+
+/* ── Nav: ensure logo always links to dashboard ── */
+(function () {
+  var hl = document.getElementById('app-home-link');
+  if (hl) hl.href = '/crm/dashboard';
+})();
