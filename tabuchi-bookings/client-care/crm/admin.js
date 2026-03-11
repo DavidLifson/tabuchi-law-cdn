@@ -53,6 +53,9 @@
     { key: 'price-book', label: 'Price Book' }
   ];
 
+  // Tabs grouped under the "Options Lists" dropdown in the tab bar
+  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'activity-types', 'entity-types'];
+
   // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
   var HIDDEN_TABS = ['drip-enrollment'];
 
@@ -167,15 +170,36 @@
     var el = $el('cc-admin-tabs');
     if (!el) return;
 
+    var optActive = OPTIONS_LIST_TABS.indexOf(state.activeTab) !== -1;
+    var optLabel = optActive ? TABS.find(function(t) { return t.key === state.activeTab; }).label : '';
+
     var html = '<div class="cc-admin-tab-bar">';
     TABS.forEach(function(tab) {
+      // Skip tabs that belong to the Options Lists dropdown
+      if (OPTIONS_LIST_TABS.indexOf(tab.key) !== -1) return;
       var cls = 'cc-admin-tab' + (state.activeTab === tab.key ? ' cc-admin-tab-active' : '');
       html += '<button class="' + cls + '" data-tab="' + tab.key + '">' + tab.label + '</button>';
     });
+
+    // Options Lists dropdown button
+    var dropCls = 'cc-admin-tab cc-admin-tab-dropdown' + (optActive ? ' cc-admin-tab-active' : '');
+    html += '<div class="cc-admin-dropdown-wrap">';
+    html += '<button class="' + dropCls + '" id="cc-options-list-btn">';
+    html += optActive ? optLabel + ' &#9662;' : 'Options Lists &#9662;';
+    html += '</button>';
+    html += '<div class="cc-admin-dropdown-menu" id="cc-options-list-menu">';
+    TABS.forEach(function(tab) {
+      if (OPTIONS_LIST_TABS.indexOf(tab.key) === -1) return;
+      var itemCls = 'cc-admin-dropdown-item' + (state.activeTab === tab.key ? ' cc-admin-dropdown-item-active' : '');
+      html += '<button class="' + itemCls + '" data-tab="' + tab.key + '">' + tab.label + '</button>';
+    });
+    html += '</div></div>';
+
     html += '</div>';
     el.innerHTML = html;
 
-    el.querySelectorAll('.cc-admin-tab').forEach(function(btn) {
+    // Bind regular tab clicks
+    el.querySelectorAll('.cc-admin-tab[data-tab]').forEach(function(btn) {
       btn.addEventListener('click', function() {
         state.activeTab = btn.dataset.tab;
         location.hash = '#' + btn.dataset.tab;
@@ -183,6 +207,35 @@
         renderActiveTab();
       });
     });
+
+    // Bind dropdown toggle
+    var dropBtn = el.querySelector('#cc-options-list-btn');
+    var dropMenu = el.querySelector('#cc-options-list-menu');
+    if (dropBtn && dropMenu) {
+      dropBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var open = dropMenu.classList.toggle('cc-admin-dropdown-open');
+        // Close on next outside click
+        if (open) {
+          var closeHandler = function() {
+            dropMenu.classList.remove('cc-admin-dropdown-open');
+            document.removeEventListener('click', closeHandler);
+          };
+          setTimeout(function() { document.addEventListener('click', closeHandler); }, 0);
+        }
+      });
+
+      // Bind dropdown item clicks
+      dropMenu.querySelectorAll('.cc-admin-dropdown-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+          state.activeTab = item.dataset.tab;
+          location.hash = '#' + item.dataset.tab;
+          dropMenu.classList.remove('cc-admin-dropdown-open');
+          renderTabs();
+          renderActiveTab();
+        });
+      });
+    }
   }
 
   function renderActiveTab() {
