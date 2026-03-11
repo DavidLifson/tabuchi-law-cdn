@@ -54,7 +54,7 @@
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
-  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'activity-types', 'entity-types'];
+  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types'];
 
   // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
   var HIDDEN_TABS = ['drip-enrollment'];
