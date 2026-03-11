@@ -223,14 +223,14 @@
           '<button class="cc-rpt-preset" data-preset="all">All Time</button>' +
         '</div>' +
         '<div class="cc-rpt-custom-dates">' +
-          '<input type="date" id="cc-rpt-start" class="cc-input cc-input-sm" />' +
+          '<input type="date" id="cc-rpt-start" class="cc-input cc-input-sm"' + (state.startDate ? ' value="' + state.startDate + '"' : '') + ' />' +
           '<span> to </span>' +
-          '<input type="date" id="cc-rpt-end" class="cc-input cc-input-sm" />' +
+          '<input type="date" id="cc-rpt-end" class="cc-input cc-input-sm"' + (state.endDate ? ' value="' + state.endDate + '"' : '') + ' />' +
         '</div>' +
         '<div class="cc-rpt-date-field">' +
           '<select id="cc-rpt-date-field" class="cc-input cc-input-sm">' +
-            '<option value="Created_At">By Created Date</option>' +
-            '<option value="Intake_Received_At">By Closed Date</option>' +
+            '<option value="Created_At"' + (state.dateField === 'Created_At' ? ' selected' : '') + '>By Created Date</option>' +
+            '<option value="Intake_Received_At"' + (state.dateField === 'Intake_Received_At' ? ' selected' : '') + '>By Closed Date</option>' +
           '</select>' +
         '</div>' +
       '</div>';
@@ -356,7 +356,7 @@
     if (d.by_practice_area && d.by_practice_area.length) {
       html += '<h3>By Practice Area</h3>';
       html += buildSortableTable(d.by_practice_area, [
-        { key: 'practice_area', label: 'Practice Area' },
+        { key: 'practice_area', label: 'Practice Area', format: formatPracticeArea },
         { key: 'total', label: 'Total' },
         { key: 'won', label: 'Won' },
         { key: 'lost', label: 'Lost' },
@@ -453,6 +453,11 @@
   }
 
   // ─── Revenue Projection ───────────────────────────────────
+  function formatPracticeArea(val) {
+    if (!val) return '—';
+    return String(val).replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+  }
+
   function formatCurrency(val) {
     var n = Number(val);
     if (isNaN(n)) return '$0.00';
@@ -496,7 +501,7 @@
       html += buildSortableTable(d.details, [
         { key: 'client_name', label: 'Client' },
         { key: 'stage', label: 'Stage', format: function(v) { return API.util.stageLabel(v); } },
-        { key: 'practice_area', label: 'Practice Area' },
+        { key: 'practice_area', label: 'Practice Area', format: formatPracticeArea },
         { key: 'estimated_closing_date', label: 'Est. Close' },
         { key: 'list_price', label: 'List Price', format: function(v) { return formatCurrency(v); } },
         { key: 'probability_pct', label: 'Prob %' },
