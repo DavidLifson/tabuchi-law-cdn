@@ -43,6 +43,16 @@
     return all[all.length - 1];
   };
 
+  var PRACTICE_LABELS = {
+    ESTATE_PLANNING: 'Estate Planning',
+    PROBATE: 'Probate',
+    REAL_ESTATE: 'Real Estate',
+    CORPORATE: 'Corporate',
+    FAMILY_LAW: 'Family Law',
+    COMMISSION_NOTARY: 'Commission Notary',
+    OTHER: 'Other'
+  };
+
   var STAGES = [
     { key: 'NEW_LEAD', label: 'New Lead', color: 'blue' },
     { key: 'CONTACTED', label: 'Contacted', color: 'cyan' },
@@ -399,7 +409,38 @@
 
   function formatPracticeArea(pa) {
     if (!pa) return '\u2014';
-    return pa.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    var items = Array.isArray(pa) ? pa : [pa];
+    return items.map(function(item) {
+      return item.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    }).join(', ');
+  }
+
+  // ─── Populate Dropdowns ──────────────────────────────────────
+  function populateDropdowns() {
+    var paEl = $el('cc-filter-practice');
+    if (paEl && paEl.options.length <= 1) {
+      Object.keys(PRACTICE_LABELS).forEach(function(key) {
+        var opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = PRACTICE_LABELS[key];
+        paEl.appendChild(opt);
+      });
+    }
+
+    // Owner dropdown — fetch users async
+    var ownerEl = $el('cc-filter-owner');
+    if (ownerEl && ownerEl.options.length <= 1) {
+      API.admin.listUsers().then(function(result) {
+        if (result.success && result.users) {
+          result.users.forEach(function(user) {
+            var opt = document.createElement('option');
+            opt.value = user.id;
+            opt.textContent = user.name || user.email;
+            ownerEl.appendChild(opt);
+          });
+        }
+      }).catch(function() { /* silently fail — filter just won't have owner options */ });
+    }
   }
 
   // ─── Initialize ──────────────────────────────────────────────
@@ -410,6 +451,7 @@
       userNameEl.textContent = user.name || user.email;
     }
 
+    populateDropdowns();
     bindFilters();
     fetchLeads();
   }

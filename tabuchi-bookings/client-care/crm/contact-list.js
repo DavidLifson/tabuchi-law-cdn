@@ -87,6 +87,27 @@
     { key: 'Created_At',      label: 'Created',          sortable: true,  width: '10%' }
   ];
 
+  var PRACTICE_LABELS = {
+    ESTATE_PLANNING: 'Estate Planning',
+    PROBATE: 'Probate',
+    REAL_ESTATE: 'Real Estate',
+    CORPORATE: 'Corporate',
+    FAMILY_LAW: 'Family Law',
+    COMMISSION_NOTARY: 'Commission Notary',
+    OTHER: 'Other'
+  };
+
+  var SOURCE_LABELS = {
+    WEBFORM: 'Webform',
+    REFERRAL: 'Referral',
+    COLD_CALL: 'Cold Call',
+    WEBSITE: 'Website',
+    SOCIAL_MEDIA: 'Social Media',
+    ADVERTISING: 'Advertising',
+    EVENT: 'Event',
+    OTHER: 'Other'
+  };
+
   // ─── Date Presets ────────────────────────────────────────────
   function getDatePreset(preset) {
     var now = new Date();
@@ -223,7 +244,7 @@
       html += '<td>' + consentIcon(contact.Consent_Status) + '</td>';
 
       // Last Contact
-      html += '<td>' + escapeHtml(API.util.formatRelativeTime(contact.Last_Contacted_At)) + '</td>';
+      html += '<td>' + escapeHtml(API.util.formatRelativeTime(contact.Last_Contacted_At) || '—') + '</td>';
 
       // Created
       html += '<td>' + escapeHtml(API.util.formatDate(contact.Created_At)) + '</td>';
@@ -548,6 +569,29 @@
     }).join(', ');
   }
 
+  // ─── Populate Dropdowns ──────────────────────────────────
+  function populateDropdowns() {
+    var paEl = $el('cc-filter-practice');
+    if (paEl && paEl.options.length <= 1) {
+      Object.keys(PRACTICE_LABELS).forEach(function(key) {
+        var opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = PRACTICE_LABELS[key];
+        paEl.appendChild(opt);
+      });
+    }
+
+    var srcEl = $el('cc-filter-source');
+    if (srcEl && srcEl.options.length <= 1) {
+      Object.keys(SOURCE_LABELS).forEach(function(key) {
+        var opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = SOURCE_LABELS[key];
+        srcEl.appendChild(opt);
+      });
+    }
+  }
+
   // ─── Initialize ───────────────────────────────────────────
   function init() {
     var user = API.auth.getUser();
@@ -557,6 +601,7 @@
     }
 
     renderHeaders();
+    populateDropdowns();
     bindFilters();
     updateBulkBar();
     fetchContacts();
