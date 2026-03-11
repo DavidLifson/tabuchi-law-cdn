@@ -807,15 +807,18 @@
       html += '<div class="cc-info-item"><div class="cc-info-label">Est. Closing Date</div>';
       html += editableInput('Estimated_Closing_Date', '', 'date', '');
       html += '</div>';
-      // Services Required (text, linked after creation)
+      // Services Required dropdown (populated async from price book)
       html += '<div class="cc-info-item"><div class="cc-info-label">Services Required</div>';
-      html += editableInput('Services_Required_Text', '', 'text', 'e.g. Will, POA, Estate Admin');
+      html += '<select id="cc-new-lead-service" class="cc-info-input cc-select" data-field="Services_Required">' +
+        '<option value="">— Select Service —</option><option value="" disabled>Loading…</option></select>';
       html += '</div>';
       html += '</div>';
       html += '<div style="margin-top:1rem;text-align:right">' +
         '<button id="cc-create-lead-btn" class="cc-btn cc-btn-primary">Create Lead</button></div>';
       el.innerHTML = html;
       bindInfoEdits();
+      // Populate services dropdown from price book
+      populateServiceDropdown();
       return;
     }
 
@@ -1214,6 +1217,11 @@
           data.Practice_Area = Array.from(paChecks).map(function(cb) { return cb.value; });
         }
 
+        // Services Required: wrap single record ID in array for linked-record field
+        if (data.Services_Required && typeof data.Services_Required === 'string') {
+          data.Services_Required = [data.Services_Required];
+        }
+
         createBtn.disabled = true;
         createBtn.textContent = 'Creating...';
         try {
@@ -1231,6 +1239,44 @@
           createBtn.textContent = 'Create Lead';
         }
       });
+    }
+  }
+
+  // ─── New Lead: Populate Service Dropdown ────────────────────
+  async function populateServiceDropdown() {
+    var sel = document.getElementById('cc-new-lead-service');
+    if (!sel) return;
+    try {
+      if (!_priceBookCache) {
+        var res = await API.priceBook.list();
+        _priceBookCache = (res.items || []).filter(function(i) { return i.Is_Active; });
+      }
+      var items = _priceBookCache;
+      if (!items.length) {
+        sel.innerHTML = '<option value="">— No services available —</option>';
+        return;
+      }
+      // Group by Practice_Area
+      var grouped = {};
+      PRACTICE_AREAS.forEach(function(pa) { grouped[pa.key] = []; });
+      items.forEach(function(item) {
+        var raw = item.Practice_Area || '';
+        var key = PA_LABEL_TO_KEY[raw] || 'OTHER';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(item);
+      });
+      var html = '<option value="">— Select Service —</option>';
+      PRACTICE_AREAS.forEach(function(pa) {
+        if (!grouped[pa.key] || !grouped[pa.key].length) return;
+        html += '<optgroup label="' + escapeAttr(pa.label) + '">';
+        grouped[pa.key].forEach(function(item) {
+          html += '<option value="' + escapeAttr(item.id) + '">' + escapeHtml(item.Service_Name) + '</option>';
+        });
+        html += '</optgroup>';
+      });
+      sel.innerHTML = html;
+    } catch (e) {
+      sel.innerHTML = '<option value="">— Failed to load —</option>';
     }
   }
 
