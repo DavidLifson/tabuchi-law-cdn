@@ -350,9 +350,23 @@
     html += '<h3 class="cc-section-title">Edit Contact</h3>';
     html += '<div class="cc-edit-grid">';
 
+    // ── Identity ──
+    html += '<div class="cc-edit-field"><label>Name</label>' +
+      '<input class="cc-input" id="cc-edit-name" value="' + escapeAttr(c.Client_Name || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Email</label>' +
+      '<input type="email" class="cc-input" id="cc-edit-email" value="' + escapeAttr(c.Client_Email || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Phone</label>' +
+      '<input class="cc-input" id="cc-edit-phone" value="' + escapeAttr(c.Client_Phone || '') + '" /></div>';
+
     html += '<div class="cc-edit-field"><label>Company</label>' +
       '<input class="cc-input" id="cc-edit-company" value="' + escapeAttr(c.Company || '') + '" /></div>';
 
+    html += '<div class="cc-edit-field"><label>Occupation</label>' +
+      '<input class="cc-input" id="cc-edit-occupation" value="' + escapeAttr(c.Occupation || '') + '" /></div>';
+
+    // ── Address ──
     html += '<div class="cc-edit-field"><label>Address</label>' +
       '<input class="cc-input" id="cc-edit-address" value="' + escapeAttr(c.Client_Address || '') + '" /></div>';
 
@@ -371,9 +385,7 @@
     html += '<div class="cc-edit-field"><label>Country</label>' +
       '<input class="cc-input" id="cc-edit-country" value="' + escapeAttr(c.Country || 'Canada') + '" /></div>';
 
-    html += '<div class="cc-edit-field"><label>Occupation</label>' +
-      '<input class="cc-input" id="cc-edit-occupation" value="' + escapeAttr(c.Occupation || '') + '" /></div>';
-
+    // ── Personal ──
     html += '<div class="cc-edit-field"><label>Date of Birth</label>' +
       '<input type="date" class="cc-input" id="cc-edit-dob" value="' + escapeAttr(c.Date_of_Birth || '') + '" /></div>';
 
@@ -396,9 +408,60 @@
     });
     html += '</select></div>';
 
+    // ── CRM Pipeline ──
+    html += '<div class="cc-edit-field"><label>Practice Area</label>' +
+      '<select class="cc-input" id="cc-edit-practice">' +
+      '<option value="">— Select —</option>';
+    var practiceAreas = [
+      { key: 'ESTATE_PLANNING', label: 'Estate Planning' },
+      { key: 'PROBATE', label: 'Probate' },
+      { key: 'REAL_ESTATE', label: 'Real Estate' },
+      { key: 'CORPORATE', label: 'Corporate' },
+      { key: 'FAMILY_LAW', label: 'Family Law' },
+      { key: 'COMMISSION_NOTARY', label: 'Commission Notary' },
+      { key: 'OTHER', label: 'Other' }
+    ];
+    var currentPA = Array.isArray(c.Practice_Area) ? c.Practice_Area[0] : (c.Practice_Area || '');
+    practiceAreas.forEach(function(pa) {
+      html += '<option value="' + pa.key + '"' + (currentPA === pa.key || currentPA === pa.label ? ' selected' : '') + '>' + escapeHtml(pa.label) + '</option>';
+    });
+    html += '</select></div>';
+
+    html += '<div class="cc-edit-field"><label>Service Package</label>' +
+      '<input class="cc-input" id="cc-edit-service" value="' + escapeAttr(Array.isArray(c.Service_Package) ? c.Service_Package.join(', ') : (c.Service_Package || '')) + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Lead Source</label>' +
+      '<input class="cc-input" id="cc-edit-source" value="' + escapeAttr(c.Source || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Lead Stage</label>' +
+      '<select class="cc-input" id="cc-edit-stage">' +
+      '<option value="">— Select —</option>';
+    var stageLabels = API.util.STAGE_LABELS || {};
+    Object.keys(stageLabels).forEach(function(key) {
+      html += '<option value="' + key + '"' + (c.Lead_Stage === key ? ' selected' : '') + '>' + escapeHtml(stageLabels[key]) + '</option>';
+    });
+    html += '</select></div>';
+
+    html += '<div class="cc-edit-field"><label>Disposition</label>' +
+      '<select class="cc-input" id="cc-edit-disposition">' +
+      '<option value="">— Select —</option>';
+    ['OPEN', 'WON', 'LOST', 'DISQUALIFIED'].forEach(function(s) {
+      html += '<option value="' + s + '"' + ((c.Disposition || 'OPEN') === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
+    });
+    html += '</select></div>';
+
+    html += '<div class="cc-edit-field"><label>Priority</label>' +
+      '<select class="cc-input" id="cc-edit-priority">' +
+      '<option value="">— Select —</option>';
+    ['LOW', 'NORMAL', 'HIGH', 'URGENT'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (c.Priority === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
+    });
+    html += '</select></div>';
+
     html += '<div class="cc-edit-field"><label>Referral Source</label>' +
       '<input class="cc-input" id="cc-edit-referral" value="' + escapeAttr(c.Referral_Source || '') + '" /></div>';
 
+    // ── Status ──
     html += '<div class="cc-edit-field"><label>Contact Status</label>' +
       '<select class="cc-input" id="cc-edit-status">' +
       '<option value=""' + (!c.Contact_Status ? ' selected' : '') + '>— Select —</option>';
@@ -413,6 +476,10 @@
       html += '<option value="' + s + '"' + (c.Consent_Status === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
     });
     html += '</select></div>';
+
+    // ── Dates ──
+    html += '<div class="cc-edit-field"><label>Next Action Date</label>' +
+      '<input type="date" class="cc-input" id="cc-edit-nextaction" value="' + escapeAttr(c.Next_Action_Date || '') + '" /></div>';
 
     html += '</div>'; // close edit-grid
     html += '<div class="cc-edit-actions">' +
@@ -657,6 +724,9 @@
 
       try {
         var updates = {
+          Client_Name: document.getElementById('cc-edit-name').value.trim(),
+          Client_Email: document.getElementById('cc-edit-email').value.trim(),
+          Client_Phone: document.getElementById('cc-edit-phone').value.trim(),
           Company: document.getElementById('cc-edit-company').value.trim(),
           Client_Address: document.getElementById('cc-edit-address').value.trim(),
           Address_2: document.getElementById('cc-edit-address2').value.trim(),
@@ -670,6 +740,13 @@
           Marital_Status: document.getElementById('cc-edit-marital').value,
           Preferred_Language: document.getElementById('cc-edit-language').value,
           Referral_Source: document.getElementById('cc-edit-referral').value.trim(),
+          Practice_Area: document.getElementById('cc-edit-practice').value,
+          Service_Package: document.getElementById('cc-edit-service').value.trim(),
+          Source: document.getElementById('cc-edit-source').value.trim(),
+          Lead_Stage: document.getElementById('cc-edit-stage').value,
+          Disposition: document.getElementById('cc-edit-disposition').value,
+          Priority: document.getElementById('cc-edit-priority').value,
+          Next_Action_Date: document.getElementById('cc-edit-nextaction').value,
           Contact_Status: document.getElementById('cc-edit-status').value,
           Consent_Status: document.getElementById('cc-edit-consent').value
         };
