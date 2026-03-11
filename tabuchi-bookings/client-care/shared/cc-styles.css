@@ -1,0 +1,107 @@
+/**
+ * Tabuchi Law Client Care CRM — Shared Styles
+ * Used across all CRM pages via CDN <link> tag.
+ * Page-specific styles remain inline in each embed file.
+ */
+
+/* --- Layout & States --- */
+.cc-loading { text-align:center;padding:2rem;color:#6B7280; }
+.cc-loading-state { opacity:0.5;pointer-events:none; }
+.cc-error { background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:0.75rem 1rem;color:#991B1B;font-size:0.85rem;margin:1rem 0; }
+.cc-empty { text-align:center;padding:2rem;color:#9CA3AF;font-size:0.9rem; }
+.cc-success { background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:0.75rem 1rem;color:#166534;font-size:0.85rem;margin:1rem 0; }
+
+/* --- Buttons --- */
+.cc-btn { display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;padding:0.5rem 1rem;border-radius:6px;font-size:0.9rem;font-weight:500;cursor:pointer;border:none;transition:opacity 0.15s; }
+.cc-btn:hover { opacity:0.85; }
+.cc-btn-primary { background:#2563EB;color:white; }
+.cc-btn-success { background:#059669;color:white; }
+.cc-btn-danger { background:#DC2626;color:white; }
+.cc-btn-outline { background:transparent;border:1px solid #D1D5DB;color:#374151; }
+.cc-btn-outline:hover { background:#F3F4F6; }
+.cc-btn-sm { padding:0.3rem 0.7rem;font-size:0.8rem; }
+.cc-btn-green { background:#059669;color:white; }
+.cc-btn-yellow { background:#F59E0B;color:white; }
+.cc-btn-red { background:#DC2626;color:white; }
+.cc-btn-disabled { opacity:0.5;cursor:not-allowed;pointer-events:none; }
+
+/* --- Badges --- */
+.cc-badge { display:inline-block;padding:0.15rem 0.5rem;border-radius:9999px;font-size:0.75rem;font-weight:600;line-height:1.4;white-space:nowrap; }
+.cc-badge-blue { background:#DBEAFE;color:#1E40AF; }
+.cc-badge-cyan { background:#CFFAFE;color:#155E75; }
+.cc-badge-teal { background:#CCFBF1;color:#115E59; }
+.cc-badge-green { background:#D1FAE5;color:#065F46; }
+.cc-badge-yellow { background:#FEF3C7;color:#92400E; }
+.cc-badge-red { background:#FEE2E2;color:#991B1B; }
+.cc-badge-purple { background:#EDE9FE;color:#5B21B6; }
+.cc-badge-gray { background:#F3F4F6;color:#4B5563; }
+
+/* --- Tables --- */
+.cc-table { width:100%;border-collapse:collapse;font-size:0.9rem; }
+.cc-th { padding:0.75rem 1rem;text-align:left;font-weight:600;background:#F9FAFB;border-bottom:1px solid #E5E7EB;color:#374151;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.03em; }
+.cc-th-sortable { cursor:pointer;user-select:none; }
+.cc-th-sortable:hover { background:#F3F4F6; }
+.cc-th-sorted { background:#EFF6FF;color:#1E40AF; }
+.cc-sort-arrow { display:inline-block;margin-left:0.3rem;font-size:0.7rem; }
+.cc-cell-name { min-width:160px; }
+.cc-loading-cell { padding:1.5rem;text-align:center;color:#6B7280; }
+.cc-error-cell { padding:1.5rem;text-align:center;color:#991B1B;background:#FEF2F2; }
+.cc-empty-cell { padding:2rem;text-align:center;color:#9CA3AF; }
+
+/* --- Forms --- */
+.cc-form-group { margin-bottom:1rem; }
+.cc-label { display:block;font-size:0.8rem;font-weight:600;color:#374151;margin-bottom:0.3rem; }
+.cc-input { width:100%;padding:0.5rem 0.75rem;border:1px solid #D1D5DB;border-radius:6px;font-size:0.9rem;color:#1F2937;box-sizing:border-box;background:white; }
+.cc-input:focus { outline:none;border-color:#2563EB;box-shadow:0 0 0 2px rgba(37,99,235,0.15); }
+.cc-textarea { width:100%;padding:0.5rem 0.75rem;border:1px solid #D1D5DB;border-radius:6px;font-size:0.9rem;color:#1F2937;box-sizing:border-box;resize:vertical;min-height:80px;font-family:inherit;background:white; }
+.cc-textarea:focus { outline:none;border-color:#2563EB;box-shadow:0 0 0 2px rgba(37,99,235,0.15); }
+.cc-select { width:100%;padding:0.5rem 0.75rem;border:1px solid #D1D5DB;border-radius:6px;font-size:0.9rem;color:#1F2937;background:white;box-sizing:border-box; }
+.cc-select:focus { outline:none;border-color:#2563EB;box-shadow:0 0 0 2px rgba(37,99,235,0.15); }
+.cc-checkbox, .cc-radio { margin-right:0.4rem;accent-color:#2563EB; }
+.cc-input-sm { padding:0.3rem 0.5rem;font-size:0.8rem; }
+.cc-required-field::after { content:" *";color:#DC2626; }
+
+/* --- Modals --- */
+.cc-modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;display:flex;align-items:center;justify-content:center; }
+.cc-modal { background:white;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.2);max-width:500px;width:90%;max-height:85vh;overflow-y:auto; }
+.cc-modal-header { display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid #E5E7EB;font-weight:600;font-size:1.1rem; }
+.cc-modal-body { padding:1.5rem; }
+.cc-modal-footer { display:flex;justify-content:flex-end;gap:0.5rem;padding:1rem 1.5rem;border-top:1px solid #E5E7EB; }
+.cc-modal-close { background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6B7280;line-height:1; }
+.cc-modal-close:hover { color:#1F2937; }
+.cc-modal-form { display:flex;flex-direction:column;gap:0; }
+.cc-modal-cancel-btn { background:#F3F4F6;color:#374151;border:none;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem; }
+.cc-modal-save-btn { background:#2563EB;color:white;border:none;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem;font-weight:500; }
+
+/* --- Toasts --- */
+.cc-toast { position:fixed;top:1rem;right:1rem;padding:0.75rem 1.25rem;border-radius:8px;color:white;font-size:0.9rem;z-index:2000;transform:translateX(120%);transition:transform 0.3s ease;box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+.cc-toast-visible { transform:translateX(0); }
+.cc-toast-success { background:#059669; }
+.cc-toast-error { background:#DC2626; }
+.cc-toast-info { background:#2563EB; }
+.cc-toast-warning { background:#F59E0B; }
+
+/* --- Spinner --- */
+.cc-spinner { display:inline-block;width:20px;height:20px;border:3px solid #E5E7EB;border-top-color:#2563EB;border-radius:50%;animation:cc-spin 0.8s linear infinite; }
+@keyframes cc-spin { to { transform:rotate(360deg); } }
+
+/* --- Links --- */
+.cc-link { color:#2563EB;text-decoration:none; }
+.cc-link:hover { text-decoration:underline; }
+
+/* --- Text Utilities --- */
+.cc-text-green { color:#059669; }
+.cc-text-red { color:#DC2626; }
+
+/* --- Tabs --- */
+.cc-tab { padding:0.5rem 1rem;font-size:0.9rem;font-weight:500;color:#6B7280;background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color 0.15s,border-color 0.15s; }
+.cc-tab:hover { color:#1F2937; }
+.cc-tab-active { color:#2563EB;border-bottom-color:#2563EB;font-weight:600; }
+
+/* --- Pagination & Presets --- */
+.cc-pagination { display:flex;align-items:center;justify-content:center;gap:0.5rem; }
+.cc-page-btn { display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 0.5rem;border:1px solid #D1D5DB;border-radius:6px;background:white;color:#374151;font-size:0.85rem;cursor:pointer; }
+.cc-page-btn:hover { background:#F3F4F6; }
+.cc-page-btn.active { background:#2563EB;color:white;border-color:#2563EB; }
+.cc-page-info { color:#6B7280;font-size:0.85rem; }
+.cc-preset-active { background:#2563EB !important;color:white !important;border-color:#2563EB !important; }
