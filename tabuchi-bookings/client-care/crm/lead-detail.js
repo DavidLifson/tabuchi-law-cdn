@@ -304,7 +304,7 @@
       { label: 'Next Action', value: API.util.formatDateTime(l.Next_Action_At) || '—' },
       { label: 'Est. Closing Date', html: renderClosingDateField(l) },
       { label: 'Services Required', html: renderServicesField(l) },
-      { label: 'Consent', value: l.Consent_Status || 'UNKNOWN' }
+      { label: 'Subscribed', value: l.Consent_Status || 'UNKNOWN' }
     ];
 
     if (l.Disposition !== 'OPEN') {

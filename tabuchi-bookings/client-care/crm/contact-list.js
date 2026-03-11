@@ -82,7 +82,7 @@
     { key: 'Contact_Status',   label: 'Status',          sortable: true,  width: '10%' },
     { key: 'Practice_Area',    label: 'Practice Area',   sortable: true,  width: '12%' },
     { key: 'Source',           label: 'Source',           sortable: true,  width: '8%' },
-    { key: 'Consent_Status',   label: 'Consent',         sortable: true,  width: '8%' },
+    { key: 'Consent_Status',   label: 'Subscribed',      sortable: true,  width: '8%' },
     { key: 'Last_Contacted_At', label: 'Last Contact',   sortable: true,  width: '10%' },
     { key: 'Created_At',      label: 'Created',          sortable: true,  width: '10%' }
   ];

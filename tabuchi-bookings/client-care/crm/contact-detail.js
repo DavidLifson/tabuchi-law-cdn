@@ -284,7 +284,7 @@
       { label: 'Priority', value: c.Priority },
       { label: 'Owner', value: c.Lead_Owner_Name },
       { label: 'Responsible Lawyer', value: c.Responsible_Lawyer_Name },
-      { label: 'Consent', value: c.Consent_Status || 'UNKNOWN' },
+      { label: 'Subscribed', value: c.Consent_Status || 'UNKNOWN' },
       { label: 'Lead ID', value: c.Lead_ID || c.id },
       { label: 'Created', value: API.util.formatDateTime(c.Created_At) },
       { label: 'Last Contact', value: API.util.formatRelativeTime(c.Last_Contacted_At) },
@@ -325,7 +325,7 @@
     });
     html += '</select></div>';
 
-    html += '<div class="cc-edit-field"><label>Consent</label>' +
+    html += '<div class="cc-edit-field"><label>Subscribed</label>' +
       '<select class="cc-input" id="cc-edit-consent">';
     ['UNKNOWN', 'SUBSCRIBED', 'UNSUBSCRIBED'].forEach(function(s) {
       html += '<option value="' + s + '"' + (c.Consent_Status === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
