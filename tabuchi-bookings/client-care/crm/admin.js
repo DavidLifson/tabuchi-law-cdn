@@ -40,17 +40,16 @@
 
   // ─── Constants ─────────────────────────────────────────────
   var TABS = [
-    { key: 'overview', label: 'Overview' },
+    { key: 'system-status', label: 'System Status' },
     { key: 'staff-users', label: 'Staff & Users' },
     { key: 'templates', label: 'Templates' },
-    { key: 'system', label: 'System' },
     { key: 'categories', label: 'Categories' },
     { key: 'lead-sources', label: 'Lead Sources' },
     { key: 'stages', label: 'Stages' },
     { key: 'dispositions', label: 'Dispositions' },
     { key: 'activity-types', label: 'Activity Types' },
     { key: 'entity-types', label: 'Entity Types' },
-    { key: 'price-book', label: 'Price Book' }
+    { key: 'price-book', label: 'Price Books' }
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
@@ -114,7 +113,7 @@
 
   // ─── State ─────────────────────────────────────────────────
   var state = {
-    activeTab: 'overview',
+    activeTab: 'system-status',
     user: API.auth.getUser(),
     // Overview
     stats: null,
@@ -240,10 +239,9 @@
 
   function renderActiveTab() {
     switch (state.activeTab) {
-      case 'overview':       renderOverview(); break;
+      case 'system-status':  renderSystemStatus(); break;
       case 'staff-users':    renderStaffUsersTab(); break;
       case 'templates':      renderTemplatesTab(); break;
-      case 'system':         renderSystemTab(); break;
       case 'categories':     renderCategoriesTab(); break;
       case 'price-book':     renderPriceBookTab(); break;
       case 'drip-enrollment': renderDripTab(); break;
@@ -257,13 +255,12 @@
     }
     // Fetch fresh data for the active tab
     switch (state.activeTab) {
-      case 'overview':      fetchOverviewData(); break;
+      case 'system-status': fetchOverviewData(); break;
       case 'staff-users':   fetchStaffUsers(); break;
       case 'templates':     fetchTemplates(); break;
       case 'categories':    fetchCategories(); break;
       case 'price-book':    fetchPriceBookItems(); break;
       case 'drip-enrollment': fetchDripData(); break;
-      // system tab is static, no fetch needed
       default:
         var ck = tabToConfigKey(state.activeTab);
         if (CONFIG_META[ck] !== undefined) {
@@ -319,7 +316,7 @@
     renderOverview();
   }
 
-  function renderOverview() {
+  function renderSystemStatus() {
     var content = $el('cc-admin-content');
     if (!content) return;
 
@@ -338,7 +335,6 @@
       html += renderStatCard('Active Users', s.active_users || 0, 'purple');
       html += renderStatCard('Active Campaigns', s.active_campaigns || 0, 'cyan');
     } else {
-      // Fallback — stats endpoint may not be built yet
       html += '<div class="cc-admin-stat-card cc-admin-stat-gray">';
       html += '<div class="cc-admin-stat-label">Stats</div>';
       html += '<div class="cc-admin-stat-value">Pending backend (CC-15)</div>';
@@ -377,6 +373,110 @@
     } else {
       html += '<p class="cc-admin-success">No Clio sync failures. All WON leads are linked.</p>';
     }
+
+    // Service Level Configuration (merged from System tab)
+    html += '<h3 class="cc-admin-section-title">Service Level Configuration</h3>';
+    html += '<div class="cc-admin-config-card">';
+    html += '<table class="cc-table cc-admin-config-table">';
+    html += '<thead><tr><th class="cc-th">Setting</th><th class="cc-th">Value</th><th class="cc-th">Description</th></tr></thead>';
+    html += '<tbody>';
+    html += '<tr><td>Initial Contact Service Level</td><td><strong>4 hours</strong></td><td>New leads must be contacted within this window (CC-13 checks every 15 min)</td></tr>';
+    html += '<tr><td>Follow-Up Service Level</td><td><strong>48 hours</strong></td><td>Maximum time between touchpoints for open leads</td></tr>';
+    html += '<tr><td>Form Session Expiry</td><td><strong>7 days</strong></td><td>Intake form save/resume sessions expire after this period</td></tr>';
+    html += '<tr><td>Clio Retry Attempts</td><td><strong>3</strong></td><td>Number of retries before marking as MANUAL_REVIEW (CC-08 runs every 15 min)</td></tr>';
+    html += '<tr><td>Drip Sender Interval</td><td><strong>1 hour</strong></td><td>CC-14 checks for pending drip steps every hour</td></tr>';
+    html += '</tbody></table>';
+    html += '<p class="cc-admin-hint">Service level thresholds are configured in n8n workflows. To change, edit the CC-13 (Service Level Checker) and CC-08 (Clio Retry) workflows.</p>';
+    html += '</div>';
+
+    // Integration Status
+    html += '<h3 class="cc-admin-section-title">Integration Status</h3>';
+    html += '<div class="cc-admin-config-card">';
+    html += '<table class="cc-table cc-admin-config-table">';
+    html += '<thead><tr><th class="cc-th">Integration</th><th class="cc-th">Status</th><th class="cc-th">Details</th></tr></thead>';
+    html += '<tbody>';
+    html += '<tr><td>Airtable</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Base: appPccm6NkaJdvqwy &mdash; 13 CC_ tables</td></tr>';
+    html += '<tr><td>Microsoft Entra SSO</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>App: tabuchi-dashboard-spa (4df869dd-...)</td></tr>';
+    html += '<tr><td>Clio Manage</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>OAuth credentials in n8n. Contact/Matter creation on close.</td></tr>';
+    html += '<tr><td>Microsoft Graph (Mail)</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Mail.Send permission granted. Used for drip campaigns & service level notifications.</td></tr>';
+    html += '<tr><td>Twilio SMS</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Phone: +16479553886. Used for SMS campaigns.</td></tr>';
+    html += '</tbody></table>';
+    html += '</div>';
+
+    // Pipeline Stages
+    html += '<h3 class="cc-admin-section-title">Pipeline Stages</h3>';
+    html += '<div class="cc-admin-config-card">';
+    html += '<table class="cc-table cc-admin-config-table">';
+    html += '<thead><tr><th class="cc-th">#</th><th class="cc-th">Stage Key</th><th class="cc-th">Display Label</th><th class="cc-th">Close Gate</th></tr></thead>';
+    html += '<tbody>';
+
+    var stages = [
+      { key: 'NEW_LEAD', label: 'New Lead', gate: 'None' },
+      { key: 'CONTACTED', label: 'Contacted', gate: 'None' },
+      { key: 'INTAKE_RECEIVED', label: 'Intake Received', gate: 'None' },
+      { key: 'DISCOVERY_MEETING_BOOKED', label: 'Discovery Meeting Booked', gate: 'None' },
+      { key: 'MEETING_DONE', label: 'Meeting Done', gate: 'Meeting notes required' },
+      { key: 'READY_TO_DRAFT', label: 'Ready to Draft', gate: 'Disposition + Clio sync (CC-07)' }
+    ];
+
+    stages.forEach(function(s, i) {
+      html += '<tr>';
+      html += '<td>' + (i + 1) + '</td>';
+      html += '<td><code>' + s.key + '</code></td>';
+      html += '<td>' + s.label + '</td>';
+      html += '<td>' + s.gate + '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+
+    // Roles & Permissions
+    html += '<h3 class="cc-admin-section-title">Roles & Permissions</h3>';
+    html += '<div class="cc-admin-config-card">';
+    html += '<table class="cc-table cc-admin-config-table">';
+    html += '<thead><tr><th class="cc-th">Role</th><th class="cc-th">Lead Access</th><th class="cc-th">Write</th><th class="cc-th">Notes</th></tr></thead>';
+    html += '<tbody>';
+    html += '<tr><td><span class="cc-badge cc-badge-red">ADMIN</span></td><td>All leads</td><td>Full</td><td>System configuration, user management</td></tr>';
+    html += '<tr><td><span class="cc-badge cc-badge-blue">MANAGER</span></td><td>Managed teams</td><td>Full</td><td>Can move leads backward, view restricted notes</td></tr>';
+    html += '<tr><td><span class="cc-badge cc-badge-teal">SALES_INTAKE</span></td><td>Own + shared team leads</td><td>Yes</td><td>Primary intake operators</td></tr>';
+    html += '<tr><td><span class="cc-badge cc-badge-green">LAWYER</span></td><td>Assigned leads</td><td>Yes</td><td>See restricted notes, assigned as Responsible_Lawyer</td></tr>';
+    html += '<tr><td><span class="cc-badge cc-badge-purple">MARKETING</span></td><td>Marketing-flagged leads</td><td>Campaigns only</td><td>No estate profiles, no restricted notes</td></tr>';
+    html += '<tr><td><span class="cc-badge cc-badge-gray">READ_ONLY</span></td><td>Per role scope</td><td>None</td><td>View-only access</td></tr>';
+    html += '</tbody></table>';
+    html += '</div>';
+
+    // n8n Workflows
+    html += '<h3 class="cc-admin-section-title">n8n Workflows</h3>';
+    html += '<div class="cc-admin-config-card">';
+    html += '<table class="cc-table cc-admin-config-table">';
+    html += '<thead><tr><th class="cc-th">ID</th><th class="cc-th">Name</th><th class="cc-th">Trigger</th></tr></thead>';
+    html += '<tbody>';
+
+    var workflows = [
+      { id: 'CC-01', name: 'Intake Form Save/Resume', trigger: 'Webhook' },
+      { id: 'CC-02', name: 'Intake Form Submit', trigger: 'Webhook' },
+      { id: 'CC-03', name: 'Lead CRUD', trigger: 'Webhook' },
+      { id: 'CC-04', name: 'Activity Log', trigger: 'Webhook' },
+      { id: 'CC-05', name: 'Task CRUD', trigger: 'Webhook' },
+      { id: 'CC-06', name: 'Stage Update', trigger: 'Webhook' },
+      { id: 'CC-07', name: 'Close Gate + Clio Create', trigger: 'Internal (CC-06)' },
+      { id: 'CC-08', name: 'Clio Retry Queue', trigger: 'Schedule (15 min)' },
+      { id: 'CC-09', name: 'Login SSO', trigger: 'Webhook' },
+      { id: 'CC-10', name: 'Reports API', trigger: 'Webhook' },
+      { id: 'CC-11', name: 'Campaign CRUD', trigger: 'Webhook' },
+      { id: 'CC-12', name: 'Subscribe/Unsubscribe', trigger: 'Webhook' },
+      { id: 'CC-13', name: 'Service Level Breach Checker', trigger: 'Schedule (15 min)' },
+      { id: 'CC-14', name: 'Drip Step Sender', trigger: 'Schedule (1 hour)' }
+    ];
+
+    workflows.forEach(function(w) {
+      html += '<tr><td><strong>' + w.id + '</strong></td><td>' + w.name + '</td><td>' + w.trigger + '</td></tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '<p class="cc-admin-hint">Workflows are managed at <a href="https://tabuchilaw.app.n8n.cloud" target="_blank" rel="noopener" class="cc-link">tabuchilaw.app.n8n.cloud</a> under the "Client Care" project.</p>';
+    html += '</div>';
 
     html += '</div>';
     content.innerHTML = html;
@@ -1041,124 +1141,6 @@
       showToast(err.error || 'Error updating template.', 'error');
       return false;
     }
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // SYSTEM TAB
-  // ═══════════════════════════════════════════════════════════
-
-  function renderSystemTab() {
-    var content = $el('cc-admin-content');
-    if (!content) return;
-
-    var html = '<div class="cc-admin-system">';
-
-    // Service Level Configuration
-    html += '<h3 class="cc-admin-section-title">Service Level Configuration</h3>';
-    html += '<div class="cc-admin-config-card">';
-    html += '<table class="cc-table cc-admin-config-table">';
-    html += '<thead><tr><th class="cc-th">Setting</th><th class="cc-th">Value</th><th class="cc-th">Description</th></tr></thead>';
-    html += '<tbody>';
-    html += '<tr><td>Initial Contact Service Level</td><td><strong>4 hours</strong></td><td>New leads must be contacted within this window (CC-13 checks every 15 min)</td></tr>';
-    html += '<tr><td>Follow-Up Service Level</td><td><strong>48 hours</strong></td><td>Maximum time between touchpoints for open leads</td></tr>';
-    html += '<tr><td>Form Session Expiry</td><td><strong>7 days</strong></td><td>Intake form save/resume sessions expire after this period</td></tr>';
-    html += '<tr><td>Clio Retry Attempts</td><td><strong>3</strong></td><td>Number of retries before marking as MANUAL_REVIEW (CC-08 runs every 15 min)</td></tr>';
-    html += '<tr><td>Drip Sender Interval</td><td><strong>1 hour</strong></td><td>CC-14 checks for pending drip steps every hour</td></tr>';
-    html += '</tbody></table>';
-    html += '<p class="cc-admin-hint">Service level thresholds are configured in n8n workflows. To change, edit the CC-13 (Service Level Checker) and CC-08 (Clio Retry) workflows.</p>';
-    html += '</div>';
-
-    // Integration Status
-    html += '<h3 class="cc-admin-section-title">Integration Status</h3>';
-    html += '<div class="cc-admin-config-card">';
-    html += '<table class="cc-table cc-admin-config-table">';
-    html += '<thead><tr><th class="cc-th">Integration</th><th class="cc-th">Status</th><th class="cc-th">Details</th></tr></thead>';
-    html += '<tbody>';
-    html += '<tr><td>Airtable</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Base: appPccm6NkaJdvqwy &mdash; 13 CC_ tables</td></tr>';
-    html += '<tr><td>Microsoft Entra SSO</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>App: tabuchi-dashboard-spa (4df869dd-...)</td></tr>';
-    html += '<tr><td>Clio Manage</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>OAuth credentials in n8n. Contact/Matter creation on close.</td></tr>';
-    html += '<tr><td>Microsoft Graph (Mail)</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Mail.Send permission granted. Used for drip campaigns & service level notifications.</td></tr>';
-    html += '<tr><td>Twilio SMS</td><td><span class="cc-badge cc-badge-green">Connected</span></td><td>Phone: +16479553886. Used for SMS campaigns.</td></tr>';
-    html += '</tbody></table>';
-    html += '</div>';
-
-    // Pipeline Stages
-    html += '<h3 class="cc-admin-section-title">Pipeline Stages</h3>';
-    html += '<div class="cc-admin-config-card">';
-    html += '<table class="cc-table cc-admin-config-table">';
-    html += '<thead><tr><th class="cc-th">#</th><th class="cc-th">Stage Key</th><th class="cc-th">Display Label</th><th class="cc-th">Close Gate</th></tr></thead>';
-    html += '<tbody>';
-
-    var stages = [
-      { key: 'NEW_LEAD', label: 'New Lead', gate: 'None' },
-      { key: 'CONTACTED', label: 'Contacted', gate: 'None' },
-      { key: 'INTAKE_RECEIVED', label: 'Intake Received', gate: 'None' },
-      { key: 'DISCOVERY_MEETING_BOOKED', label: 'Discovery Meeting Booked', gate: 'None' },
-      { key: 'MEETING_DONE', label: 'Meeting Done', gate: 'Meeting notes required' },
-      { key: 'READY_TO_DRAFT', label: 'Ready to Draft', gate: 'Disposition + Clio sync (CC-07)' }
-    ];
-
-    stages.forEach(function(s, i) {
-      html += '<tr>';
-      html += '<td>' + (i + 1) + '</td>';
-      html += '<td><code>' + s.key + '</code></td>';
-      html += '<td>' + s.label + '</td>';
-      html += '<td>' + s.gate + '</td>';
-      html += '</tr>';
-    });
-
-    html += '</tbody></table>';
-    html += '</div>';
-
-    // Roles & Permissions
-    html += '<h3 class="cc-admin-section-title">Roles & Permissions</h3>';
-    html += '<div class="cc-admin-config-card">';
-    html += '<table class="cc-table cc-admin-config-table">';
-    html += '<thead><tr><th class="cc-th">Role</th><th class="cc-th">Lead Access</th><th class="cc-th">Write</th><th class="cc-th">Notes</th></tr></thead>';
-    html += '<tbody>';
-    html += '<tr><td><span class="cc-badge cc-badge-red">ADMIN</span></td><td>All leads</td><td>Full</td><td>System configuration, user management</td></tr>';
-    html += '<tr><td><span class="cc-badge cc-badge-blue">MANAGER</span></td><td>Managed teams</td><td>Full</td><td>Can move leads backward, view restricted notes</td></tr>';
-    html += '<tr><td><span class="cc-badge cc-badge-teal">SALES_INTAKE</span></td><td>Own + shared team leads</td><td>Yes</td><td>Primary intake operators</td></tr>';
-    html += '<tr><td><span class="cc-badge cc-badge-green">LAWYER</span></td><td>Assigned leads</td><td>Yes</td><td>See restricted notes, assigned as Responsible_Lawyer</td></tr>';
-    html += '<tr><td><span class="cc-badge cc-badge-purple">MARKETING</span></td><td>Marketing-flagged leads</td><td>Campaigns only</td><td>No estate profiles, no restricted notes</td></tr>';
-    html += '<tr><td><span class="cc-badge cc-badge-gray">READ_ONLY</span></td><td>Per role scope</td><td>None</td><td>View-only access</td></tr>';
-    html += '</tbody></table>';
-    html += '</div>';
-
-    // n8n Workflows
-    html += '<h3 class="cc-admin-section-title">n8n Workflows</h3>';
-    html += '<div class="cc-admin-config-card">';
-    html += '<table class="cc-table cc-admin-config-table">';
-    html += '<thead><tr><th class="cc-th">ID</th><th class="cc-th">Name</th><th class="cc-th">Trigger</th></tr></thead>';
-    html += '<tbody>';
-
-    var workflows = [
-      { id: 'CC-01', name: 'Intake Form Save/Resume', trigger: 'Webhook' },
-      { id: 'CC-02', name: 'Intake Form Submit', trigger: 'Webhook' },
-      { id: 'CC-03', name: 'Lead CRUD', trigger: 'Webhook' },
-      { id: 'CC-04', name: 'Activity Log', trigger: 'Webhook' },
-      { id: 'CC-05', name: 'Task CRUD', trigger: 'Webhook' },
-      { id: 'CC-06', name: 'Stage Update', trigger: 'Webhook' },
-      { id: 'CC-07', name: 'Close Gate + Clio Create', trigger: 'Internal (CC-06)' },
-      { id: 'CC-08', name: 'Clio Retry Queue', trigger: 'Schedule (15 min)' },
-      { id: 'CC-09', name: 'Login SSO', trigger: 'Webhook' },
-      { id: 'CC-10', name: 'Reports API', trigger: 'Webhook' },
-      { id: 'CC-11', name: 'Campaign CRUD', trigger: 'Webhook' },
-      { id: 'CC-12', name: 'Subscribe/Unsubscribe', trigger: 'Webhook' },
-      { id: 'CC-13', name: 'Service Level Breach Checker', trigger: 'Schedule (15 min)' },
-      { id: 'CC-14', name: 'Drip Step Sender', trigger: 'Schedule (1 hour)' }
-    ];
-
-    workflows.forEach(function(w) {
-      html += '<tr><td><strong>' + w.id + '</strong></td><td>' + w.name + '</td><td>' + w.trigger + '</td></tr>';
-    });
-
-    html += '</tbody></table>';
-    html += '<p class="cc-admin-hint">Workflows are managed at <a href="https://tabuchilaw.app.n8n.cloud" target="_blank" rel="noopener" class="cc-link">tabuchilaw.app.n8n.cloud</a> under the "Client Care" project.</p>';
-    html += '</div>';
-
-    html += '</div>';
-    content.innerHTML = html;
   }
 
   // ─── Staff Import Modal (used by Staff & Users tab) ──────
