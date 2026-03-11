@@ -807,18 +807,20 @@
       html += '<div class="cc-info-item"><div class="cc-info-label">Est. Closing Date</div>';
       html += editableInput('Estimated_Closing_Date', '', 'date', '');
       html += '</div>';
-      // Services Required dropdown (populated async from price book)
+      // Services Required (click to open modal, same as lead detail)
       html += '<div class="cc-info-item"><div class="cc-info-label">Services Required</div>';
-      html += '<select id="cc-new-lead-service" class="cc-info-input cc-select" data-field="Services_Required">' +
-        '<option value="">— Select Service —</option><option value="" disabled>Loading…</option></select>';
+      html += '<div class="cc-info-value cc-field-btn" id="cc-new-lead-svc-btn" title="Click to select services">' +
+        '<span class="cc-field-btn-text"><span style="color:#9ca3af">Select</span></span>' +
+        '<span class="cc-field-btn-icon">&#9662;</span></div>';
       html += '</div>';
       html += '</div>';
       html += '<div style="margin-top:1rem;text-align:right">' +
         '<button id="cc-create-lead-btn" class="cc-btn cc-btn-primary">Create Lead</button></div>';
       el.innerHTML = html;
       bindInfoEdits();
-      // Populate services dropdown from price book
-      populateServiceDropdown();
+      // Bind services selector button
+      var svcBtn = document.getElementById('cc-new-lead-svc-btn');
+      if (svcBtn) svcBtn.addEventListener('click', function() { showNewLeadServicesModal(); });
       return;
     }
 
@@ -1217,9 +1219,9 @@
           data.Practice_Area = Array.from(paChecks).map(function(cb) { return cb.value; });
         }
 
-        // Services Required: wrap single record ID in array for linked-record field
-        if (data.Services_Required && typeof data.Services_Required === 'string') {
-          data.Services_Required = [data.Services_Required];
+        // Services Required: use selections from modal
+        if (_newLeadServiceIds.length) {
+          data.Services_Required = _newLeadServiceIds;
         }
 
         createBtn.disabled = true;
@@ -1242,41 +1244,129 @@
     }
   }
 
-  // ─── New Lead: Populate Service Dropdown ────────────────────
-  async function populateServiceDropdown() {
-    var sel = document.getElementById('cc-new-lead-service');
-    if (!sel) return;
+  // ─── New Lead: Services Modal ───────────────────────────────
+  var _newLeadServiceIds = [];
+
+  async function showNewLeadServicesModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML = '<div class="cc-modal" style="max-width:520px"><div class="cc-modal-header"><h3>Select Services</h3>' +
+      '<button class="cc-modal-close" id="cc-nlsvc-close">&times;</button></div>' +
+      '<div class="cc-modal-body" id="cc-nlsvc-body"><p>Loading services...</p></div>' +
+      '<div class="cc-modal-footer">' +
+      '<span id="cc-nlsvc-count" style="font-size:13px;color:#666;margin-right:auto;"></span>' +
+      '<button class="cc-btn cc-btn-primary" id="cc-nlsvc-done">Done</button> ' +
+      '<button class="cc-btn" id="cc-nlsvc-cancel">Cancel</button></div></div>';
+    document.body.appendChild(overlay);
+
+    var closeModal = function() { overlay.remove(); };
+    document.getElementById('cc-nlsvc-close').addEventListener('click', closeModal);
+    document.getElementById('cc-nlsvc-cancel').addEventListener('click', closeModal);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+
     try {
       if (!_priceBookCache) {
         var res = await API.priceBook.list();
         _priceBookCache = (res.items || []).filter(function(i) { return i.Is_Active; });
       }
       var items = _priceBookCache;
+      var body = document.getElementById('cc-nlsvc-body');
       if (!items.length) {
-        sel.innerHTML = '<option value="">— No services available —</option>';
+        body.innerHTML = '<p>No active services in price book. <a href="/crm/admin">Add services</a> first.</p>';
         return;
       }
-      // Group by Practice_Area
+
       var grouped = {};
       PRACTICE_AREAS.forEach(function(pa) { grouped[pa.key] = []; });
       items.forEach(function(item) {
-        var raw = item.Practice_Area || '';
-        var key = PA_LABEL_TO_KEY[raw] || 'OTHER';
+        var key = PA_LABEL_TO_KEY[item.Practice_Area || ''] || 'OTHER';
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(item);
       });
-      var html = '<option value="">— Select Service —</option>';
-      PRACTICE_AREAS.forEach(function(pa) {
-        if (!grouped[pa.key] || !grouped[pa.key].length) return;
-        html += '<optgroup label="' + escapeAttr(pa.label) + '">';
-        grouped[pa.key].forEach(function(item) {
-          html += '<option value="' + escapeAttr(item.id) + '">' + escapeHtml(item.Service_Name) + '</option>';
+
+      var activePAs = PRACTICE_AREAS.filter(function(pa) { return grouped[pa.key] && grouped[pa.key].length > 0; });
+      var html = '<div style="max-height:400px;overflow-y:auto;">';
+      activePAs.forEach(function(pa) {
+        var paItems = grouped[pa.key];
+        var selectedInPa = paItems.filter(function(i) { return _newLeadServiceIds.indexOf(i.id) !== -1; }).length;
+        var badge = selectedInPa > 0
+          ? ' <span class="cc-nlsvc-badge" data-pa="' + escapeAttr(pa.key) + '" style="background:#2563eb;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px;">' + selectedInPa + '</span>'
+          : '<span class="cc-nlsvc-badge" data-pa="' + escapeAttr(pa.key) + '"></span>';
+        html += '<div class="cc-nlsvc-header" data-pa="' + escapeAttr(pa.key) + '" ' +
+          'style="display:flex;align-items:center;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:4px;cursor:pointer;user-select:none;">' +
+          '<span class="cc-nlsvc-arrow" data-pa="' + escapeAttr(pa.key) + '" style="margin-right:8px;font-size:12px;color:#64748b;transition:transform 0.15s;">&#9654;</span>' +
+          '<strong style="flex:1;font-size:14px;color:#334155;">' + escapeHtml(pa.label) + '</strong>' +
+          '<span style="color:#94a3b8;font-size:13px;margin-right:4px;">' + paItems.length + ' service' + (paItems.length > 1 ? 's' : '') + '</span>' +
+          badge + '</div>';
+        html += '<div class="cc-nlsvc-body" data-pa="' + escapeAttr(pa.key) + '" style="display:none;margin:0 0 8px 0;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 6px 6px;padding:4px 0;">';
+        paItems.forEach(function(item) {
+          var checked = _newLeadServiceIds.indexOf(item.id) !== -1 ? ' checked' : '';
+          html += '<label style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer;gap:8px;">' +
+            '<input type="checkbox" class="cc-nlsvc-cb" data-pa="' + escapeAttr(pa.key) + '" value="' + escapeAttr(item.id) + '"' + checked + '> ' +
+            '<span style="flex:1;">' + escapeHtml(item.Service_Name) + '</span>' +
+            (item.List_Price ? '<span style="color:#2563eb;font-size:13px;white-space:nowrap;">$' + Number(item.List_Price).toLocaleString() + '</span>' : '') +
+            '</label>';
         });
-        html += '</optgroup>';
+        html += '</div>';
       });
-      sel.innerHTML = html;
-    } catch (e) {
-      sel.innerHTML = '<option value="">— Failed to load —</option>';
+      html += '</div>';
+      body.innerHTML = html;
+
+      function updateCount() {
+        var total = overlay.querySelectorAll('.cc-nlsvc-cb:checked').length;
+        var countEl = document.getElementById('cc-nlsvc-count');
+        if (countEl) countEl.textContent = total > 0 ? total + ' service' + (total > 1 ? 's' : '') + ' selected' : '';
+        activePAs.forEach(function(pa) {
+          var c = overlay.querySelectorAll('.cc-nlsvc-cb[data-pa="' + pa.key + '"]:checked').length;
+          var b = overlay.querySelector('.cc-nlsvc-badge[data-pa="' + pa.key + '"]');
+          if (b) b.innerHTML = c > 0 ? c : '';
+          if (b) b.style.background = c > 0 ? '#2563eb' : 'transparent';
+          if (b) b.style.color = c > 0 ? '#fff' : 'transparent';
+        });
+      }
+      updateCount();
+
+      // Accordion toggle
+      overlay.querySelectorAll('.cc-nlsvc-header').forEach(function(hdr) {
+        hdr.addEventListener('click', function() {
+          var pa = hdr.getAttribute('data-pa');
+          var bdy = overlay.querySelector('.cc-nlsvc-body[data-pa="' + pa + '"]');
+          var arrow = overlay.querySelector('.cc-nlsvc-arrow[data-pa="' + pa + '"]');
+          if (bdy) {
+            var open = bdy.style.display !== 'none';
+            bdy.style.display = open ? 'none' : 'block';
+            if (arrow) arrow.innerHTML = open ? '&#9654;' : '&#9660;';
+          }
+        });
+      });
+
+      overlay.querySelectorAll('.cc-nlsvc-cb').forEach(function(cb) {
+        cb.addEventListener('change', updateCount);
+      });
+
+      // Done: store selected IDs and update button label
+      document.getElementById('cc-nlsvc-done').addEventListener('click', function() {
+        _newLeadServiceIds = [];
+        overlay.querySelectorAll('.cc-nlsvc-cb:checked').forEach(function(cb) {
+          _newLeadServiceIds.push(cb.value);
+        });
+        // Update button text
+        var btn = document.getElementById('cc-new-lead-svc-btn');
+        if (btn) {
+          var textEl = btn.querySelector('.cc-field-btn-text');
+          if (_newLeadServiceIds.length) {
+            var names = items.filter(function(i) { return _newLeadServiceIds.indexOf(i.id) !== -1; })
+              .map(function(i) { return i.Service_Name; });
+            textEl.innerHTML = escapeHtml(names.join(', '));
+          } else {
+            textEl.innerHTML = '<span style="color:#9ca3af">Select</span>';
+          }
+        }
+        closeModal();
+      });
+    } catch (err) {
+      var body = document.getElementById('cc-nlsvc-body');
+      if (body) body.innerHTML = '<p style="color:red;">Failed to load services.</p>';
     }
   }
 
