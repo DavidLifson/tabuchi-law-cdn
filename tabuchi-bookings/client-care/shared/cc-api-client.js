@@ -810,8 +810,52 @@ const ClientCareAPI = (() => {
   };
 })();
 
-/* ── Nav: ensure logo always links to dashboard ── */
-(function () {
+/* ── Nav Sync: ensure all CRM pages have Dashboard + Contacts links ── */
+(function navSync() {
+  var nav = document.getElementById('app-crm-nav');
+  if (!nav) return;
+
+  // Ensure home link → /crm/dashboard
   var hl = document.getElementById('app-home-link');
   if (hl) hl.href = '/crm/dashboard';
+
+  var links = nav.querySelectorAll('a[data-nav]');
+  var has = {};
+  for (var i = 0; i < links.length; i++) has[links[i].getAttribute('data-nav')] = links[i];
+
+  var style = 'color:#D1D5DB;text-decoration:none;padding:0.3rem 0.6rem;font-size:0.9rem;border-radius:4px;';
+
+  // Inject Dashboard link if missing (first in nav)
+  if (!has.dashboard) {
+    var d = document.createElement('a');
+    d.href = '/crm/dashboard'; d.setAttribute('data-nav', 'dashboard');
+    d.setAttribute('style', style); d.textContent = 'Dashboard';
+    nav.insertBefore(d, nav.firstChild);
+  }
+
+  // Inject Contacts link if missing (after Leads)
+  if (!has.contacts) {
+    var c = document.createElement('a');
+    c.href = '/crm/contacts'; c.setAttribute('data-nav', 'contacts');
+    c.setAttribute('style', style); c.textContent = 'Contacts';
+    var leadsLink = has.leads;
+    if (leadsLink && leadsLink.nextSibling) {
+      nav.insertBefore(c, leadsLink.nextSibling);
+    } else if (leadsLink) {
+      nav.appendChild(c);
+    }
+  }
+
+  // Re-highlight active page (in case we just added the active link)
+  var bar = document.getElementById('app-nav-bar');
+  if (!bar) return;
+  var ap = bar.getAttribute('data-active-page') || '';
+  if (!ap) return;
+  var all = nav.querySelectorAll('a[data-nav]');
+  for (var j = 0; j < all.length; j++) {
+    if (all[j].getAttribute('data-nav') === ap) {
+      all[j].style.color = 'white';
+      all[j].style.background = '#374151';
+    }
+  }
 })();
