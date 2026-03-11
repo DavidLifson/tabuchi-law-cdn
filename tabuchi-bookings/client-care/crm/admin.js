@@ -50,9 +50,11 @@
     { key: 'dispositions', label: 'Dispositions' },
     { key: 'activity-types', label: 'Activity Types' },
     { key: 'entity-types', label: 'Entity Types' },
-    { key: 'price-book', label: 'Price Book' },
-    { key: 'drip-enrollment', label: 'Drip Enrollment' }
+    { key: 'price-book', label: 'Price Book' }
   ];
+
+  // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
+  var HIDDEN_TABS = ['drip-enrollment'];
 
   var CONFIG_META = {
     'lead_source': [],
@@ -2392,7 +2394,7 @@
     // Hash-based tab routing (redirect legacy hashes)
     var hash = location.hash.replace('#', '');
     if (hash === 'users' || hash === 'staff') hash = 'staff-users';
-    if (hash && TABS.find(function(t) { return t.key === hash; })) {
+    if (hash && (TABS.find(function(t) { return t.key === hash; }) || HIDDEN_TABS.indexOf(hash) !== -1)) {
       state.activeTab = hash;
     }
 
@@ -2403,7 +2405,7 @@
     window.addEventListener('hashchange', function() {
       var h = location.hash.replace('#', '');
       if (h === 'users' || h === 'staff') h = 'staff-users';
-      if (h && TABS.find(function(t) { return t.key === h; })) {
+      if (h && (TABS.find(function(t) { return t.key === h; }) || HIDDEN_TABS.indexOf(h) !== -1)) {
         state.activeTab = h;
         renderTabs();
         renderActiveTab();

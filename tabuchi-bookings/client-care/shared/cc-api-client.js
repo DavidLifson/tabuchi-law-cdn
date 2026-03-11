@@ -887,10 +887,12 @@ const ClientCareAPI = (() => {
   };
 })();
 
-/* ── Nav Sync: ensure all CRM pages have Dashboard + Contacts links ── */
+/* ── Nav Sync: ensure all CRM pages have Dashboard + Contacts links, Campaigns dropdown ── */
 (function navSync() {
   var nav = document.getElementById('app-crm-nav');
   if (!nav) return;
+  var bar = document.getElementById('app-nav-bar');
+  var ap = bar ? (bar.getAttribute('data-active-page') || '') : '';
 
   // Ensure home link → /crm/dashboard
   var hl = document.getElementById('app-home-link');
@@ -923,11 +925,46 @@ const ClientCareAPI = (() => {
     }
   }
 
+  // Convert Campaigns single link → dropdown (Campaigns, Templates, Drip Enrollment)
+  if (has.campaigns && !document.getElementById('app-camp-btn')) {
+    var cl = has.campaigns;
+    var cs = document.createElement('span');
+    cs.id = 'app-camp-nav'; cs.style.cssText = 'position:relative;';
+    var cb = document.createElement('button');
+    cb.id = 'app-camp-btn';
+    cb.setAttribute('data-nav', 'campaigns,campaign-templates,templates');
+    cb.style.cssText = 'color:#D1D5DB;padding:0.3rem 0.6rem;font-size:0.9rem;border-radius:4px;background:none;border:none;cursor:pointer;font-family:inherit;';
+    cb.innerHTML = 'Campaigns &#9662;';
+    var cd = document.createElement('div');
+    cd.id = 'app-camp-dropdown';
+    cd.style.cssText = 'display:none;position:absolute;left:0;top:100%;background:white;border:1px solid #E5E7EB;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:180px;z-index:100;margin-top:0.25rem;';
+    var ds = 'display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;';
+    cd.innerHTML = '<a href="/crm/campaigns" data-nav="campaigns" style="' + ds + '">Campaigns</a>' +
+      '<a href="/crm/campaign-templates" data-nav="campaign-templates,templates" style="' + ds + '">Templates</a>' +
+      '<a href="/crm/admin#drip-enrollment" data-nav="drip-enrollment" style="' + ds + '">Drip Enrollment</a>';
+    cs.appendChild(cb); cs.appendChild(cd);
+    cl.parentNode.replaceChild(cs, cl);
+    // Toggle
+    cb.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var allDD = (bar || document).querySelectorAll('[id$="-dropdown"]');
+      for (var k = 0; k < allDD.length; k++) { if (allDD[k] !== cd) allDD[k].style.display = 'none'; }
+      cd.style.display = cd.style.display === 'block' ? 'none' : 'block';
+    });
+    cd.addEventListener('click', function(e) { e.stopPropagation(); });
+    // Highlight button + active dropdown item
+    if (ap === 'campaigns' || ap === 'campaign-templates' || ap === 'templates') {
+      cb.style.color = 'white'; cb.style.background = '#374151';
+      var ddLinks = cd.querySelectorAll('a');
+      for (var m = 0; m < ddLinks.length; m++) {
+        var dnv = (ddLinks[m].getAttribute('data-nav') || '').split(',');
+        if (dnv.indexOf(ap) !== -1) { ddLinks[m].style.background = '#F3F4F6'; ddLinks[m].style.fontWeight = '600'; }
+      }
+    }
+  }
+
   // Re-highlight active page (in case we just added the active link)
-  var bar = document.getElementById('app-nav-bar');
-  if (!bar) return;
-  var ap = bar.getAttribute('data-active-page') || '';
-  if (!ap) return;
+  if (!bar || !ap) return;
   var all = nav.querySelectorAll('a[data-nav]');
   for (var j = 0; j < all.length; j++) {
     if (all[j].getAttribute('data-nav') === ap) {
