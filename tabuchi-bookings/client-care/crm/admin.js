@@ -313,7 +313,7 @@
 
     state.statsLoading = false;
     state.clioLoading = false;
-    renderOverview();
+    renderSystemStatus();
   }
 
   function renderSystemStatus() {
