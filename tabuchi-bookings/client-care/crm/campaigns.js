@@ -112,6 +112,10 @@
     audiencePreview: null,
     // Validation
     validationResult: null,
+    // Drip config
+    triggerConfig: null,
+    stopConditions: [],
+    templatesList: [],
     user: API.auth.getUser()
   };
 
@@ -199,9 +203,24 @@
           var cj = result.campaign.content_json || result.campaign.Content_JSON || '';
           state.contentBlocks = cj ? JSON.parse(cj).blocks || [] : [];
         } catch (e) { state.contentBlocks = []; }
+        // Parse drip config
+        try {
+          var tc = result.campaign.trigger_config || result.campaign.Trigger_Config || '';
+          state.triggerConfig = tc ? (typeof tc === 'string' ? JSON.parse(tc) : tc) : null;
+        } catch (e) { state.triggerConfig = null; }
+        try {
+          var sc = result.campaign.stop_conditions || result.campaign.Stop_Conditions || '';
+          state.stopConditions = sc ? (typeof sc === 'string' ? JSON.parse(sc) : sc) : [];
+        } catch (e) { state.stopConditions = []; }
         state.editorDirty = false;
         state.validationResult = null;
         state.recipients = [];
+        // Load templates for drip step dropdowns
+        if (isDrip(result.campaign) && state.templatesList.length === 0) {
+          API.campaignTemplates.list().then(function(tRes) {
+            if (tRes.success) { state.templatesList = tRes.templates || []; renderDetail(); }
+          }).catch(function() {});
+        }
         renderDetail();
       } else {
         showDetailError(result.error || 'Failed to load campaign.');
@@ -657,13 +676,14 @@
     html += '</div>';
     html += '</div>';
 
-    // If drip campaign, show steps
+    // If drip campaign, show trigger, stop conditions, steps
     if (isDrip(c)) {
+      html += renderTriggerSection(c);
+      html += renderStopConditionsSection(c);
+
       html += '<div class="cc-card" style="grid-column:1/-1">';
-      html += '<div class="cc-detail-section-header"><h4>Campaign Steps</h4>';
-      if (c.status === 'DRAFT') {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-add-step-btn">+ Add Step</button>';
-      }
+      html += '<div class="cc-detail-section-header"><h4>Sequence</h4>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-add-step-btn">+ Add Step</button>';
       html += '</div>';
       html += renderStepsTable();
       html += '</div>';
@@ -686,6 +706,137 @@
     return '<div class="cc-field-row"><span class="cc-field-label">' + escapeHtml(label) + '</span><span class="cc-field-value">' + escapeHtml(value || '') + '</span></div>';
   }
 
+  // ─── Drip Trigger & Stop Conditions ────────────────────
+
+  var PRACTICE_AREA_OPTIONS = ['ESTATE_PLANNING', 'PROBATE', 'REAL_ESTATE', 'CORPORATE', 'FAMILY', 'LITIGATION', 'OTHER'];
+  var SOURCE_OPTIONS = ['WEBSITE', 'REFERRAL', 'PHONE', 'GOOGLE', 'SOCIAL_MEDIA', 'EVENT', 'OTHER'];
+  var STOP_FIELD_OPTIONS = {
+    Lead_Stage: ['NEW_LEAD', 'CONTACTED', 'INTAKE_RECEIVED', 'DISCOVERY_MEETING_BOOKED', 'MEETING_DONE', 'READY_TO_DRAFT'],
+    Disposition: ['OPEN', 'WON', 'LOST'],
+    Contact_Status: ['PROSPECT', 'ACTIVE_CLIENT', 'FORMER_CLIENT', 'OTHER'],
+    Consent_Status: ['SUBSCRIBED', 'UNSUBSCRIBED', 'PENDING', 'BOUNCED']
+  };
+  var STOP_FIELD_LABELS = { Lead_Stage: 'Lead Stage', Disposition: 'Disposition', Contact_Status: 'Contact Status', Consent_Status: 'Consent Status' };
+
+  function renderTriggerSection(campaign) {
+    var tc = state.triggerConfig || { type: 'NEW_LEAD', filters: { practice_areas: [], sources: [] } };
+    var filters = tc.filters || {};
+    var selAreas = filters.practice_areas || [];
+    var selSources = filters.sources || [];
+
+    var html = '<div class="cc-card" style="grid-column:1/-1">';
+    html += '<div class="cc-detail-section-header"><h4>Trigger</h4></div>';
+    html += '<div style="padding:0.5rem 0">';
+
+    // Trigger type
+    html += '<div class="cc-form-group"><label class="cc-label">Start when</label>';
+    html += '<select id="cc-trigger-type" class="cc-input" style="max-width:250px">';
+    html += '<option value="NEW_LEAD"' + (tc.type === 'NEW_LEAD' ? ' selected' : '') + '>New Lead Created</option>';
+    html += '<option value="MANUAL"' + (tc.type === 'MANUAL' ? ' selected' : '') + '>Manual Enrollment Only</option>';
+    html += '</select></div>';
+
+    // Practice area filter
+    html += '<div class="cc-form-group"><label class="cc-label">Filter by Practice Area <span style="color:#6B7280;font-weight:normal">(empty = all)</span></label>';
+    html += '<div class="cc-checkbox-grid">';
+    PRACTICE_AREA_OPTIONS.forEach(function(pa) {
+      var checked = selAreas.indexOf(pa) >= 0 ? ' checked' : '';
+      var label = pa.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+      html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-trigger-pa" value="' + pa + '"' + checked + ' /> ' + escapeHtml(label) + '</label>';
+    });
+    html += '</div></div>';
+
+    // Source filter
+    html += '<div class="cc-form-group"><label class="cc-label">Filter by Source <span style="color:#6B7280;font-weight:normal">(empty = all)</span></label>';
+    html += '<div class="cc-checkbox-grid">';
+    SOURCE_OPTIONS.forEach(function(src) {
+      var checked = selSources.indexOf(src) >= 0 ? ' checked' : '';
+      var label = src.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+      html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-trigger-source" value="' + src + '"' + checked + ' /> ' + escapeHtml(label) + '</label>';
+    });
+    html += '</div></div>';
+
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderStopConditionsSection(campaign) {
+    var conditions = state.stopConditions || [];
+
+    var html = '<div class="cc-card" style="grid-column:1/-1">';
+    html += '<div class="cc-detail-section-header"><h4>Stop Conditions</h4>';
+    html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-add-stop-cond-btn">+ Add</button>';
+    html += '</div>';
+
+    if (conditions.length === 0) {
+      html += '<p class="cc-empty" style="padding:0.5rem 0">No stop conditions. Leads will complete all steps unless manually stopped.</p>';
+    } else {
+      html += '<table class="cc-table cc-stop-conds-table"><thead><tr>';
+      html += '<th class="cc-th">Field</th><th class="cc-th">Operator</th><th class="cc-th">Value</th><th class="cc-th" style="width:50px"></th>';
+      html += '</tr></thead><tbody>';
+      conditions.forEach(function(cond, idx) {
+        html += '<tr data-cond-idx="' + idx + '">';
+        // Field dropdown
+        html += '<td><select class="cc-input cc-input-sm cc-stop-field" data-idx="' + idx + '">';
+        Object.keys(STOP_FIELD_OPTIONS).forEach(function(f) {
+          html += '<option value="' + f + '"' + (cond.field === f ? ' selected' : '') + '>' + STOP_FIELD_LABELS[f] + '</option>';
+        });
+        html += '</select></td>';
+        // Operator
+        html += '<td><select class="cc-input cc-input-sm cc-stop-op" data-idx="' + idx + '" disabled><option value="equals" selected>equals</option></select></td>';
+        // Value dropdown
+        var fieldKey = cond.field || 'Lead_Stage';
+        var vals = STOP_FIELD_OPTIONS[fieldKey] || [];
+        html += '<td><select class="cc-input cc-input-sm cc-stop-value" data-idx="' + idx + '">';
+        vals.forEach(function(v) {
+          var label = v.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+          html += '<option value="' + v + '"' + (cond.value === v ? ' selected' : '') + '>' + label + '</option>';
+        });
+        html += '</select></td>';
+        // Delete
+        html += '<td><button class="cc-btn cc-btn-sm cc-btn-danger cc-remove-stop-cond-btn" data-idx="' + idx + '" title="Remove">✕</button></td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    html += '<div style="margin-top:0.75rem;text-align:right">';
+    html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-save-drip-config-btn">Save Config</button>';
+    html += '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  function getStepDelayHours(step) {
+    if (step.delay_hours !== undefined && step.delay_hours !== null) return step.delay_hours;
+    if (step.Delay_Hours !== undefined && step.Delay_Hours !== null) return step.Delay_Hours;
+    var days = step.delay_days || step.Delay_Days || 0;
+    return days * 24;
+  }
+
+  function formatDelay(hours) {
+    if (hours === 0) return '0 hrs';
+    if (hours < 24) return hours + ' hr' + (hours !== 1 ? 's' : '');
+    var d = hours / 24;
+    if (d === Math.floor(d)) return d + ' day' + (d !== 1 ? 's' : '');
+    return hours + ' hrs';
+  }
+
+  function getTemplateName(step) {
+    // Try to find template name from templatesList
+    var tid = step.template_id || step.Template_ID;
+    if (tid && Array.isArray(tid)) tid = tid[0];
+    if (tid && state.templatesList.length) {
+      var found = state.templatesList.find(function(t) { return t.id === tid; });
+      if (found) return found.name || found.Name || tid;
+    }
+    // Fallback: template field from Airtable (linked record display)
+    var tpl = step.template || step.Template;
+    if (tpl && Array.isArray(tpl) && tpl.length) return tpl[0];
+    if (tpl && typeof tpl === 'string') return tpl;
+    return 'None';
+  }
+
   function renderStepsTable() {
     if (!state.steps || state.steps.length === 0) {
       return '<p class="cc-empty">No steps defined. Add steps to build your campaign sequence.</p>';
@@ -695,31 +846,30 @@
       return (a.step_number || 0) - (b.step_number || 0);
     });
 
-    var isDraftCampaign = state.activeCampaign && state.activeCampaign.status === 'DRAFT';
-
     var html = '<table class="cc-table cc-steps-table">';
-    html += '<thead><tr><th class="cc-th">Step #</th><th class="cc-th">Delay (Days)</th>';
+    html += '<thead><tr><th class="cc-th">#</th><th class="cc-th">Delay</th>';
     html += '<th class="cc-th">Template</th><th class="cc-th">Condition</th>';
-    if (isDraftCampaign) html += '<th class="cc-th">Actions</th>';
+    html += '<th class="cc-th">Actions</th>';
     html += '</tr></thead><tbody>';
 
     sorted.forEach(function(step) {
-      var templateDisplay = step.template && step.template.length ? step.template[0] : 'None';
+      var delayHrs = getStepDelayHours(step);
       html += '<tr><td>' + (step.step_number || '') + '</td>';
-      html += '<td>' + (step.delay_days !== undefined ? step.delay_days : '') + '</td>';
-      html += '<td class="cc-step-template-cell">' + escapeHtml(String(templateDisplay)) + '</td>';
+      html += '<td>' + formatDelay(delayHrs) + '</td>';
+      html += '<td class="cc-step-template-cell">' + escapeHtml(getTemplateName(step)) + '</td>';
       html += '<td>' + escapeHtml(step.condition || 'NONE') + '</td>';
-      if (isDraftCampaign) {
-        html += '<td><button class="cc-btn cc-btn-sm cc-btn-danger cc-delete-step-btn" data-step-id="' + step.id + '">Delete</button></td>';
-      }
+      html += '<td>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-step-btn" data-step-id="' + step.id + '" data-step-json="' + escapeAttr(JSON.stringify(step)) + '">Edit</button> ';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-danger cc-delete-step-btn" data-step-id="' + step.id + '">Delete</button>';
+      html += '</td>';
       html += '</tr>';
     });
 
     html += '</tbody></table>';
 
-    var totalDays = sorted.reduce(function(sum, s) { return sum + (s.delay_days || 0); }, 0);
+    var totalHours = sorted.reduce(function(sum, s) { return sum + getStepDelayHours(s); }, 0);
     html += '<div class="cc-steps-summary">Total: ' + sorted.length + ' step' + (sorted.length !== 1 ? 's' : '') +
-      ' over ' + totalDays + ' day' + (totalDays !== 1 ? 's' : '') + '</div>';
+      ' — ' + formatDelay(totalHours) + '</div>';
 
     return html;
   }
@@ -1283,6 +1433,54 @@
 
     el.querySelectorAll('.cc-delete-step-btn').forEach(function(btn) {
       btn.addEventListener('click', function() { handleDeleteStep(btn.dataset.stepId); });
+    });
+
+    el.querySelectorAll('.cc-edit-step-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        try {
+          var step = JSON.parse(btn.dataset.stepJson);
+          showEditStepModal(step);
+        } catch (e) { showToast('Error loading step data.', 'error'); }
+      });
+    });
+
+    // Save drip config (trigger + stop conditions)
+    var saveDripBtn = el.querySelector('.cc-save-drip-config-btn');
+    if (saveDripBtn) saveDripBtn.addEventListener('click', saveDripConfig);
+
+    // Add stop condition
+    var addStopBtn = el.querySelector('.cc-add-stop-cond-btn');
+    if (addStopBtn) addStopBtn.addEventListener('click', function() {
+      state.stopConditions.push({ field: 'Lead_Stage', operator: 'equals', value: 'CONTACTED' });
+      renderDetail();
+    });
+
+    // Remove stop condition
+    el.querySelectorAll('.cc-remove-stop-cond-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(btn.dataset.idx, 10);
+        state.stopConditions.splice(idx, 1);
+        renderDetail();
+      });
+    });
+
+    // Stop condition field change → update value dropdown options
+    el.querySelectorAll('.cc-stop-field').forEach(function(sel) {
+      sel.addEventListener('change', function() {
+        var idx = parseInt(sel.dataset.idx, 10);
+        var newField = sel.value;
+        state.stopConditions[idx].field = newField;
+        state.stopConditions[idx].value = STOP_FIELD_OPTIONS[newField][0] || '';
+        renderDetail();
+      });
+    });
+
+    // Stop condition value change
+    el.querySelectorAll('.cc-stop-value').forEach(function(sel) {
+      sel.addEventListener('change', function() {
+        var idx = parseInt(sel.dataset.idx, 10);
+        state.stopConditions[idx].value = sel.value;
+      });
     });
 
     var enrollBtn = el.querySelector('.cc-enroll-btn');
@@ -1885,7 +2083,88 @@
     }
   }
 
-  // ─── Add Step Modal (Drip) ─────────────────────────────────
+  // ─── Add / Edit Step Modal (Drip) ────────────────────────
+
+  function buildStepModalHtml(opts) {
+    opts = opts || {};
+    var stepNum = opts.step_number || 1;
+    var delayHrs = opts.delay_hours !== undefined ? opts.delay_hours : 0;
+    var unit = (delayHrs > 0 && delayHrs % 24 === 0) ? 'days' : 'hours';
+    var delayVal = unit === 'days' ? delayHrs / 24 : delayHrs;
+    var templateId = opts.template_id || '';
+    if (Array.isArray(templateId)) templateId = templateId[0] || '';
+    var condition = opts.condition || 'NONE';
+
+    var html = '<div class="cc-modal-form">';
+    html += '<div class="cc-form-group"><label class="cc-label">Step Number</label>';
+    html += '<input type="number" id="cc-modal-step-num" class="cc-input" value="' + stepNum + '" min="1" /></div>';
+
+    // Delay + Unit
+    html += '<div class="cc-form-group"><label class="cc-label">Delay</label>';
+    html += '<div style="display:flex;gap:0.5rem">';
+    html += '<input type="number" id="cc-modal-delay" class="cc-input" value="' + delayVal + '" min="0" style="flex:1" />';
+    html += '<select id="cc-modal-delay-unit" class="cc-input" style="width:100px">';
+    html += '<option value="hours"' + (unit === 'hours' ? ' selected' : '') + '>Hours</option>';
+    html += '<option value="days"' + (unit === 'days' ? ' selected' : '') + '>Days</option>';
+    html += '</select></div>';
+    html += '<div style="margin-top:0.25rem;display:flex;gap:0.25rem;flex-wrap:wrap">';
+    [0, 1, 24, 48, 72, 168].forEach(function(h) {
+      var label = h === 0 ? '0h' : h < 24 ? h + 'h' : (h / 24) + 'd';
+      html += '<button type="button" class="cc-btn cc-btn-sm cc-btn-outline cc-delay-quick" data-hours="' + h + '">' + label + '</button>';
+    });
+    html += '</div></div>';
+
+    // Template dropdown
+    html += '<div class="cc-form-group"><label class="cc-label">Template</label>';
+    html += '<select id="cc-modal-template" class="cc-input">';
+    html += '<option value="">— None —</option>';
+    (state.templatesList || []).forEach(function(t) {
+      var tId = t.id;
+      var tName = t.name || t.Name || tId;
+      var tCat = t.category || t.Category || '';
+      var label = tCat ? tName + ' (' + tCat + ')' : tName;
+      html += '<option value="' + escapeAttr(tId) + '"' + (templateId === tId ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+    });
+    html += '</select></div>';
+
+    // Condition
+    html += '<div class="cc-form-group"><label class="cc-label">Condition</label>';
+    html += '<select id="cc-modal-condition" class="cc-input">';
+    ['NONE', 'OPENED', 'CLICKED', 'NO_RESPONSE'].forEach(function(cond) {
+      html += '<option value="' + cond + '"' + (condition === cond ? ' selected' : '') + '>' + cond + '</option>';
+    });
+    html += '</select></div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  function bindStepModalQuickPicks() {
+    document.querySelectorAll('.cc-delay-quick').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var h = parseInt(btn.dataset.hours, 10);
+        var delayInput = document.querySelector('#cc-modal-delay');
+        var unitSelect = document.querySelector('#cc-modal-delay-unit');
+        if (delayInput && unitSelect) {
+          if (h >= 24 && h % 24 === 0) {
+            unitSelect.value = 'days';
+            delayInput.value = h / 24;
+          } else {
+            unitSelect.value = 'hours';
+            delayInput.value = h;
+          }
+        }
+      });
+    });
+  }
+
+  function getModalDelayHours() {
+    var val = parseInt(document.querySelector('#cc-modal-delay').value, 10);
+    var unit = document.querySelector('#cc-modal-delay-unit').value;
+    if (isNaN(val) || val < 0) return -1;
+    return unit === 'days' ? val * 24 : val;
+  }
+
   function showAddStepModal() {
     if (!state.activeCampaign) return;
     var nextNum = 1;
@@ -1893,31 +2172,21 @@
       var maxNum = Math.max.apply(null, state.steps.map(function(s) { return s.step_number || 0; }));
       nextNum = maxNum + 1;
     }
-
-    var html = '<div class="cc-modal-form">';
-    html += '<div class="cc-form-group"><label class="cc-label">Step Number</label><input type="number" id="cc-modal-step-num" class="cc-input" value="' + nextNum + '" min="1" /></div>';
-    html += '<div class="cc-form-group"><label class="cc-label">Delay (Days)</label><input type="number" id="cc-modal-delay" class="cc-input" value="0" min="0" /></div>';
-    html += '<div class="cc-form-group"><label class="cc-label">Template ID</label><input type="text" id="cc-modal-template" class="cc-input" placeholder="Airtable record ID (optional)" /></div>';
-    html += '<div class="cc-form-group"><label class="cc-label">Condition</label><select id="cc-modal-condition" class="cc-input">';
-    ['NONE', 'OPENED', 'CLICKED', 'NO_RESPONSE'].forEach(function(cond) {
-      html += '<option value="' + cond + '">' + cond + '</option>';
-    });
-    html += '</select></div>';
-    html += '</div>';
-
+    var html = buildStepModalHtml({ step_number: nextNum, delay_hours: 0 });
     showModal('Add Step', html, handleAddStep);
+    bindStepModalQuickPicks();
   }
 
   async function handleAddStep(form) {
     var stepNumber = parseInt(form.querySelector('#cc-modal-step-num').value, 10);
-    var delayDays = parseInt(form.querySelector('#cc-modal-delay').value, 10);
+    var delayHours = getModalDelayHours();
     var templateId = form.querySelector('#cc-modal-template').value.trim();
     var condition = form.querySelector('#cc-modal-condition').value;
 
     if (isNaN(stepNumber) || stepNumber < 1) { showToast('Valid step number required.', 'error'); return; }
-    if (isNaN(delayDays) || delayDays < 0) { showToast('Valid delay required.', 'error'); return; }
+    if (delayHours < 0) { showToast('Valid delay required.', 'error'); return; }
 
-    var data = { campaign_id: state.activeCampaign.id, step_number: stepNumber, delay_days: delayDays, condition: condition };
+    var data = { campaign_id: state.activeCampaign.id, step_number: stepNumber, delay_hours: delayHours, condition: condition };
     if (templateId) data.template_id = templateId;
 
     try {
@@ -1931,6 +2200,81 @@
       }
     } catch (err) {
       showToast(err.error || 'Error adding step.', 'error');
+    }
+  }
+
+  function showEditStepModal(step) {
+    var delayHrs = getStepDelayHours(step);
+    var tid = step.template_id || step.Template_ID;
+    if (Array.isArray(tid)) tid = tid[0];
+    var html = buildStepModalHtml({
+      step_number: step.step_number,
+      delay_hours: delayHrs,
+      template_id: tid || '',
+      condition: step.condition || 'NONE'
+    });
+    showModal('Edit Step', html, function(form) { handleEditStep(step.id, form); }, { submitLabel: 'Save' });
+    bindStepModalQuickPicks();
+  }
+
+  async function handleEditStep(stepId, form) {
+    var stepNumber = parseInt(form.querySelector('#cc-modal-step-num').value, 10);
+    var delayHours = getModalDelayHours();
+    var templateId = form.querySelector('#cc-modal-template').value.trim();
+    var condition = form.querySelector('#cc-modal-condition').value;
+
+    if (isNaN(stepNumber) || stepNumber < 1) { showToast('Valid step number required.', 'error'); return; }
+    if (delayHours < 0) { showToast('Valid delay required.', 'error'); return; }
+
+    var fields = { step_number: stepNumber, delay_hours: delayHours, condition: condition };
+    if (templateId) fields.template_id = templateId;
+
+    try {
+      var result = await API.campaigns.updateStep(stepId, fields);
+      if (result.success) {
+        showToast('Step updated.', 'success');
+        closeModal();
+        fetchDetail(state.activeCampaign.id);
+      } else {
+        showToast(result.error || 'Failed to update step.', 'error');
+      }
+    } catch (err) {
+      showToast(err.error || 'Error updating step.', 'error');
+    }
+  }
+
+  // ─── Save Drip Config (Trigger + Stop Conditions) ───────
+  async function saveDripConfig() {
+    if (!state.activeCampaign) return;
+    var el = $el('cc-campaign-detail');
+    if (!el) return;
+
+    // Gather trigger config
+    var triggerType = (el.querySelector('#cc-trigger-type') || {}).value || 'NEW_LEAD';
+    var practiceAreas = [];
+    el.querySelectorAll('.cc-trigger-pa:checked').forEach(function(cb) { practiceAreas.push(cb.value); });
+    var sources = [];
+    el.querySelectorAll('.cc-trigger-source:checked').forEach(function(cb) { sources.push(cb.value); });
+
+    var triggerConfig = JSON.stringify({ type: triggerType, filters: { practice_areas: practiceAreas, sources: sources } });
+
+    // Gather stop conditions from state (already maintained by add/remove/change handlers)
+    var stopConditions = JSON.stringify(state.stopConditions);
+
+    try {
+      var result = await API.campaigns.update(state.activeCampaign.id, {
+        trigger_config: triggerConfig,
+        stop_conditions: stopConditions
+      });
+      if (result.success) {
+        state.triggerConfig = JSON.parse(triggerConfig);
+        state.listStale = true;
+        showToast('Drip config saved.', 'success');
+      } else {
+        showToast(result.error || 'Failed to save config.', 'error');
+      }
+    } catch (err) {
+      showToast(err.error || 'Error saving drip config.', 'error');
     }
   }
 

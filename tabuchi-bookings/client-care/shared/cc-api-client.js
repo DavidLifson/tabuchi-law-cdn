@@ -35,7 +35,7 @@ const ClientCareAPI = (() => {
 
   // Actions that mutate data (invalidate cache)
   var WRITE_ACTIONS = ['create', 'update', 'delete', 'bulk_update_tags',
-    'bulk_update_status', 'create_step', 'delete_step', 'enroll',
+    'bulk_update_status', 'create_step', 'update_step', 'delete_step', 'enroll',
     'schedule', 'send_now', 'cancel', 'duplicate', 'test_send',
     'resend_non_openers', 'create_template', 'update_template',
     'create_task', 'update_task', 'delete_task',
@@ -452,6 +452,10 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/campaigns', { body: { action: 'delete_step', step_id: stepId } });
   }
 
+  async function updateCampaignStep(stepId, fields) {
+    return request('POST', '/cc/campaigns', { body: { action: 'update_step', step_id: stepId, ...fields } });
+  }
+
   async function enrollLeads(campaignId, leadIds) {
     return request('POST', '/cc/campaigns', { body: { action: 'enroll', campaign_id: campaignId, lead_ids: leadIds } });
   }
@@ -839,7 +843,7 @@ const ClientCareAPI = (() => {
       duplicate: duplicateCampaign, resendNonOpeners: resendNonOpeners,
       listRecipients: listCampaignRecipients, report: getCampaignReport,
       previewAudience: previewAudience,
-      listSteps: listCampaignSteps, createStep: createCampaignStep, deleteStep: deleteCampaignStep,
+      listSteps: listCampaignSteps, createStep: createCampaignStep, updateStep: updateCampaignStep, deleteStep: deleteCampaignStep,
       enroll: enrollLeads
     },
     // Campaign Templates

@@ -2141,51 +2141,18 @@
   async function fetchDripData() {
     state.dripLoading = true;
     var content = $el('cc-admin-content');
-    if (content) content.innerHTML = '<div class="cc-loading">Loading drip enrollment config\u2026</div>';
+    if (content) content.innerHTML = '<div class="cc-loading">Loading drip campaigns\u2026</div>';
 
     try {
-      var results = await Promise.all([
-        API.admin.config.list('drip_auto_enroll'),
-        API.campaigns.list()
-      ]);
-      var configResult = results[0];
-      var campaignResult = results[1];
-
-      var items = configResult.data || [];
-      if (items.length > 0) {
-        state.dripConfigRecordId = items[0].id;
-        var raw = items[0].Meta;
-        try { state.dripConfig = typeof raw === 'string' ? JSON.parse(raw) : (raw || null); }
-        catch (e) { state.dripConfig = null; }
-      } else {
-        state.dripConfigRecordId = null;
-        state.dripConfig = null;
-      }
-
-      // Defaults if no config
-      if (!state.dripConfig) {
-        state.dripConfig = { enabled: false, rules: [], default_campaign_id: null };
-      }
-      if (!state.dripConfig.rules) state.dripConfig.rules = [];
-
-      state.dripCampaigns = (campaignResult.campaigns || []).sort(function(a, b) {
-        return (a.name || '').localeCompare(b.name || '');
-      });
+      var campaignResult = await API.campaigns.list();
+      state.dripCampaigns = (campaignResult.campaigns || [])
+        .filter(function(c) { return (c.type || c.Type || '').toUpperCase() === 'DRIP'; })
+        .sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
     } catch (err) {
-      showToast(err.error || 'Failed to load drip enrollment config.', 'error');
+      showToast(err.error || 'Failed to load drip campaigns.', 'error');
     }
     state.dripLoading = false;
     renderDripTab();
-  }
-
-  function buildCampaignOptions(selectedId) {
-    var html = '<option value="">\u2014 Select Campaign \u2014</option>';
-    state.dripCampaigns.forEach(function(c) {
-      var sel = c.id === selectedId ? ' selected' : '';
-      html += '<option value="' + escapeAttr(c.id) + '"' + sel + '>' +
-        escapeHtml(c.name || 'Untitled') + ' (' + escapeHtml(c.status || 'unknown') + ')</option>';
-    });
-    return html;
   }
 
   function renderDripTab() {
@@ -2197,187 +2164,51 @@
       return;
     }
 
-    var config = state.dripConfig || { enabled: false, rules: [], default_campaign_id: null };
-    var rules = config.rules || [];
+    var campaigns = state.dripCampaigns || [];
 
     var html = '<div class="cc-admin-config">';
     html += '<div class="cc-admin-section-header">';
-    html += '<h3 class="cc-admin-section-title">Drip Auto-Enrollment</h3>';
+    html += '<h3 class="cc-admin-section-title">Active Drip Campaigns</h3>';
     html += '</div>';
 
-    // Description
     html += '<p style="color:#6B7280;margin:0 0 1.5rem;font-size:0.875rem;">' +
-      'When a new lead is created, the system automatically enrolls them into a drip campaign based on their Practice Area. ' +
-      'The drip engine (CC-14) will handle sending steps to enrolled leads with SUBSCRIBED consent status.</p>';
+      'Triggers and step sequences are configured on each campaign\u2019s detail page. ' +
+      'Go to <a href="/crm/campaigns" style="color:#2563EB">Campaigns</a> to manage drip settings.</p>';
 
-    // Enable toggle
-    html += '<div style="margin-bottom:1.5rem;">';
-    html += '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:500;">';
-    html += '<input type="checkbox" id="cc-drip-enabled"' + (config.enabled ? ' checked' : '') + '> ';
-    html += 'Enable auto-enrollment</label>';
-    html += '</div>';
-
-    // Rules section
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">';
-    html += '<h4 style="margin:0;font-size:0.875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#6B7280;">Enrollment Rules</h4>';
-    html += '<button id="cc-drip-add-rule" class="cc-btn cc-btn-outline cc-btn-sm">+ Add Rule</button>';
-    html += '</div>';
-
-    if (rules.length === 0) {
-      html += '<div style="padding:1.5rem;text-align:center;background:#F9FAFB;border-radius:0.5rem;color:#9CA3AF;margin-bottom:1.5rem;">' +
-        'No enrollment rules configured. Click "+ Add Rule" to map a Practice Area to a campaign.</div>';
+    if (campaigns.length === 0) {
+      html += '<div style="padding:1.5rem;text-align:center;background:#F9FAFB;border-radius:0.5rem;color:#9CA3AF;">' +
+        'No drip campaigns found. Create a DRIP campaign from the Campaigns page.</div>';
     } else {
-      html += '<table class="cc-table" style="margin-bottom:1.5rem;"><thead><tr>' +
-        '<th style="width:40%">Practice Area</th>' +
-        '<th style="width:50%">Campaign</th>' +
-        '<th style="width:10%"></th>' +
+      html += '<table class="cc-table"><thead><tr>' +
+        '<th>Campaign</th><th>Status</th><th>Trigger</th><th>Steps</th>' +
         '</tr></thead><tbody>';
 
-      // Collect used practice areas for dedup
-      var usedPAs = {};
-      rules.forEach(function(r) { if (r.practice_area) usedPAs[r.practice_area] = true; });
+      campaigns.forEach(function(c) {
+        var st = (c.status || c.Status || 'draft').toUpperCase();
+        var stColor = st === 'ACTIVE' ? 'green' : st === 'DRAFT' ? 'gray' : 'yellow';
+        var triggerLabel = 'Manual';
+        try {
+          var tc = c.trigger_config || c.Trigger_Config;
+          if (tc) {
+            var parsed = typeof tc === 'string' ? JSON.parse(tc) : tc;
+            if (parsed.type === 'NEW_LEAD') triggerLabel = 'New Lead';
+          }
+        } catch (e) {}
+        var stepCount = c.steps_count || c.Steps_Count || '\u2014';
 
-      rules.forEach(function(rule, idx) {
         html += '<tr>';
-
-        // Practice Area select
-        html += '<td><select class="cc-input cc-drip-pa-select" data-idx="' + idx + '">';
-        html += '<option value="">\u2014 Select \u2014</option>';
-        PB_PRACTICE_AREAS.forEach(function(pa) {
-          var disabled = (usedPAs[pa.key] && pa.key !== rule.practice_area) ? ' disabled' : '';
-          var sel = pa.key === rule.practice_area ? ' selected' : '';
-          html += '<option value="' + escapeAttr(pa.key) + '"' + sel + disabled + '>' + escapeHtml(pa.label) + '</option>';
-        });
-        html += '</select></td>';
-
-        // Campaign select
-        html += '<td><select class="cc-input cc-drip-campaign-select" data-idx="' + idx + '">';
-        html += buildCampaignOptions(rule.campaign_id);
-        html += '</select></td>';
-
-        // Remove button
-        html += '<td style="text-align:center"><button class="cc-btn cc-btn-danger-outline cc-btn-sm cc-drip-remove-rule" data-idx="' + idx + '" title="Remove rule">&times;</button></td>';
-
+        html += '<td><strong>' + escapeHtml(c.name || c.Name || 'Untitled') + '</strong></td>';
+        html += '<td><span class="cc-badge cc-badge-' + stColor + '">' + escapeHtml(st) + '</span></td>';
+        html += '<td>' + escapeHtml(triggerLabel) + '</td>';
+        html += '<td>' + escapeHtml(String(stepCount)) + '</td>';
         html += '</tr>';
       });
+
       html += '</tbody></table>';
     }
 
-    // Default campaign
-    html += '<div style="margin-bottom:1.5rem;">';
-    html += '<label style="display:block;font-weight:500;margin-bottom:0.25rem;">Default Campaign <span style="color:#9CA3AF;font-weight:400;">(optional fallback for unmatched Practice Areas)</span></label>';
-    html += '<select id="cc-drip-default-campaign" class="cc-input" style="max-width:400px;">';
-    html += '<option value="">None</option>';
-    html += buildCampaignOptions(config.default_campaign_id).replace('<option value="">\u2014 Select Campaign \u2014</option>', '');
-    html += '</select>';
-    html += '</div>';
-
-    // Save button
-    html += '<div style="text-align:right;padding-top:1rem;border-top:1px solid #E5E7EB;">';
-    html += '<button id="cc-drip-save-btn" class="cc-btn cc-btn-primary">Save Configuration</button>';
-    html += '</div>';
-
     html += '</div>';
     content.innerHTML = html;
-    bindDripEvents();
-  }
-
-  function bindDripEvents() {
-    // Add rule
-    var addBtn = document.getElementById('cc-drip-add-rule');
-    if (addBtn) addBtn.addEventListener('click', function() {
-      state.dripConfig.rules.push({ practice_area: '', campaign_id: '' });
-      renderDripTab();
-    });
-
-    // Remove rule
-    document.querySelectorAll('.cc-drip-remove-rule').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var idx = parseInt(this.getAttribute('data-idx'));
-        state.dripConfig.rules.splice(idx, 1);
-        renderDripTab();
-      });
-    });
-
-    // Track PA select changes in state
-    document.querySelectorAll('.cc-drip-pa-select').forEach(function(sel) {
-      sel.addEventListener('change', function() {
-        var idx = parseInt(this.getAttribute('data-idx'));
-        state.dripConfig.rules[idx].practice_area = this.value;
-        // Re-render to update disabled options for dedup
-        renderDripTab();
-      });
-    });
-
-    // Track campaign select changes in state
-    document.querySelectorAll('.cc-drip-campaign-select').forEach(function(sel) {
-      sel.addEventListener('change', function() {
-        var idx = parseInt(this.getAttribute('data-idx'));
-        state.dripConfig.rules[idx].campaign_id = this.value;
-      });
-    });
-
-    // Enable toggle
-    var enableCb = document.getElementById('cc-drip-enabled');
-    if (enableCb) enableCb.addEventListener('change', function() {
-      state.dripConfig.enabled = this.checked;
-    });
-
-    // Default campaign
-    var defaultSel = document.getElementById('cc-drip-default-campaign');
-    if (defaultSel) defaultSel.addEventListener('change', function() {
-      state.dripConfig.default_campaign_id = this.value || null;
-    });
-
-    // Save button
-    var saveBtn = document.getElementById('cc-drip-save-btn');
-    if (saveBtn) saveBtn.addEventListener('click', saveDripConfig);
-  }
-
-  async function saveDripConfig() {
-    var config = state.dripConfig;
-    if (!config) return;
-
-    // Filter out incomplete rules (keep only rows with both fields filled)
-    var validRules = config.rules.filter(function(r) {
-      return r.practice_area && r.campaign_id;
-    });
-
-    // Check for duplicate practice areas
-    var paSeen = {};
-    for (var i = 0; i < validRules.length; i++) {
-      if (paSeen[validRules[i].practice_area]) {
-        showToast('Duplicate Practice Area: ' + formatPracticeArea(validRules[i].practice_area) + '. Each Practice Area can only have one rule.', 'error');
-        return;
-      }
-      paSeen[validRules[i].practice_area] = true;
-    }
-
-    config.rules = validRules;
-    var metaStr = JSON.stringify({
-      enabled: !!config.enabled,
-      rules: config.rules,
-      default_campaign_id: config.default_campaign_id || null
-    });
-
-    try {
-      if (state.dripConfigRecordId) {
-        await API.admin.config.update(state.dripConfigRecordId, { Meta: metaStr });
-      } else {
-        var result = await API.admin.config.create({
-          Config_Key: 'drip_auto_enroll',
-          Label: 'Drip Auto-Enrollment Rules',
-          Sort_Order: 0,
-          Is_Active: true,
-          Meta: metaStr
-        });
-        if (result.id) state.dripConfigRecordId = result.id;
-      }
-      showToast('Drip enrollment configuration saved.', 'success');
-      renderDripTab();
-    } catch (err) {
-      showToast(err.error || 'Failed to save drip enrollment config.', 'error');
-    }
   }
 
   // ═══════════════════════════════════════════════════════════
