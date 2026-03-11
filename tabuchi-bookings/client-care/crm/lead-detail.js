@@ -807,6 +807,10 @@
       html += '<div class="cc-info-item"><div class="cc-info-label">Est. Closing Date</div>';
       html += editableInput('Estimated_Closing_Date', '', 'date', '');
       html += '</div>';
+      // Services Required (text, linked after creation)
+      html += '<div class="cc-info-item"><div class="cc-info-label">Services Required</div>';
+      html += editableInput('Services_Required_Text', '', 'text', 'e.g. Will, POA, Estate Admin');
+      html += '</div>';
       html += '</div>';
       html += '<div style="margin-top:1rem;text-align:right">' +
         '<button id="cc-create-lead-btn" class="cc-btn cc-btn-primary">Create Lead</button></div>';
@@ -1091,17 +1095,22 @@
 
   // ─── Inline Edit: Closing Date ───────────────────────────────
   function renderClosingDateField(l) {
-    var val = l.Estimated_Closing_Date ? API.util.formatDate(l.Estimated_Closing_Date) : '---';
-    return '<div class="cc-info-value cc-editable" id="cc-closing-date-val" title="Click to edit">' +
-      escapeHtml(val) + ' <span class="cc-edit-icon">&#9998;</span></div>' +
-      '<input type="date" id="cc-closing-date-input" class="cc-inline-date" style="display:none" ' +
+    var val = l.Estimated_Closing_Date ? API.util.formatDate(l.Estimated_Closing_Date) : '';
+    var placeholder = val ? escapeHtml(val) : '<span style="color:#9ca3af">Select date</span>';
+    return '<div class="cc-info-value cc-field-btn" id="cc-closing-date-val" title="Click to edit">' +
+      '<span class="cc-field-btn-text">' + placeholder + '</span>' +
+      '<span class="cc-field-btn-icon">&#128197;</span></div>' +
+      '<input type="date" id="cc-closing-date-input" class="cc-info-input" style="display:none" ' +
       'value="' + escapeAttr(l.Estimated_Closing_Date || '') + '">';
   }
 
   function renderServicesField(l) {
     var display = formatServicesRequired(l);
-    return '<div class="cc-info-value cc-editable" id="cc-services-val" title="Click to edit">' +
-      escapeHtml(display) + ' <span class="cc-edit-icon">&#9998;</span></div>';
+    var hasValue = display && display !== '---';
+    var placeholder = hasValue ? escapeHtml(display) : '<span style="color:#9ca3af">Select</span>';
+    return '<div class="cc-info-value cc-field-btn" id="cc-services-val" title="Click to edit">' +
+      '<span class="cc-field-btn-text">' + placeholder + '</span>' +
+      '<span class="cc-field-btn-icon">&#9662;</span></div>';
   }
 
   function bindInfoEdits() {
@@ -1431,6 +1440,10 @@
       '.cc-modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#64748b}' +
       '.cc-modal-body{padding:16px 20px}' +
       '.cc-modal-footer{padding:12px 20px;border-top:1px solid #e2e8f0;text-align:right}' +
+      '.cc-field-btn{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer;transition:border-color .15s,box-shadow .15s;font-size:0.9rem;color:#1F2937}' +
+      '.cc-field-btn:hover{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1)}' +
+      '.cc-field-btn-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.cc-field-btn-icon{flex-shrink:0;margin-left:8px;font-size:14px;color:#6B7280}' +
       '.cc-info-input{width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem;color:#1F2937;background:#fff;box-sizing:border-box;transition:border-color .15s,box-shadow .15s}' +
       '.cc-info-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}' +
       '.cc-info-input::placeholder{color:#9ca3af}' +
