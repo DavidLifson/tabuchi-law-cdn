@@ -79,6 +79,16 @@
     { key: 'Created_At',    label: 'Created',         sortable: true, width: '10%' }
   ];
 
+  var PRACTICE_LABELS = {
+    ESTATE_PLANNING: 'Estate Planning',
+    PROBATE: 'Probate',
+    REAL_ESTATE: 'Real Estate',
+    CORPORATE: 'Corporate',
+    FAMILY_LAW: 'Family Law',
+    COMMISSION_NOTARY: 'Commission Notary',
+    OTHER: 'Other'
+  };
+
   // ─── Date Presets ────────────────────────────────────────────
   function getDatePreset(preset) {
     var now = new Date();
@@ -178,7 +188,7 @@
       html += '<td><span class="cc-badge cc-badge-' + API.util.priorityColor(lead.Priority) + '">' + escapeHtml(lead.Priority || '—') + '</span></td>';
       html += '<td>' + escapeHtml(lead.Lead_Owner_Name || '—') + '</td>';
       html += '<td>' + escapeHtml(lead.Source || '—') + '</td>';
-      html += '<td>' + escapeHtml(API.util.formatRelativeTime(lead.Last_Contacted_At)) + '</td>';
+      html += '<td>' + escapeHtml(API.util.formatRelativeTime(lead.Last_Contacted_At) || '—') + '</td>';
       html += '<td>' + escapeHtml(API.util.formatDate(lead.Created_At)) + '</td>';
       html += '</tr>';
     });
@@ -376,6 +386,29 @@
     }).join(', ');
   }
 
+  // ─── Populate Filter Dropdowns ───────────────────────────────
+  function populateDropdowns() {
+    var stageEl = $el('cc-filter-stage');
+    if (stageEl && stageEl.options.length <= 1) {
+      var stages = API.util.STAGE_LABELS;
+      Object.keys(stages).forEach(function(key) {
+        var opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = stages[key];
+        stageEl.appendChild(opt);
+      });
+    }
+    var paEl = $el('cc-filter-practice');
+    if (paEl && paEl.options.length <= 1) {
+      Object.keys(PRACTICE_LABELS).forEach(function(key) {
+        var opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = PRACTICE_LABELS[key];
+        paEl.appendChild(opt);
+      });
+    }
+  }
+
   // ─── Initialize ──────────────────────────────────────────────
   function init() {
     // Show user info in nav if available
@@ -386,6 +419,7 @@
     }
 
     renderHeaders();
+    populateDropdowns();
     bindFilters();
     fetchLeads();
   }

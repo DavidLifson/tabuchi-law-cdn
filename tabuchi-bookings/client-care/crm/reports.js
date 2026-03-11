@@ -301,7 +301,14 @@
     // Revenue projection has its own meta line
     var html = '';
     if (state.activeReport !== 'revenue-projection') {
-      html += '<div class="cc-rpt-meta">Total leads in range: ' + escapeHtml(String(state.data.total_leads || 0)) + '</div>';
+      var dr = state.data.date_range || {};
+      var rangeLabel = '';
+      if (dr.start && dr.end) {
+        rangeLabel = ' (' + escapeHtml(API.util.formatDate(dr.start)) + ' \u2013 ' + escapeHtml(API.util.formatDate(dr.end)) + ', by ' + escapeHtml(dr.field === 'Closed_At' ? 'Close Date' : 'Created Date') + ')';
+      } else if (!dr.start && !dr.end) {
+        rangeLabel = ' (all time)';
+      }
+      html += '<div class="cc-rpt-meta">' + escapeHtml(String(state.data.total_leads || 0)) + ' leads in selected date range' + rangeLabel + '</div>';
     }
 
     switch (state.activeReport) {
@@ -490,7 +497,7 @@
         { key: 'client_name', label: 'Client' },
         { key: 'stage', label: 'Stage', format: function(v) { return API.util.stageLabel(v); } },
         { key: 'practice_area', label: 'Practice Area' },
-        { key: 'est_closing_date', label: 'Est. Close' },
+        { key: 'estimated_closing_date', label: 'Est. Close' },
         { key: 'list_price', label: 'List Price', format: function(v) { return formatCurrency(v); } },
         { key: 'probability_pct', label: 'Prob %' },
         { key: 'weighted_revenue', label: 'Weighted Rev', format: function(v) { return formatCurrency(v); } }
