@@ -55,9 +55,20 @@
     lead: null,
     activities: [],
     tasks: [],
+    recordings: [],
+    recordingsLoaded: false,
+    willTemplates: null,
+    activeTab: params.tab || 'activity',
     loading: true,
     user: API.auth.getUser()
   };
+
+  var LEAD_TABS = [
+    { key: 'activity', label: 'Activity & Tasks' },
+    { key: 'recordings', label: 'Recordings' }
+  ];
+
+  var _recRefreshTimer = null;
 
   var STAGES = [
     { key: 'NEW_LEAD', label: 'New Lead' },
@@ -145,9 +156,452 @@
     renderHeader();
     renderStageBar();
     renderInfo();
+    renderTabs();
     renderActivities();
     renderTasks();
     bindForms();
+    switchTab(state.activeTab);
+  }
+
+  // ─── Tab System ───────────────────────────────────────────────
+  function renderTabs() {
+    var el = $el('cc-lead-tabs');
+    if (!el || isNewLead) return;
+
+    var html = '';
+    LEAD_TABS.forEach(function(tab) {
+      var cls = 'cc-lead-tab' + (state.activeTab === tab.key ? ' cc-tab-active' : '');
+      var badge = '';
+      if (tab.key === 'recordings' && state.recordings.length > 0) {
+        badge = ' <span class="cc-tab-badge">' + state.recordings.length + '</span>';
+      }
+      html += '<button class="' + cls + '" data-tab="' + tab.key + '">' + tab.label + badge + '</button>';
+    });
+    el.innerHTML = html;
+
+    el.querySelectorAll('.cc-lead-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        switchTab(btn.dataset.tab);
+      });
+    });
+  }
+
+  function switchTab(tabKey) {
+    state.activeTab = tabKey;
+
+    // Update tab buttons
+    var tabEl = $el('cc-lead-tabs');
+    if (tabEl) {
+      tabEl.querySelectorAll('.cc-lead-tab').forEach(function(btn) {
+        btn.classList.toggle('cc-tab-active', btn.dataset.tab === tabKey);
+      });
+    }
+
+    // Show/hide panels
+    var actPanel = $el('cc-tab-activity-tasks');
+    var recPanel = $el('cc-tab-recordings');
+
+    if (actPanel) actPanel.style.display = tabKey === 'activity' ? '' : 'none';
+    if (recPanel) recPanel.style.display = tabKey === 'recordings' ? '' : 'none';
+
+    // Lazy-load recordings on first tab switch
+    if (tabKey === 'recordings' && !state.recordingsLoaded) {
+      loadRecordings();
+    }
+
+    // Manage auto-refresh for recordings
+    if (tabKey === 'recordings') {
+      startRecordingsRefresh();
+    } else {
+      stopRecordingsRefresh();
+    }
+  }
+
+  // ─── Recordings Data ──────────────────────────────────────────
+  async function loadRecordings() {
+    var el = $el('cc-tab-recordings');
+    if (!el) return;
+
+    el.innerHTML = '<div style="text-align:center;padding:2rem;color:#6B7280;">Loading recordings...</div>';
+
+    try {
+      var result = await API.recordings.list({ lead_id: leadId });
+      if (result.success) {
+        state.recordings = result.recordings || [];
+        state.recordingsLoaded = true;
+        renderRecordings();
+        renderTabs(); // Update badge count
+      } else {
+        el.innerHTML = '<div class="cc-error">' + escapeHtml(result.error || 'Failed to load recordings') + '</div>';
+      }
+    } catch (err) {
+      el.innerHTML = '<div class="cc-error">' + escapeHtml(err.error || 'Failed to load recordings') + '</div>';
+    }
+  }
+
+  async function reloadRecordings() {
+    try {
+      var result = await API.recordings.list({ lead_id: leadId });
+      if (result.success) {
+        state.recordings = result.recordings || [];
+        renderRecordings();
+        renderTabs();
+      }
+    } catch (err) { /* silently fail */ }
+  }
+
+  function startRecordingsRefresh() {
+    stopRecordingsRefresh();
+    var hasPending = state.recordings.some(function(r) {
+      return ['pending', 'downloading', 'transcribing', 'analyzing'].indexOf((r.Status || '').toLowerCase()) >= 0;
+    });
+    if (hasPending) {
+      _recRefreshTimer = setInterval(reloadRecordings, 15000);
+    }
+  }
+
+  function stopRecordingsRefresh() {
+    if (_recRefreshTimer) {
+      clearInterval(_recRefreshTimer);
+      _recRefreshTimer = null;
+    }
+  }
+
+  // ─── Render Recordings Tab ────────────────────────────────────
+  function renderRecordings() {
+    var el = $el('cc-tab-recordings');
+    if (!el) return;
+
+    if (state.recordings.length === 0) {
+      el.innerHTML = '<div class="cc-empty" style="padding:2rem;text-align:center;">' +
+        '<p style="margin:0 0 .5rem;font-size:1.1rem;color:#6B7280;">No recordings linked to this lead.</p>' +
+        '<p style="margin:0;font-size:.85rem;color:#9CA3AF;">Recordings from Teams/Zoom meetings will appear here automatically.</p>' +
+        '</div>';
+      return;
+    }
+
+    var html = '';
+
+    state.recordings.forEach(function(rec, idx) {
+      var statusCls = recStatusColor(rec.Status);
+      var intentCls = recIntentColor(rec.AI_Client_Intent);
+      var willCls = recWillColor(rec.Will_Status);
+      var duration = formatDuration(rec.Duration_Seconds);
+      var date = API.util.formatDateTime(rec.Meeting_Date || rec.Created_At);
+      var source = (rec.Source || 'teams').toUpperCase();
+
+      html += '<div class="cc-rec-card" data-rec-id="' + escapeAttr(rec.id) + '">';
+      html += '<div class="cc-rec-card-header">';
+      html += '<span class="cc-badge cc-badge-' + (source === 'ZOOM' ? 'blue' : 'purple') + '" style="font-size:.7rem;">' + escapeHtml(source) + '</span>';
+      html += '<span class="cc-badge cc-badge-' + statusCls + '">' + escapeHtml(rec.Status || 'pending') + '</span>';
+      if (rec.AI_Client_Intent) {
+        html += '<span class="cc-badge cc-badge-' + intentCls + '">' + escapeHtml(rec.AI_Client_Intent) + '</span>';
+      }
+      if (rec.Will_Status && rec.Will_Status !== 'NOT_APPLICABLE') {
+        html += '<span class="cc-badge cc-badge-' + willCls + '">Will: ' + escapeHtml(rec.Will_Status) + '</span>';
+      }
+      html += '<span class="cc-rec-card-meta" style="margin-left:auto;">' + escapeHtml(date) + (duration ? ' &middot; ' + duration : '') + '</span>';
+      html += '</div>';
+
+      // AI Summary
+      if (rec.AI_Summary) {
+        html += '<div class="cc-rec-summary">' + escapeHtml(rec.AI_Summary) + '</div>';
+      }
+
+      // Action Items (expandable)
+      var actionItems = parseJson(rec.AI_Action_Items);
+      if (actionItems && actionItems.length > 0) {
+        html += '<details style="margin:.5rem 0;">';
+        html += '<summary style="font-size:.85rem;font-weight:600;color:#374151;cursor:pointer;">Action Items (' + actionItems.length + ')</summary>';
+        html += '<ul class="cc-rec-items">';
+        actionItems.forEach(function(item) {
+          var text = typeof item === 'string' ? item : (item.description || item.text || JSON.stringify(item));
+          html += '<li>' + escapeHtml(text) + '</li>';
+        });
+        html += '</ul></details>';
+      }
+
+      // Transcript toggle
+      if (rec.Status === 'completed') {
+        html += '<div class="cc-transcript-panel" id="cc-transcript-panel-' + idx + '">';
+        html += '<button class="cc-transcript-toggle" data-rec-idx="' + idx + '" data-rec-id="' + escapeAttr(rec.id) + '">';
+        html += '<span style="transition:transform .15s;" id="cc-transcript-arrow-' + idx + '">&#9654;</span> View Transcript</button>';
+        html += '<div class="cc-transcript-body" id="cc-transcript-body-' + idx + '" style="display:none;"></div>';
+        html += '</div>';
+      }
+
+      // Actions row
+      html += '<div class="cc-rec-actions">';
+      if (rec.Status === 'completed') {
+        html += '<button class="cc-btn cc-btn-sm" onclick="window.open(\'' + escapeAttr(rec.Blob_Transcript_URL || '#') + '\')">Download Transcript</button>';
+      }
+      if (rec.Status === 'error') {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-warning cc-rec-retry-btn" data-rec-id="' + escapeAttr(rec.id) + '">Retry Processing</button>';
+      }
+      if (rec.Reviewed_By) {
+        html += '<span class="cc-rec-card-meta">Reviewed by ' + escapeHtml(rec.Reviewed_By_Name || rec.Reviewed_By) + '</span>';
+      } else if (rec.Status === 'completed') {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-success cc-rec-approve-btn" data-rec-id="' + escapeAttr(rec.id) + '">Mark Reviewed</button>';
+      }
+      html += '</div>';
+
+      html += '</div>'; // end card
+    });
+
+    // Will Generation Panel (show if any recording is completed + estate practice area)
+    var lead = state.lead || {};
+    var hasCompleted = state.recordings.some(function(r) { return r.Status === 'completed'; });
+    var isEstate = ['ESTATE_PLANNING', 'Estate Planning'].indexOf(lead.Practice_Area) >= 0;
+    var hasIntake = !!lead.Intake_Received_At;
+
+    if (hasCompleted && isEstate) {
+      html += renderWillPanel(lead, hasIntake);
+    }
+
+    // Clio section
+    var hasWill = state.recordings.some(function(r) { return r.Will_Status === 'GENERATED' || r.Will_Status === 'UPLOADED_TO_CLIO'; });
+    if (hasWill) {
+      html += renderClioSection();
+    }
+
+    el.innerHTML = html;
+    bindRecordingActions();
+  }
+
+  function renderWillPanel(lead, hasIntake) {
+    var html = '<div class="cc-will-panel">';
+    html += '<h3>Will Draft Generation</h3>';
+
+    if (!hasIntake) {
+      html += '<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:6px;padding:.75rem;font-size:.85rem;color:#92400E;margin-bottom:.75rem;">';
+      html += 'Intake form not yet received. Will generation requires intake data. You can still generate a draft using AI meeting notes only.';
+      html += '</div>';
+    }
+
+    html += '<div class="cc-will-grid">';
+    html += '<div class="cc-will-field"><label>Template</label>';
+    html += '<select id="cc-will-template">';
+    html += '<option value="">Select template...</option>';
+    html += '<option value="SIMPLE_WILL_V1">Simple Will</option>';
+    html += '<option value="COUPLES_WILL_V1">Couples Will (Mirror)</option>';
+    html += '<option value="BLENDED_FAMILY_WILL_V1">Blended Family Will</option>';
+    html += '</select></div>';
+
+    // Key override fields
+    html += '<div class="cc-will-field"><label>Client Name</label>';
+    html += '<input id="cc-will-client-name" value="' + escapeAttr(lead.Client_Name) + '"></div>';
+    html += '<div class="cc-will-field"><label>Executor</label>';
+    html += '<input id="cc-will-executor" placeholder="Primary executor"></div>';
+    html += '<div class="cc-will-field"><label>Guardian</label>';
+    html += '<input id="cc-will-guardian" placeholder="Primary guardian (if minors)"></div>';
+    html += '</div>';
+
+    html += '<div class="cc-will-actions">';
+    html += '<button class="cc-btn cc-btn-primary" id="cc-will-generate-btn">Generate Will Draft</button>';
+
+    // Show download if any recording has a generated will
+    var genRec = state.recordings.find(function(r) { return r.Will_Status === 'GENERATED' || r.Will_Status === 'UPLOADED_TO_CLIO'; });
+    if (genRec && genRec.Will_Blob_URL) {
+      html += ' <a class="cc-btn cc-btn-success" href="' + escapeAttr(genRec.Will_Blob_URL) + '" target="_blank" rel="noopener">Download Will Draft</a>';
+    }
+    html += '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  function renderClioSection() {
+    var html = '<div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:1rem;margin-top:1rem;">';
+    html += '<h3 style="font-size:1rem;font-weight:600;margin:0 0 .5rem;">Clio Integration</h3>';
+
+    var lead = state.lead || {};
+    if (lead.Clio_Matter_ID) {
+      html += '<p style="font-size:.85rem;color:#374151;margin:0 0 .5rem;">Matter ID: <strong>' + escapeHtml(lead.Clio_Matter_ID) + '</strong></p>';
+    }
+
+    var uploadableRec = state.recordings.find(function(r) { return r.Will_Status === 'GENERATED'; });
+    if (uploadableRec) {
+      html += '<button class="cc-btn cc-btn-primary cc-clio-upload-btn" data-rec-id="' + escapeAttr(uploadableRec.id) + '">Upload Will to Clio</button>';
+    }
+
+    var uploadedRec = state.recordings.find(function(r) { return r.Will_Status === 'UPLOADED_TO_CLIO'; });
+    if (uploadedRec) {
+      html += '<span class="cc-badge cc-badge-green" style="margin-left:.5rem;">Uploaded to Clio</span>';
+      if (uploadedRec.Will_Clio_Document_ID) {
+        html += ' <span style="font-size:.8rem;color:#6B7280;">Doc ID: ' + escapeHtml(uploadedRec.Will_Clio_Document_ID) + '</span>';
+      }
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function bindRecordingActions() {
+    // Transcript toggles
+    document.querySelectorAll('.cc-transcript-toggle').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = btn.dataset.recIdx;
+        var recId = btn.dataset.recId;
+        var body = document.getElementById('cc-transcript-body-' + idx);
+        var arrow = document.getElementById('cc-transcript-arrow-' + idx);
+        if (!body) return;
+
+        if (body.style.display === 'none') {
+          body.style.display = '';
+          arrow.style.transform = 'rotate(90deg)';
+          if (!body.dataset.loaded) {
+            body.innerHTML = '<div style="color:#6B7280;padding:.5rem;">Loading transcript...</div>';
+            loadTranscript(recId, body);
+          }
+        } else {
+          body.style.display = 'none';
+          arrow.style.transform = '';
+        }
+      });
+    });
+
+    // Approve review buttons
+    document.querySelectorAll('.cc-rec-approve-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        try {
+          var res = await API.recordings.approveReview(btn.dataset.recId);
+          if (res.success) reloadRecordings();
+          else alert('Failed: ' + (res.error || 'Unknown error'));
+        } catch (err) {
+          alert('Failed: ' + (err.error || 'Network error'));
+        }
+        btn.disabled = false;
+      });
+    });
+
+    // Retry buttons
+    document.querySelectorAll('.cc-rec-retry-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.textContent = 'Retrying...';
+        try {
+          var res = await API.recordings.retryProcessing(btn.dataset.recId);
+          if (res.success) reloadRecordings();
+          else alert('Failed: ' + (res.error || 'Unknown error'));
+        } catch (err) {
+          alert('Failed: ' + (err.error || 'Network error'));
+        }
+        btn.disabled = false;
+      });
+    });
+
+    // Will generate button
+    var genBtn = document.getElementById('cc-will-generate-btn');
+    if (genBtn) {
+      genBtn.addEventListener('click', async function() {
+        var templateId = (document.getElementById('cc-will-template') || {}).value;
+        if (!templateId) { alert('Please select a template.'); return; }
+
+        var overrides = {};
+        var clientName = (document.getElementById('cc-will-client-name') || {}).value;
+        var executor = (document.getElementById('cc-will-executor') || {}).value;
+        var guardian = (document.getElementById('cc-will-guardian') || {}).value;
+        if (clientName) overrides.client_name = clientName;
+        if (executor) overrides.executor_primary = executor;
+        if (guardian) overrides.guardian_primary = guardian;
+
+        // Find best recording (most recent completed)
+        var targetRec = state.recordings.find(function(r) { return r.Status === 'completed'; });
+        if (!targetRec) { alert('No completed recording available.'); return; }
+
+        genBtn.disabled = true;
+        genBtn.textContent = 'Generating...';
+        try {
+          var res = await API.recordings.generateWill(targetRec.id, templateId, overrides);
+          if (res.success) {
+            alert('Will draft generated successfully!');
+            reloadRecordings();
+          } else {
+            alert('Generation failed: ' + (res.error || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Generation failed: ' + (err.error || 'Network error'));
+        }
+        genBtn.disabled = false;
+        genBtn.textContent = 'Generate Will Draft';
+      });
+    }
+
+    // Clio upload button
+    document.querySelectorAll('.cc-clio-upload-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.textContent = 'Uploading...';
+        try {
+          var res = await API.recordings.uploadToClio(btn.dataset.recId);
+          if (res.success) {
+            alert('Will uploaded to Clio successfully!');
+            reloadRecordings();
+            reloadLead(); // Refresh Clio IDs
+          } else {
+            alert('Upload failed: ' + (res.error || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Upload failed: ' + (err.error || 'Network error'));
+        }
+        btn.disabled = false;
+        btn.textContent = 'Upload Will to Clio';
+      });
+    });
+  }
+
+  async function loadTranscript(recId, bodyEl) {
+    try {
+      var res = await API.recordings.get(recId);
+      if (res.success && res.recording) {
+        var transcript = res.recording.Transcript_Text || '';
+        if (!transcript && res.recording.Blob_Transcript_URL) {
+          bodyEl.innerHTML = '<div style="color:#6B7280;">Transcript available for download. <a href="' +
+            escapeAttr(res.recording.Blob_Transcript_URL) + '" target="_blank">Open transcript file</a></div>';
+        } else if (transcript) {
+          bodyEl.innerHTML = formatTranscript(transcript);
+        } else {
+          bodyEl.innerHTML = '<div style="color:#9CA3AF;">No transcript text available.</div>';
+        }
+      } else {
+        bodyEl.innerHTML = '<div style="color:#EF4444;">Failed to load transcript.</div>';
+      }
+    } catch (err) {
+      bodyEl.innerHTML = '<div style="color:#EF4444;">Error loading transcript.</div>';
+    }
+    bodyEl.dataset.loaded = 'true';
+  }
+
+  function formatTranscript(text) {
+    // Format speaker labels: "Speaker 1:" → styled span
+    return escapeHtml(text).replace(/^(Speaker \d+):/gm, '<span class="cc-speaker">$1:</span>');
+  }
+
+  // ─── Recording Helpers ──────────────────────────────────────
+  function recStatusColor(status) {
+    var map = { completed: 'green', pending: 'gray', downloading: 'blue', transcribing: 'blue', analyzing: 'blue', error: 'red' };
+    return map[(status || '').toLowerCase()] || 'gray';
+  }
+  function recIntentColor(intent) {
+    var map = { PROCEED: 'green', UNDECIDED: 'yellow', DECLINED: 'red', NEEDS_FOLLOWUP: 'blue' };
+    return map[intent] || 'gray';
+  }
+  function recWillColor(status) {
+    var map = { PENDING_REVIEW: 'yellow', GENERATING: 'blue', GENERATED: 'green', UPLOADED_TO_CLIO: 'green', NOT_APPLICABLE: 'gray' };
+    return map[status] || 'gray';
+  }
+  function formatDuration(seconds) {
+    if (!seconds) return '';
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function parseJson(str) {
+    if (!str) return null;
+    if (Array.isArray(str)) return str;
+    try { return JSON.parse(str); } catch (e) { return null; }
   }
 
   // ─── Header ─────────────────────────────────────────────────
@@ -164,6 +618,8 @@
       return;
     }
 
+    var canDelete = _u && (_u.role === 'ADMIN' || _u.role === 'MANAGER');
+
     el.innerHTML =
       '<div class="cc-lead-header-main">' +
         '<h1 class="cc-lead-title">' + escapeHtml(l.Client_Name || 'Unnamed Lead') + '</h1>' +
@@ -171,11 +627,38 @@
         (l.Priority ? ' <span class="cc-badge cc-badge-' + API.util.priorityColor(l.Priority) + '">' + escapeHtml(l.Priority) + '</span>' : '') +
         (l.Disposition === 'WON' ? ' <span class="cc-badge cc-badge-green">WON</span>' : '') +
         (l.Disposition === 'LOST' ? ' <span class="cc-badge cc-badge-red">LOST</span>' : '') +
+        (canDelete ? ' <button class="cc-btn cc-btn-sm cc-btn-danger" id="cc-delete-lead" style="margin-left:12px;">Delete Lead</button>' : '') +
       '</div>' +
       '<div class="cc-lead-contact">' +
         (l.Client_Email ? '<a href="mailto:' + escapeHtml(l.Client_Email) + '">' + escapeHtml(l.Client_Email) + '</a>' : '') +
         (l.Client_Phone ? ' &middot; <a href="tel:' + escapeHtml(l.Client_Phone) + '">' + escapeHtml(l.Client_Phone) + '</a>' : '') +
       '</div>';
+
+    // Bind delete button
+    var delBtn = document.getElementById('cc-delete-lead');
+    if (delBtn) {
+      delBtn.addEventListener('click', async function() {
+        if (!confirm('Are you sure you want to delete this lead? This will also remove all associated activities and tasks.')) return;
+        if (!confirm('This action cannot be undone. Delete "' + (l.Client_Name || 'this lead') + '" permanently?')) return;
+        try {
+          delBtn.disabled = true;
+          delBtn.textContent = 'Deleting…';
+          var result = await API.leads.delete(state.lead.id);
+          if (result.success) {
+            alert('Lead deleted successfully.');
+            window.location.href = '/crm';
+          } else {
+            alert('Delete failed: ' + (result.error || 'Unknown error'));
+            delBtn.disabled = false;
+            delBtn.textContent = 'Delete Lead';
+          }
+        } catch (err) {
+          alert('Delete failed: ' + (err.error || err.message || 'Unknown error'));
+          delBtn.disabled = false;
+          delBtn.textContent = 'Delete Lead';
+        }
+      });
+    }
   }
 
   // ─── Stage Progression Bar ──────────────────────────────────
@@ -261,6 +744,16 @@
       'placeholder="' + escapeAttr(placeholder) + '">';
   }
 
+  function renderSelectField(field, value, options) {
+    var html = '<select class="cc-info-input cc-select" data-field="' + escapeAttr(field) + '" data-original="' + escapeAttr(value || '') + '">';
+    options.forEach(function(opt) {
+      var label = opt || '— Select —';
+      html += '<option value="' + escapeAttr(opt) + '"' + (opt === (value || '') ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+
   function renderInfo() {
     var el = $el('cc-lead-info');
     if (!el || !state.lead) return;
@@ -273,7 +766,18 @@
       { label: 'Email', html: editableInput('Client_Email', l.Client_Email, 'email', 'Enter email') },
       { label: 'Phone', html: editableInput('Client_Phone', l.Client_Phone, 'tel', 'Enter phone') },
       { label: 'Address', html: editableInput('Client_Address', l.Client_Address, 'text', 'Enter address') },
-      { label: 'Company', html: editableInput('Company', l.Company, 'text', 'Enter company') }
+      { label: 'Address 2', html: editableInput('Address_2', l.Address_2, 'text', 'Unit, suite, etc.') },
+      { label: 'City', html: editableInput('City', l.City, 'text', 'Enter city') },
+      { label: 'Province', html: editableInput('Province', l.Province, 'text', 'Enter province') },
+      { label: 'Postal Code', html: editableInput('Postal_Code', l.Postal_Code, 'text', 'Enter postal code') },
+      { label: 'Country', html: editableInput('Country', l.Country || 'Canada', 'text', 'Enter country') },
+      { label: 'Company', html: editableInput('Company', l.Company, 'text', 'Enter company') },
+      { label: 'Occupation', html: editableInput('Occupation', l.Occupation, 'text', 'Enter occupation') },
+      { label: 'Date of Birth', html: editableInput('Date_of_Birth', l.Date_of_Birth, 'date', '') },
+      { label: 'Spouse Name', html: editableInput('Spouse_Name', l.Spouse_Name, 'text', 'Enter spouse name') },
+      { label: 'Marital Status', html: renderSelectField('Marital_Status', l.Marital_Status, ['', 'Single', 'Married', 'Common-Law', 'Divorced', 'Widowed', 'Separated']) },
+      { label: 'Preferred Language', html: renderSelectField('Preferred_Language', l.Preferred_Language, ['', 'English', 'French', 'Mandarin', 'Cantonese', 'Other']) },
+      { label: 'Referral Source', html: editableInput('Referral_Source', l.Referral_Source, 'text', 'Who referred them?') }
     ];
 
     var html = '<div class="cc-info-section-label">Contact Information</div>';
@@ -283,8 +787,27 @@
     });
     html += '</div>';
 
-    // For new leads, show only contact fields + Create button
+    // For new leads, show contact fields + lead details + Create button
     if (isNewLead) {
+      html += '<div class="cc-info-divider"></div>';
+      html += '<div class="cc-info-section-label">Lead Details</div>';
+      html += '<div class="cc-info-grid">';
+      // Practice Area multi-checkbox
+      html += '<div class="cc-info-item cc-info-item-full"><div class="cc-info-label">Practice Area</div>';
+      html += '<div class="cc-checkbox-group" data-field="Practice_Area">';
+      ['ESTATE_PLANNING', 'PROBATE', 'REAL_ESTATE', 'CORPORATE', 'FAMILY_LAW', 'COMMISSION_NOTARY', 'OTHER'].forEach(function(pa) {
+        html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-pa-check" value="' + pa + '"> ' + escapeHtml(formatPracticeArea(pa)) + '</label>';
+      });
+      html += '</div></div>';
+      // Lead Source dropdown
+      html += '<div class="cc-info-item"><div class="cc-info-label">Lead Source</div>';
+      html += renderSelectField('Source', '', ['WEBFORM', 'REFERRAL', 'COLD_CALL', 'WEBSITE', 'SOCIAL_MEDIA', 'ADVERTISING', 'EVENT', 'OTHER']);
+      html += '</div>';
+      // Est. Closing Date
+      html += '<div class="cc-info-item"><div class="cc-info-label">Est. Closing Date</div>';
+      html += editableInput('Estimated_Closing_Date', '', 'date', '');
+      html += '</div>';
+      html += '</div>';
       html += '<div style="margin-top:1rem;text-align:right">' +
         '<button id="cc-create-lead-btn" class="cc-btn cc-btn-primary">Create Lead</button></div>';
       el.innerHTML = html;
@@ -296,7 +819,7 @@
     var detailFields = [
       { label: 'Practice Area', value: formatPracticeArea(l.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
-      { label: 'Source', value: l.Source || '—' },
+      { label: 'Lead Source', value: l.Source || '—' },
       { label: 'Owner', value: l.Lead_Owner_Name || '—' },
       { label: 'Responsible Lawyer', value: l.Responsible_Lawyer_Name || '—' },
       { label: 'Created', value: API.util.formatDateTime(l.Created_At) },
@@ -560,7 +1083,10 @@
 
   function formatPracticeArea(pa) {
     if (!pa) return '—';
-    return pa.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    var items = Array.isArray(pa) ? pa : [pa];
+    return items.map(function(item) {
+      return item.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    }).join(', ');
   }
 
   // ─── Inline Edit: Closing Date ───────────────────────────────
@@ -672,6 +1198,12 @@
         // Build Client_Name from first + last
         var parts = [data.First_Name, data.Last_Name].filter(Boolean);
         if (parts.length) data.Client_Name = parts.join(' ');
+
+        // Collect Practice Area checkboxes
+        var paChecks = document.querySelectorAll('.cc-pa-check:checked');
+        if (paChecks.length) {
+          data.Practice_Area = Array.from(paChecks).map(function(cb) { return cb.value; });
+        }
 
         createBtn.disabled = true;
         createBtn.textContent = 'Creating...';
@@ -914,6 +1446,9 @@
     var user = API.auth.getUser();
     var userNameEl = $el('cc-user-name');
     if (user && userNameEl) userNameEl.textContent = user.name || user.email;
+
+    // Cleanup refresh timer on page unload
+    window.addEventListener('beforeunload', stopRecordingsRefresh);
 
     loadData();
   }

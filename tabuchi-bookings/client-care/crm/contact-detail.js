@@ -187,6 +187,7 @@
           (c.Disposition === 'LOST' ? ' <span class="cc-badge cc-badge-red">LOST</span>' : '') +
         '</div>' +
         '<div class="cc-contact-header-actions">' +
+          ((_u && (_u.role === 'ADMIN' || _u.role === 'MANAGER')) ? '<button class="cc-btn cc-btn-sm cc-btn-danger" id="cc-delete-contact" style="margin-right:8px;">Delete</button>' : '') +
           '<button class="cc-btn cc-btn-sm" id="cc-edit-toggle">' + (state.editMode ? 'Cancel Edit' : 'Edit') + '</button>' +
         '</div>' +
       '</div>' +
@@ -203,6 +204,33 @@
       editBtn.addEventListener('click', function() {
         state.editMode = !state.editMode;
         render();
+      });
+    }
+
+    // Bind delete button
+    var delBtn = document.getElementById('cc-delete-contact');
+    if (delBtn) {
+      delBtn.addEventListener('click', async function() {
+        var name = c.Client_Name || 'this contact';
+        if (!confirm('Are you sure you want to delete this contact? This will also remove all associated activities and tasks.')) return;
+        if (!confirm('This action cannot be undone. Delete "' + name + '" permanently?')) return;
+        try {
+          delBtn.disabled = true;
+          delBtn.textContent = 'Deleting…';
+          var result = await API.leads.delete(contactId);
+          if (result.success) {
+            alert('Contact deleted successfully.');
+            window.location.href = '/crm/contacts';
+          } else {
+            alert('Delete failed: ' + (result.error || 'Unknown error'));
+            delBtn.disabled = false;
+            delBtn.textContent = 'Delete';
+          }
+        } catch (err) {
+          alert('Delete failed: ' + (err.error || err.message || 'Unknown error'));
+          delBtn.disabled = false;
+          delBtn.textContent = 'Delete';
+        }
       });
     }
   }
@@ -275,10 +303,21 @@
       { label: 'Email', value: c.Client_Email },
       { label: 'Phone', value: c.Client_Phone },
       { label: 'Company', value: c.Company },
+      { label: 'Occupation', value: c.Occupation },
       { label: 'Address', value: c.Client_Address },
+      { label: 'Address 2', value: c.Address_2 },
+      { label: 'City', value: c.City },
+      { label: 'Province', value: c.Province },
+      { label: 'Postal Code', value: c.Postal_Code },
+      { label: 'Country', value: c.Country },
+      { label: 'Date of Birth', value: c.Date_of_Birth ? API.util.formatDate(c.Date_of_Birth) : null },
+      { label: 'Spouse Name', value: c.Spouse_Name },
+      { label: 'Marital Status', value: c.Marital_Status },
+      { label: 'Preferred Language', value: c.Preferred_Language },
+      { label: 'Referral Source', value: c.Referral_Source },
       { label: 'Practice Area', value: formatPracticeArea(c.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(c.Service_Package) },
-      { label: 'Source', value: c.Source },
+      { label: 'Lead Source', value: c.Source },
       { label: 'Lead Stage', value: API.util.stageLabel(c.Lead_Stage) },
       { label: 'Disposition', value: c.Disposition || 'OPEN' },
       { label: 'Priority', value: c.Priority },
@@ -316,6 +355,49 @@
 
     html += '<div class="cc-edit-field"><label>Address</label>' +
       '<input class="cc-input" id="cc-edit-address" value="' + escapeAttr(c.Client_Address || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Address 2</label>' +
+      '<input class="cc-input" id="cc-edit-address2" value="' + escapeAttr(c.Address_2 || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>City</label>' +
+      '<input class="cc-input" id="cc-edit-city" value="' + escapeAttr(c.City || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Province</label>' +
+      '<input class="cc-input" id="cc-edit-province" value="' + escapeAttr(c.Province || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Postal Code</label>' +
+      '<input class="cc-input" id="cc-edit-postalcode" value="' + escapeAttr(c.Postal_Code || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Country</label>' +
+      '<input class="cc-input" id="cc-edit-country" value="' + escapeAttr(c.Country || 'Canada') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Occupation</label>' +
+      '<input class="cc-input" id="cc-edit-occupation" value="' + escapeAttr(c.Occupation || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Date of Birth</label>' +
+      '<input type="date" class="cc-input" id="cc-edit-dob" value="' + escapeAttr(c.Date_of_Birth || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Spouse Name</label>' +
+      '<input class="cc-input" id="cc-edit-spouse" value="' + escapeAttr(c.Spouse_Name || '') + '" /></div>';
+
+    html += '<div class="cc-edit-field"><label>Marital Status</label>' +
+      '<select class="cc-input" id="cc-edit-marital">' +
+      '<option value="">— Select —</option>';
+    ['Single', 'Married', 'Common-Law', 'Divorced', 'Widowed', 'Separated'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (c.Marital_Status === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
+    });
+    html += '</select></div>';
+
+    html += '<div class="cc-edit-field"><label>Preferred Language</label>' +
+      '<select class="cc-input" id="cc-edit-language">' +
+      '<option value="">— Select —</option>';
+    ['English', 'French', 'Mandarin', 'Cantonese', 'Other'].forEach(function(s) {
+      html += '<option value="' + s + '"' + (c.Preferred_Language === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
+    });
+    html += '</select></div>';
+
+    html += '<div class="cc-edit-field"><label>Referral Source</label>' +
+      '<input class="cc-input" id="cc-edit-referral" value="' + escapeAttr(c.Referral_Source || '') + '" /></div>';
 
     html += '<div class="cc-edit-field"><label>Contact Status</label>' +
       '<select class="cc-input" id="cc-edit-status">' +
@@ -577,6 +659,17 @@
         var updates = {
           Company: document.getElementById('cc-edit-company').value.trim(),
           Client_Address: document.getElementById('cc-edit-address').value.trim(),
+          Address_2: document.getElementById('cc-edit-address2').value.trim(),
+          City: document.getElementById('cc-edit-city').value.trim(),
+          Province: document.getElementById('cc-edit-province').value.trim(),
+          Postal_Code: document.getElementById('cc-edit-postalcode').value.trim(),
+          Country: document.getElementById('cc-edit-country').value.trim(),
+          Occupation: document.getElementById('cc-edit-occupation').value.trim(),
+          Date_of_Birth: document.getElementById('cc-edit-dob').value,
+          Spouse_Name: document.getElementById('cc-edit-spouse').value.trim(),
+          Marital_Status: document.getElementById('cc-edit-marital').value,
+          Preferred_Language: document.getElementById('cc-edit-language').value,
+          Referral_Source: document.getElementById('cc-edit-referral').value.trim(),
           Contact_Status: document.getElementById('cc-edit-status').value,
           Consent_Status: document.getElementById('cc-edit-consent').value
         };
@@ -825,7 +918,10 @@
 
   function formatPracticeArea(pa) {
     if (!pa) return '—';
-    return pa.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    var items = Array.isArray(pa) ? pa : [pa];
+    return items.map(function(item) {
+      return item.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    }).join(', ');
   }
 
   function getActivityIcon(type) {

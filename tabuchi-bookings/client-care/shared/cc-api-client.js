@@ -30,14 +30,16 @@ const ClientCareAPI = (() => {
 
   // Actions that are read-only (safe to cache)
   var READ_ACTIONS = ['list', 'get', 'get_history', 'list_users', 'list_templates',
-    'system_stats', 'list_recipients', 'report', 'preview_audience', 'list_steps'];
+    'system_stats', 'list_recipients', 'report', 'preview_audience', 'list_steps',
+    'approve_review', 'link_lead'];
 
   // Actions that mutate data (invalidate cache)
   var WRITE_ACTIONS = ['create', 'update', 'delete', 'bulk_update_tags',
     'bulk_update_status', 'create_step', 'delete_step', 'enroll',
     'schedule', 'send_now', 'cancel', 'duplicate', 'test_send',
     'resend_non_openers', 'create_template', 'update_template',
-    'create_task', 'update_task', 'delete_task'];
+    'create_task', 'update_task', 'delete_task',
+    'generate_will', 'upload_to_clio', 'retry_processing'];
 
   function _cacheKey(path, body) {
     return path + '|' + JSON.stringify(body || {});
@@ -120,6 +122,26 @@ const ClientCareAPI = (() => {
     return true;
   }
 
+  // ─── Error Notification (fire-and-forget to Teams) ───────────
+  function _notifyError(errObj) {
+    try {
+      var user = getUser();
+      fetch(`${WH}/cc/error-notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: errObj.action || 'unknown',
+          endpoint: errObj.endpoint || 'unknown',
+          status: errObj.status || 0,
+          error: errObj.error || 'Unknown error',
+          user_name: (user && user.name) || 'Unknown',
+          user_email: (user && user.email) || '',
+          timestamp: new Date().toISOString()
+        })
+      }).catch(function() { /* silently ignore notification failures */ });
+    } catch (e) { /* silently ignore */ }
+  }
+
   // ─── Core Request ────────────────────────────────────────────
   async function request(method, path, options = {}) {
     var body = options.body;
@@ -185,7 +207,10 @@ const ClientCareAPI = (() => {
         let data = {};
         try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { error: 'Invalid response from server' }; }
         if (!response.ok) {
-          throw { status: response.status, ...data };
+          var err = { status: response.status, endpoint: path, action: (body && body.action) || method, ...data };
+          // Fire-and-forget error notification (skip 401 session expiry)
+          if (response.status !== 401) _notifyError(err);
+          throw err;
         }
 
         // ── Cache: store successful read responses ──
@@ -196,7 +221,9 @@ const ClientCareAPI = (() => {
         return data;
       } catch (error) {
         if (error.status) throw error;
-        throw { status: 0, success: false, error: 'Network error. Please try again.' };
+        var netErr = { status: 0, success: false, error: 'Network error. Please try again.', endpoint: path, action: (body && body.action) || method };
+        _notifyError(netErr);
+        throw netErr;
       } finally {
         if (cacheKey) delete _inflight[cacheKey];
       }
@@ -267,6 +294,10 @@ const ClientCareAPI = (() => {
    */
   async function updateLead(id, fields) {
     return request('POST', '/cc/leads', { body: { action: 'update', id, ...fields } });
+  }
+
+  async function deleteLead(id) {
+    return request('POST', '/cc/leads', { body: { action: 'delete', id } });
   }
 
   // ─── Pipeline ──────────────────────────────────────────────
@@ -744,6 +775,45 @@ const ClientCareAPI = (() => {
     return window.location.pathname.split('/').filter(Boolean);
   }
 
+  // ─── Recordings ─────────────────────────────────────────────
+
+  async function listRecordings(filters) {
+    return request('POST', '/cc/recordings', {
+      body: Object.assign({ action: 'list' }, filters || {})
+    });
+  }
+
+  async function getRecording(id) {
+    return request('POST', '/cc/recordings', { body: { action: 'get', transcription_id: id } });
+  }
+
+  async function approveRecordingReview(id) {
+    return request('POST', '/cc/recordings', { body: { action: 'approve_review', transcription_id: id } });
+  }
+
+  async function generateWill(transcriptionId, templateId, overrides) {
+    return request('POST', '/cc/recordings', {
+      body: {
+        action: 'generate_will',
+        transcription_id: transcriptionId,
+        template_id: templateId,
+        overrides: overrides || {}
+      }
+    });
+  }
+
+  async function uploadToClio(transcriptionId) {
+    return request('POST', '/cc/recordings', { body: { action: 'upload_to_clio', transcription_id: transcriptionId } });
+  }
+
+  async function retryRecordingProcessing(id) {
+    return request('POST', '/cc/recordings', { body: { action: 'retry_processing', transcription_id: id } });
+  }
+
+  async function linkRecordingLead(transcriptionId, leadId) {
+    return request('POST', '/cc/recordings', { body: { action: 'link_lead', transcription_id: transcriptionId, lead_id: leadId } });
+  }
+
   // ─── Public API ──────────────────────────────────────────────
   return {
     // Auth
@@ -752,7 +822,7 @@ const ClientCareAPI = (() => {
       getUser, setUser, isAuthenticated, requireAuth
     },
     // Leads
-    leads: { list: listLeads, get: getLead, create: createLead, update: updateLead, updateStage },
+    leads: { list: listLeads, get: getLead, create: createLead, update: updateLead, delete: deleteLead, updateStage },
     // Contacts
     contacts: { getHistory: getContactHistory, bulkUpdateTags, bulkUpdateStatus },
     // Activities
@@ -789,6 +859,13 @@ const ClientCareAPI = (() => {
       create: createPriceBookItem, update: updatePriceBookItem,
       createTask: createPriceBookTask, updateTask: updatePriceBookTask,
       deleteTask: deletePriceBookTask
+    },
+    // Recordings
+    recordings: {
+      list: listRecordings, get: getRecording,
+      approveReview: approveRecordingReview, generateWill,
+      uploadToClio, retryProcessing: retryRecordingProcessing,
+      linkLead: linkRecordingLead
     },
     // Dashboard
     dashboard: { get: getDashboard },

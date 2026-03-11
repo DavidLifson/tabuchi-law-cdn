@@ -81,7 +81,7 @@
     { key: 'Tags',             label: 'Tags',            sortable: false, width: '16%' },
     { key: 'Contact_Status',   label: 'Status',          sortable: true,  width: '10%' },
     { key: 'Practice_Area',    label: 'Practice Area',   sortable: true,  width: '12%' },
-    { key: 'Source',           label: 'Source',           sortable: true,  width: '8%' },
+    { key: 'Source',           label: 'Lead Source',      sortable: true,  width: '8%' },
     { key: 'Consent_Status',   label: 'Subscribed',      sortable: true,  width: '8%' },
     { key: 'Last_Contacted_At', label: 'Last Contact',   sortable: true,  width: '10%' },
     { key: 'Created_At',      label: 'Created',          sortable: true,  width: '10%' }
@@ -542,7 +542,10 @@
 
   function formatPracticeArea(pa) {
     if (!pa) return '—';
-    return pa.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    var items = Array.isArray(pa) ? pa : [pa];
+    return items.map(function(item) {
+      return item.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    }).join(', ');
   }
 
   // ─── Initialize ───────────────────────────────────────────
