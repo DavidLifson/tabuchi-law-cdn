@@ -455,7 +455,7 @@
   // ─── Revenue Projection ───────────────────────────────────
   function formatPracticeArea(val) {
     if (!val) return '—';
-    return String(val).replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    return String(val).replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
   }
 
   function formatCurrency(val) {

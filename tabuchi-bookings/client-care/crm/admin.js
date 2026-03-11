@@ -2166,7 +2166,7 @@
 
   function formatPracticeArea(pa) {
     if (!pa) return '\u2014';
-    return pa.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+    return pa.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
   }
 
   // ═══════════════════════════════════════════════════════════

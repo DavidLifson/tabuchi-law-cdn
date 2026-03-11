@@ -411,7 +411,7 @@
     if (!pa) return '\u2014';
     var items = Array.isArray(pa) ? pa : [pa];
     return items.map(function(item) {
-      return item.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+      return item.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
     }).join(', ');
   }
 
