@@ -49,12 +49,12 @@
     { key: 'dispositions', label: 'Dispositions' },
     { key: 'activity-types', label: 'Activity Types' },
     { key: 'entity-types', label: 'Entity Types' },
-    { key: 'job-titles', label: 'Job Titles' },
+    { key: 'roles', label: 'Roles' },
     { key: 'price-book', label: 'Price Books' }
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
-  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'job-titles'];
+  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'roles'];
 
   // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
   var HIDDEN_TABS = ['drip-enrollment'];
@@ -70,13 +70,13 @@
     ],
     'activity_type': [],
     'entity_type': [],
-    'job_title': [
+    'role': [
       { key: 'cost', label: 'Cost ($/hr)', type: 'number' }
     ]
   };
 
   function tabToConfigKey(tabKey) {
-    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'job-titles': 'job_title' };
+    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'roles': 'role' };
     return map[tabKey] || tabKey;
   }
 
@@ -128,6 +128,10 @@
     staffUsersLoading: false,
     staffUsersSortKey: 'name',
     staffUsersSortDir: 'asc',
+    usersSubTab: 'manage-users',
+    permissionsData: null,
+    permissionsConfigId: null,
+    permissionsSaving: false,
     // Templates
     templates: [],
     templatesLoading: false,
@@ -254,7 +258,7 @@
       case 'dispositions':
       case 'activity-types':
       case 'entity-types':
-      case 'job-titles':
+      case 'roles':
         renderConfigTab(tabToConfigKey(state.activeTab), TABS.find(function(t) { return t.key === state.activeTab; }).label);
         break;
     }
@@ -506,7 +510,8 @@
     try {
       var results = await Promise.allSettled([
         API.admin.listUsers(),
-        bookingAdminFetch('staff', { action: 'list-staff' })
+        bookingAdminFetch('staff', { action: 'list-staff' }),
+        loadPermissionsConfig()
       ]);
 
       if (results[0].status === 'fulfilled' && results[0].value.success) {
@@ -591,6 +596,50 @@
     var content = $el('cc-admin-content');
     if (!content) return;
 
+    // ─── Sub-tab navigation ───────────────────────────────────
+    var subTabs = [
+      { key: 'manage-users', label: 'Manage Users' },
+      { key: 'permissions', label: 'Permissions' }
+    ];
+
+    var html = '<div class="cc-admin-staff-users">';
+    html += '<div class="cc-admin-sub-tabs" style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;margin-bottom:20px;">';
+    subTabs.forEach(function(st) {
+      var active = state.usersSubTab === st.key;
+      html += '<button class="cc-admin-sub-tab-btn" data-subtab="' + st.key + '" style="'
+        + 'padding:10px 20px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:500;'
+        + 'border-bottom:2px solid ' + (active ? '#2563eb' : 'transparent') + ';'
+        + 'margin-bottom:-2px;color:' + (active ? '#2563eb' : '#6b7280') + ';'
+        + '">' + st.label + '</button>';
+    });
+    html += '</div>';
+
+    if (state.usersSubTab === 'manage-users') {
+      html += renderManageUsersContent();
+    } else {
+      html += renderInteractivePermissions();
+    }
+
+    html += '</div>';
+    content.innerHTML = html;
+
+    // Bind sub-tab clicks
+    content.querySelectorAll('.cc-admin-sub-tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        state.usersSubTab = btn.dataset.subtab;
+        renderStaffUsersTab();
+      });
+    });
+
+    if (state.usersSubTab === 'manage-users') {
+      bindStaffUsersEvents();
+    } else {
+      bindPermissionsEvents();
+    }
+  }
+
+  // ─── Manage Users sub-tab content ─────────────────────────
+  function renderManageUsersContent() {
     var merged = mergeStaffUsers();
 
     // Sort
@@ -601,19 +650,16 @@
       return state.staffUsersSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
 
-    var html = '<div class="cc-admin-staff-users">';
+    var html = '';
     html += '<div class="cc-admin-section-header">';
-    html += '<h3 class="cc-admin-section-title">Users</h3>';
+    html += '<h3 class="cc-admin-section-title">Manage Users</h3>';
     html += '<button id="cc-import-staff-btn" class="cc-btn cc-btn-primary cc-btn-sm">Import from Office 365</button>';
     html += '</div>';
     html += '<p class="cc-admin-hint">CRM users are provisioned on first SSO login. Booking staff can be imported from Office 365.</p>';
 
     if (sorted.length === 0 && !state.staffUsersLoading) {
       html += '<div class="cc-empty"><p>No users found.</p></div>';
-      html += '</div>';
-      content.innerHTML = html;
-      bindStaffImportBtn();
-      return;
+      return html;
     }
 
     var columns = [
@@ -677,14 +723,7 @@
     });
 
     html += '</tbody></table>';
-
-    // ─── Permissions Matrix ───────────────────────────────────
-    html += renderPermissionsMatrix();
-
-    html += '</div>';
-    content.innerHTML = html;
-
-    bindStaffUsersEvents();
+    return html;
   }
 
   // ─── Role-Permission Matrix ──────────────────────────────
@@ -708,40 +747,175 @@
     READ_ONLY:    ['leads', 'contacts', 'reports']
   };
 
-  function renderPermissionsMatrix() {
-    var html = '<div class="cc-admin-permissions" style="margin-top:32px;">';
-    html += '<h3 class="cc-admin-section-title">Permissions</h3>';
-    html += '<p class="cc-admin-hint">Access is determined by the role assigned to each user. The matrix below shows which CRM sections each role can access.</p>';
+  function getPermissionsData() {
+    // If we have saved data from CC_Config, use it; otherwise use defaults
+    if (state.permissionsData) return state.permissionsData;
+    // Clone from hardcoded defaults
+    var data = {};
+    Object.keys(ROLE_PERMISSIONS).forEach(function(role) {
+      data[role] = ROLE_PERMISSIONS[role].slice();
+    });
+    return data;
+  }
+
+  function renderInteractivePermissions() {
+    var permsData = getPermissionsData();
+    var roles = Object.keys(permsData);
+
+    var html = '';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">Permissions Grid</h3>';
+    html += '<button id="cc-add-role-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ Add Role</button>';
+    html += '</div>';
+    html += '<p class="cc-admin-hint">Toggle checkboxes to grant or revoke module access for each role. Changes are saved automatically.</p>';
 
     html += '<table class="cc-table cc-permissions-table" style="margin-top:12px;">';
     html += '<thead><tr>';
-    html += '<th class="cc-th" style="min-width:120px;">Role</th>';
+    html += '<th class="cc-th" style="min-width:140px;">Role</th>';
     PERMISSION_SECTIONS.forEach(function(sec) {
       html += '<th class="cc-th" style="text-align:center;min-width:80px;">' + escapeHtml(sec.label) + '</th>';
     });
+    html += '<th class="cc-th" style="text-align:center;width:80px;">Actions</th>';
     html += '</tr></thead><tbody>';
 
-    ROLE_OPTIONS.forEach(function(role) {
-      var perms = ROLE_PERMISSIONS[role] || [];
+    roles.forEach(function(role) {
+      var perms = permsData[role] || [];
       var roleCls = ROLE_COLORS[role] || 'gray';
-      html += '<tr>';
+      html += '<tr data-perm-role="' + escapeAttr(role) + '">';
       html += '<td><span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(role) + '</span></td>';
       PERMISSION_SECTIONS.forEach(function(sec) {
-        var has = perms.indexOf(sec.key) !== -1;
+        var checked = perms.indexOf(sec.key) !== -1 ? ' checked' : '';
         html += '<td style="text-align:center;">';
-        if (has) {
-          html += '<span style="color:#22c55e;font-size:18px;" title="Access granted">&#10003;</span>';
-        } else {
-          html += '<span style="color:#d1d5db;font-size:18px;" title="No access">&#8212;</span>';
-        }
+        html += '<input type="checkbox" class="cc-perm-checkbox" data-role="' + escapeAttr(role) + '" data-module="' + escapeAttr(sec.key) + '"' + checked + ' style="width:18px;height:18px;cursor:pointer;" />';
         html += '</td>';
       });
+      html += '<td style="text-align:center;">';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-delete-role-btn" data-role="' + escapeAttr(role) + '" title="Delete role">Delete</button>';
+      html += '</td>';
       html += '</tr>';
     });
 
     html += '</tbody></table>';
-    html += '</div>';
+
+    if (state.permissionsSaving) {
+      html += '<p class="cc-admin-hint" style="color:#2563eb;margin-top:8px;">Saving...</p>';
+    }
+
     return html;
+  }
+
+  async function loadPermissionsConfig() {
+    try {
+      var res = await API.admin.config.list('permissions');
+      if (res && res.items && res.items.length > 0) {
+        // Find the permissions grid config record
+        var record = res.items.find(function(it) { return it.Label === 'role_permissions'; });
+        if (record && record.Meta) {
+          try {
+            state.permissionsData = JSON.parse(record.Meta);
+            state.permissionsConfigId = record.id;
+          } catch (e) { /* use defaults */ }
+        }
+      }
+    } catch (e) { /* use defaults */ }
+  }
+
+  async function savePermissionsConfig() {
+    state.permissionsSaving = true;
+    var permsData = getPermissionsData();
+    var meta = JSON.stringify(permsData);
+    try {
+      if (state.permissionsConfigId) {
+        await API.admin.config.update(state.permissionsConfigId, {
+          Label: 'role_permissions',
+          Config_Key: 'permissions',
+          Meta: meta
+        });
+      } else {
+        var res = await API.admin.config.create({
+          Label: 'role_permissions',
+          Config_Key: 'permissions',
+          Sort_Order: 1,
+          Is_Active: true,
+          Meta: meta
+        });
+        if (res && res.id) state.permissionsConfigId = res.id;
+      }
+      showToast('Permissions saved.', 'success');
+    } catch (e) {
+      showToast('Failed to save permissions: ' + (e.error || e.message || 'Unknown error'), 'error');
+    }
+    state.permissionsSaving = false;
+  }
+
+  function bindPermissionsEvents() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    // Checkbox toggles
+    content.querySelectorAll('.cc-perm-checkbox').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        var role = cb.dataset.role;
+        var module = cb.dataset.module;
+        var permsData = getPermissionsData();
+        if (!permsData[role]) permsData[role] = [];
+        if (cb.checked) {
+          if (permsData[role].indexOf(module) === -1) permsData[role].push(module);
+        } else {
+          permsData[role] = permsData[role].filter(function(m) { return m !== module; });
+        }
+        state.permissionsData = permsData;
+        savePermissionsConfig();
+      });
+    });
+
+    // Add Role button
+    var addBtn = content.querySelector('#cc-add-role-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', function() {
+        showAddRoleModal();
+      });
+    }
+
+    // Delete Role buttons
+    content.querySelectorAll('.cc-delete-role-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var role = btn.dataset.role;
+        if (!confirm('Delete role "' + role + '" from the permissions grid?')) return;
+        var permsData = getPermissionsData();
+        delete permsData[role];
+        state.permissionsData = permsData;
+        savePermissionsConfig();
+        renderStaffUsersTab();
+      });
+    });
+  }
+
+  function showAddRoleModal() {
+    var html = '<div class="cc-modal-form">';
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Role Name</label>';
+    html += '<input type="text" id="cc-modal-new-role" class="cc-input" placeholder="e.g. PARALEGAL" />';
+    html += '</div>';
+    html += '<p class="cc-admin-hint" style="margin-top:4px;">Use UPPER_CASE format (e.g. SALES_INTAKE).</p>';
+    html += '</div>';
+
+    showModal('Add Role', html, async function() {
+      var roleName = (document.getElementById('cc-modal-new-role').value || '').trim().toUpperCase().replace(/\s+/g, '_');
+      if (!roleName) { showToast('Role name is required.', 'error'); return; }
+      var permsData = getPermissionsData();
+      if (permsData[roleName]) { showToast('Role "' + roleName + '" already exists.', 'error'); return; }
+      permsData[roleName] = [];
+      state.permissionsData = permsData;
+      await savePermissionsConfig();
+      closeModal();
+      renderStaffUsersTab();
+    });
+  }
+
+  // Keep static reference for backwards compatibility
+  function renderPermissionsMatrix() {
+    return renderInteractivePermissions();
   }
 
   function bindStaffUsersEvents() {
@@ -1443,7 +1617,8 @@
     html += '<table class="cc-table">';
     html += '<thead><tr>';
     html += '<th class="cc-th">Label</th>';
-    html += '<th class="cc-th" style="width:80px;">Order</th>';
+    var sortColLabel = configKey === 'role' ? 'Booking Priority' : 'Order';
+    html += '<th class="cc-th" style="width:80px;">' + sortColLabel + '</th>';
     metaFields.forEach(function(mf) {
       html += '<th class="cc-th">' + escapeHtml(mf.label) + '</th>';
     });
@@ -1547,7 +1722,8 @@
     html += '</div>';
 
     html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Sort Order</label>';
+    var sortLabel = configKey === 'role' ? 'Booking Priority' : 'Sort Order';
+    html += '<label class="cc-label">' + sortLabel + '</label>';
     html += '<input type="number" id="cc-modal-config-sort" class="cc-input" value="' + (existing ? (existing.Sort_Order || 0) : 0) + '" />';
     html += '</div>';
 
