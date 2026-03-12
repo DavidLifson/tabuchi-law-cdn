@@ -43,18 +43,19 @@
     { key: 'system-status', label: 'System Status' },
     { key: 'staff-users', label: 'Users' },
     { key: 'templates', label: 'Templates' },
+    { key: 'booking-priority', label: 'Booking Priority' },
+    { key: 'cost', label: 'Cost' },
     { key: 'categories', label: 'Categories' },
     { key: 'lead-sources', label: 'Lead Sources' },
     { key: 'stages', label: 'Stages' },
     { key: 'dispositions', label: 'Dispositions' },
     { key: 'activity-types', label: 'Activity Types' },
     { key: 'entity-types', label: 'Entity Types' },
-    { key: 'roles', label: 'Roles' },
     { key: 'price-book', label: 'Price Books' }
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
-  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'roles'];
+  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types'];
 
   // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
   var HIDDEN_TABS = ['drip-enrollment'];
@@ -69,14 +70,11 @@
       { key: 'color', label: 'Color', type: 'color' }
     ],
     'activity_type': [],
-    'entity_type': [],
-    'role': [
-      { key: 'cost', label: 'Cost ($/hr)', type: 'number' }
-    ]
+    'entity_type': []
   };
 
   function tabToConfigKey(tabKey) {
-    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'roles': 'role' };
+    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type' };
     return map[tabKey] || tabKey;
   }
 
@@ -132,6 +130,9 @@
     permissionsData: null,
     permissionsConfigId: null,
     permissionsSaving: false,
+    // Role config (booking priority + cost)
+    roleConfigItems: [],
+    roleConfigLoading: false,
     // Templates
     templates: [],
     templatesLoading: false,
@@ -251,6 +252,8 @@
       case 'staff-users':    renderStaffUsersTab(); break;
       case 'templates':      renderTemplatesTab(); break;
       case 'categories':     renderCategoriesTab(); break;
+      case 'booking-priority': renderBookingPriorityTab(); break;
+      case 'cost':           renderCostTab(); break;
       case 'price-book':     renderPriceBookTab(); break;
       case 'drip-enrollment': renderDripTab(); break;
       case 'lead-sources':
@@ -258,7 +261,6 @@
       case 'dispositions':
       case 'activity-types':
       case 'entity-types':
-      case 'roles':
         renderConfigTab(tabToConfigKey(state.activeTab), TABS.find(function(t) { return t.key === state.activeTab; }).label);
         break;
     }
@@ -268,6 +270,8 @@
       case 'staff-users':   fetchStaffUsers(); break;
       case 'templates':     fetchTemplates(); break;
       case 'categories':    fetchCategories(); break;
+      case 'booking-priority': fetchRoleConfig(); break;
+      case 'cost':          fetchRoleConfig(); break;
       case 'price-book':    fetchPriceBookItems(); break;
       case 'drip-enrollment': fetchDripData(); break;
       default:
@@ -916,6 +920,141 @@
   // Keep static reference for backwards compatibility
   function renderPermissionsMatrix() {
     return renderInteractivePermissions();
+  }
+
+  // ─── Booking Priority & Cost Tabs ─────────────────────────
+  async function fetchRoleConfig() {
+    state.roleConfigLoading = true;
+    var content = $el('cc-admin-content');
+    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading role data...</p></div>';
+    try {
+      var res = await API.admin.config.list('role');
+      state.roleConfigItems = (res && res.items) ? res.items : [];
+    } catch (e) {
+      state.roleConfigItems = [];
+      showToast('Error loading role configuration.', 'error');
+    }
+    state.roleConfigLoading = false;
+    if (state.activeTab === 'booking-priority') renderBookingPriorityTab();
+    else if (state.activeTab === 'cost') renderCostTab();
+  }
+
+  function getRoleConfigValue(roleName, metaKey) {
+    var item = state.roleConfigItems.find(function(it) { return it.Label === roleName; });
+    if (!item || !item.Meta) return '';
+    try { var m = JSON.parse(item.Meta); return m[metaKey] != null ? m[metaKey] : ''; } catch (e) { return ''; }
+  }
+
+  function getRoleConfigRecordId(roleName) {
+    var item = state.roleConfigItems.find(function(it) { return it.Label === roleName; });
+    return item ? item.id : null;
+  }
+
+  async function saveRoleConfigValue(roleName, metaKey, value) {
+    var item = state.roleConfigItems.find(function(it) { return it.Label === roleName; });
+    var meta = {};
+    if (item && item.Meta) { try { meta = JSON.parse(item.Meta); } catch (e) { meta = {}; } }
+    meta[metaKey] = value;
+    try {
+      if (item) {
+        await API.admin.config.update(item.id, { Label: roleName, Config_Key: 'role', Meta: JSON.stringify(meta) });
+        item.Meta = JSON.stringify(meta);
+      } else {
+        var res = await API.admin.config.create({ Label: roleName, Config_Key: 'role', Sort_Order: 0, Is_Active: true, Meta: JSON.stringify(meta) });
+        if (res && res.id) {
+          state.roleConfigItems.push({ id: res.id, Label: roleName, Config_Key: 'role', Sort_Order: 0, Is_Active: true, Meta: JSON.stringify(meta) });
+        }
+      }
+      showToast('Saved.', 'success');
+    } catch (e) {
+      showToast('Failed to save: ' + (e.error || e.message || 'Unknown error'), 'error');
+    }
+  }
+
+  function renderBookingPriorityTab() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+    if (state.roleConfigLoading) return;
+
+    var permsData = getPermissionsData();
+    var roles = Object.keys(permsData);
+
+    var html = '<div class="cc-admin-booking-priority">';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">Booking Priority</h3>';
+    html += '</div>';
+    html += '<p class="cc-admin-hint">Set the booking priority for each role. Lower numbers are shown first in the booking calendar.</p>';
+
+    html += '<table class="cc-table" style="margin-top:12px;max-width:500px;">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th" style="min-width:140px;">Role</th>';
+    html += '<th class="cc-th" style="width:120px;">Priority</th>';
+    html += '</tr></thead><tbody>';
+
+    roles.forEach(function(role) {
+      var val = getRoleConfigValue(role, 'booking_priority');
+      var roleCls = ROLE_COLORS[role] || 'gray';
+      html += '<tr>';
+      html += '<td><span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(role) + '</span></td>';
+      html += '<td><input type="number" class="cc-input cc-role-priority-input" data-role="' + escapeAttr(role) + '" value="' + escapeAttr(String(val)) + '" style="width:80px;padding:4px 8px;" min="0" /></td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+    content.innerHTML = html;
+
+    // Bind blur events to save
+    content.querySelectorAll('.cc-role-priority-input').forEach(function(inp) {
+      inp.addEventListener('change', function() {
+        var role = inp.dataset.role;
+        var val = inp.value.trim() === '' ? '' : parseInt(inp.value, 10);
+        saveRoleConfigValue(role, 'booking_priority', val);
+      });
+    });
+  }
+
+  function renderCostTab() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+    if (state.roleConfigLoading) return;
+
+    var permsData = getPermissionsData();
+    var roles = Object.keys(permsData);
+
+    var html = '<div class="cc-admin-cost">';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">Cost</h3>';
+    html += '</div>';
+    html += '<p class="cc-admin-hint">Set the hourly cost rate for each role. Used for billing and reporting calculations.</p>';
+
+    html += '<table class="cc-table" style="margin-top:12px;max-width:500px;">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th" style="min-width:140px;">Role</th>';
+    html += '<th class="cc-th" style="width:140px;">Cost ($/hr)</th>';
+    html += '</tr></thead><tbody>';
+
+    roles.forEach(function(role) {
+      var val = getRoleConfigValue(role, 'cost');
+      var roleCls = ROLE_COLORS[role] || 'gray';
+      html += '<tr>';
+      html += '<td><span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(role) + '</span></td>';
+      html += '<td><input type="number" class="cc-input cc-role-cost-input" data-role="' + escapeAttr(role) + '" value="' + escapeAttr(String(val)) + '" style="width:100px;padding:4px 8px;" min="0" step="0.01" /></td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+    content.innerHTML = html;
+
+    // Bind change events to save
+    content.querySelectorAll('.cc-role-cost-input').forEach(function(inp) {
+      inp.addEventListener('change', function() {
+        var role = inp.dataset.role;
+        var val = inp.value.trim() === '' ? '' : parseFloat(inp.value);
+        saveRoleConfigValue(role, 'cost', val);
+      });
+    });
   }
 
   function bindStaffUsersEvents() {
@@ -1617,8 +1756,7 @@
     html += '<table class="cc-table">';
     html += '<thead><tr>';
     html += '<th class="cc-th">Label</th>';
-    var sortColLabel = configKey === 'role' ? 'Booking Priority' : 'Order';
-    html += '<th class="cc-th" style="width:80px;">' + sortColLabel + '</th>';
+    html += '<th class="cc-th" style="width:80px;">Order</th>';
     metaFields.forEach(function(mf) {
       html += '<th class="cc-th">' + escapeHtml(mf.label) + '</th>';
     });
@@ -1722,8 +1860,7 @@
     html += '</div>';
 
     html += '<div class="cc-form-group">';
-    var sortLabel = configKey === 'role' ? 'Booking Priority' : 'Sort Order';
-    html += '<label class="cc-label">' + sortLabel + '</label>';
+    html += '<label class="cc-label">Sort Order</label>';
     html += '<input type="number" id="cc-modal-config-sort" class="cc-input" value="' + (existing ? (existing.Sort_Order || 0) : 0) + '" />';
     html += '</div>';
 
