@@ -669,7 +669,11 @@ const ClientCareAPI = (() => {
 
   function formatDate(dateStr) {
     if (!dateStr) return '';
-    const d = new Date(dateStr);
+    // Parse YYYY-MM-DD as local date (not UTC) to avoid off-by-one in negative UTC offsets
+    const parts = dateStr.split('T')[0].split('-');
+    const d = parts.length === 3
+      ? new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+      : new Date(dateStr);
     return d.toLocaleDateString('en-CA', {
       year: 'numeric', month: 'short', day: 'numeric'
     });
