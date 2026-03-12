@@ -78,7 +78,7 @@
   var COLUMNS = [
     { key: 'checkbox',          label: '☐',             sortable: false, width: '3%' },
     { key: 'Client_Name',      label: 'Contact',        sortable: true,  width: '18%' },
-    { key: 'Tags',             label: 'Tags',            sortable: false, width: '16%' },
+    { key: 'Tags',             label: 'Tags',            sortable: true,  width: '16%' },
     { key: 'Contact_Status',   label: 'Status',          sortable: true,  width: '10%' },
     { key: 'Practice_Area',    label: 'Practice Area',   sortable: true,  width: '12%' },
     { key: 'Source',           label: 'Lead Source',      sortable: true,  width: '8%' },

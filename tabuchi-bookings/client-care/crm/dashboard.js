@@ -57,6 +57,12 @@
   state.isAdmin = (state.role === 'ADMIN' || state.role === 'MANAGER');
 
   var REFRESH_INTERVAL = 300000; // 5 minutes
+
+  // Local date helper — avoids UTC timezone mismatch from n8n Cloud
+  function localToday() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
   var BOOKINGS_ENDPOINT = 'https://tabuchilaw.app.n8n.cloud/webhook/api/dashboard/bookings';
 
   // ─── Helpers ─────────────────────────────────────────────────
@@ -190,12 +196,17 @@
 
   function renderGreeting(g) {
     if (!g) return '';
-    var hour = new Date().getHours();
+    var now = new Date();
+    var hour = now.getHours();
     var tod = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    // Compute date client-side to avoid n8n UTC timezone mismatch
+    var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var dayOfWeek = days[now.getDay()];
+    var localDate = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
     return '<div class="cc-dash-greeting">' +
       '<div>' +
         '<h2 class="cc-dash-greeting-text">' + escapeHtml(tod + ', ' + (g.name || '')) + '</h2>' +
-        '<span class="cc-dash-greeting-date">' + escapeHtml(g.day_of_week + ', ' + API.util.formatDate(g.date)) + '</span>' +
+        '<span class="cc-dash-greeting-date">' + escapeHtml(dayOfWeek + ', ' + API.util.formatDate(localDate)) + '</span>' +
       '</div>' +
       '<div class="cc-dash-actions">' +
         '<a href="/crm/kanban" class="cc-btn cc-btn-sm cc-btn-outline">Kanban</a> ' +
@@ -218,12 +229,13 @@
 
     var overdueClass = (tasks.overdue || 0) > 0 ? 'red' : 'green';
 
-    // Count today's meetings from bookings
-    var todayStr = new Date().toISOString().split('T')[0];
+    // Count today's meetings from bookings (use local date, skip phantom records)
+    var todayStr = localToday();
     var todayMeetings = 0;
     var totalUpcoming = 0;
     if (state.bookings && state.bookings.length) {
       for (var i = 0; i < state.bookings.length; i++) {
+        if (!state.bookings[i].date) continue; // skip phantom records
         if (state.bookings[i].date === todayStr) todayMeetings++;
         totalUpcoming++;
       }
@@ -414,13 +426,14 @@
   // ─── Bookings Widget ────────────────────────────────────────
 
   function renderBookings(bookings) {
-    var today = new Date().toISOString().split('T')[0];
+    var today = localToday();
     var todayList = [];
     var upcomingList = [];
 
     if (bookings && bookings.length) {
       for (var i = 0; i < bookings.length; i++) {
         var b = bookings[i];
+        if (!b.date) continue; // skip phantom records from empty API results
         if (b.date === today) {
           todayList.push(b);
         } else {
@@ -481,7 +494,7 @@
       '<div class="cc-dash-booking-info">' +
         '<span class="cc-dash-booking-client">' + escapeHtml(b.clientName || '—') + '</span>' +
         '<span class="cc-dash-booking-service">' + escapeHtml(b.meetingTypeName || b.serviceName || '') +
-          (dateStr && b.date !== new Date().toISOString().split('T')[0] ? ' &middot; ' + escapeHtml(dateStr) : '') +
+          (dateStr && b.date !== localToday() ? ' &middot; ' + escapeHtml(dateStr) : '') +
         '</span>' +
       '</div>' +
       '<div class="cc-dash-booking-actions">' +

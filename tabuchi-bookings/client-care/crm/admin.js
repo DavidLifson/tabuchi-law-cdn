@@ -1924,9 +1924,7 @@
         html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + (t.Is_Active ? 'Yes' : 'No') + '</span></td>';
         html += '<td>';
         html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-pb-task-edit-btn" data-task-id="' + escapeAttr(t.id) + '">Edit</button> ';
-        if (t.Is_Active) {
-          html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-pb-task-del-btn" data-task-id="' + escapeAttr(t.id) + '">Deactivate</button>';
-        }
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-pb-task-del-btn" data-task-id="' + escapeAttr(t.id) + '">Delete</button>';
         html += '</td>';
         html += '</tr>';
       });
@@ -1961,13 +1959,13 @@
 
     content.querySelectorAll('.cc-pb-task-del-btn').forEach(function(btn) {
       btn.addEventListener('click', async function() {
-        if (!confirm('Deactivate this task?')) return;
+        if (!confirm('Delete this task? This cannot be undone.')) return;
         try {
           await API.priceBook.deleteTask(btn.dataset.taskId);
-          showToast('Task deactivated.', 'success');
+          showToast('Task deleted.', 'success');
           await openPriceBookDetail(state.priceBookDetail.id);
         } catch (err) {
-          showToast(err.error || 'Failed to deactivate task.', 'error');
+          showToast(err.error || 'Failed to delete task.', 'error');
         }
       });
     });
