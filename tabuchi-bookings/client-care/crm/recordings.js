@@ -114,8 +114,8 @@
     if (state.loading) return;
     state.loading = true;
 
-    var countEl = $el('cc-recording-count');
-    var tbody = $el('cc-recording-table-body');
+    var countEl = $el('cc-rec-count');
+    var tbody = $el('cc-rec-table-body');
 
     if (tbody) tbody.innerHTML = '<tr><td colspan="' + COLUMNS.length + '" class="cc-loading-cell"><div class="cc-spinner"></div> Loading...</td></tr>';
 
@@ -177,7 +177,7 @@
 
   // ─── Render Table ─────────────────────────────────────────────
   function renderTable() {
-    var tbody = $el('cc-recording-table-body');
+    var tbody = $el('cc-rec-table-body');
     if (!tbody) return;
 
     if (state.recordings.length === 0) {
@@ -242,7 +242,7 @@
 
   // ─── Render Sort Headers ──────────────────────────────────────
   function renderHeaders() {
-    var theadAll = document.querySelectorAll('#cc-recording-table thead tr');
+    var theadAll = document.querySelectorAll('#cc-rec-table thead tr');
     var thead = theadAll.length ? theadAll[theadAll.length - 1] : null;
     if (!thead) return;
 
