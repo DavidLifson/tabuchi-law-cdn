@@ -41,7 +41,7 @@
   // ─── Constants ─────────────────────────────────────────────
   var TABS = [
     { key: 'system-status', label: 'System Status' },
-    { key: 'staff-users', label: 'Staff & Users' },
+    { key: 'staff-users', label: 'Users' },
     { key: 'templates', label: 'Templates' },
     { key: 'categories', label: 'Categories' },
     { key: 'lead-sources', label: 'Lead Sources' },
@@ -49,11 +49,12 @@
     { key: 'dispositions', label: 'Dispositions' },
     { key: 'activity-types', label: 'Activity Types' },
     { key: 'entity-types', label: 'Entity Types' },
+    { key: 'job-titles', label: 'Job Titles' },
     { key: 'price-book', label: 'Price Books' }
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
-  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types'];
+  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'job-titles'];
 
   // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
   var HIDDEN_TABS = ['drip-enrollment'];
@@ -68,11 +69,14 @@
       { key: 'color', label: 'Color', type: 'color' }
     ],
     'activity_type': [],
-    'entity_type': []
+    'entity_type': [],
+    'job_title': [
+      { key: 'cost', label: 'Cost ($/hr)', type: 'number' }
+    ]
   };
 
   function tabToConfigKey(tabKey) {
-    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type' };
+    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'job-titles': 'job_title' };
     return map[tabKey] || tabKey;
   }
 
@@ -118,7 +122,7 @@
     // Overview
     stats: null,
     statsLoading: false,
-    // Staff & Users (merged)
+    // Users (merged CRM + booking staff)
     users: [],
     staffList: [],
     staffUsersLoading: false,
@@ -250,6 +254,7 @@
       case 'dispositions':
       case 'activity-types':
       case 'entity-types':
+      case 'job-titles':
         renderConfigTab(tabToConfigKey(state.activeTab), TABS.find(function(t) { return t.key === state.activeTab; }).label);
         break;
     }
@@ -496,7 +501,7 @@
   async function fetchStaffUsers() {
     state.staffUsersLoading = true;
     var content = $el('cc-admin-content');
-    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading staff &amp; users...</p></div>';
+    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading users...</p></div>';
 
     try {
       var results = await Promise.allSettled([
@@ -518,7 +523,7 @@
     } catch (err) {
       state.users = [];
       state.staffList = [];
-      showToast('Error loading staff & users.', 'error');
+      showToast('Error loading users.', 'error');
     }
 
     state.staffUsersLoading = false;
@@ -598,13 +603,13 @@
 
     var html = '<div class="cc-admin-staff-users">';
     html += '<div class="cc-admin-section-header">';
-    html += '<h3 class="cc-admin-section-title">Staff &amp; Users</h3>';
+    html += '<h3 class="cc-admin-section-title">Users</h3>';
     html += '<button id="cc-import-staff-btn" class="cc-btn cc-btn-primary cc-btn-sm">Import from Office 365</button>';
     html += '</div>';
     html += '<p class="cc-admin-hint">CRM users are provisioned on first SSO login. Booking staff can be imported from Office 365.</p>';
 
     if (sorted.length === 0 && !state.staffUsersLoading) {
-      html += '<div class="cc-empty"><p>No staff or users found.</p></div>';
+      html += '<div class="cc-empty"><p>No users found.</p></div>';
       html += '</div>';
       content.innerHTML = html;
       bindStaffImportBtn();
@@ -672,10 +677,71 @@
     });
 
     html += '</tbody></table>';
+
+    // ─── Permissions Matrix ───────────────────────────────────
+    html += renderPermissionsMatrix();
+
     html += '</div>';
     content.innerHTML = html;
 
     bindStaffUsersEvents();
+  }
+
+  // ─── Role-Permission Matrix ──────────────────────────────
+  var PERMISSION_SECTIONS = [
+    { key: 'leads',       label: 'Leads' },
+    { key: 'contacts',    label: 'Contacts' },
+    { key: 'campaigns',   label: 'Campaigns' },
+    { key: 'kanban',      label: 'Kanban' },
+    { key: 'reports',     label: 'Reports' },
+    { key: 'intake',      label: 'Intake' },
+    { key: 'admin',       label: 'Admin' },
+    { key: 'bookings',    label: 'Bookings' }
+  ];
+
+  var ROLE_PERMISSIONS = {
+    ADMIN:        ['leads', 'contacts', 'campaigns', 'kanban', 'reports', 'intake', 'admin', 'bookings'],
+    MANAGER:      ['leads', 'contacts', 'campaigns', 'kanban', 'reports', 'intake', 'bookings'],
+    SALES_INTAKE: ['leads', 'contacts', 'kanban', 'intake'],
+    LAWYER:       ['leads', 'contacts', 'kanban', 'reports'],
+    MARKETING:    ['leads', 'contacts', 'campaigns', 'reports'],
+    READ_ONLY:    ['leads', 'contacts', 'reports']
+  };
+
+  function renderPermissionsMatrix() {
+    var html = '<div class="cc-admin-permissions" style="margin-top:32px;">';
+    html += '<h3 class="cc-admin-section-title">Permissions</h3>';
+    html += '<p class="cc-admin-hint">Access is determined by the role assigned to each user. The matrix below shows which CRM sections each role can access.</p>';
+
+    html += '<table class="cc-table cc-permissions-table" style="margin-top:12px;">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th" style="min-width:120px;">Role</th>';
+    PERMISSION_SECTIONS.forEach(function(sec) {
+      html += '<th class="cc-th" style="text-align:center;min-width:80px;">' + escapeHtml(sec.label) + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    ROLE_OPTIONS.forEach(function(role) {
+      var perms = ROLE_PERMISSIONS[role] || [];
+      var roleCls = ROLE_COLORS[role] || 'gray';
+      html += '<tr>';
+      html += '<td><span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(role) + '</span></td>';
+      PERMISSION_SECTIONS.forEach(function(sec) {
+        var has = perms.indexOf(sec.key) !== -1;
+        html += '<td style="text-align:center;">';
+        if (has) {
+          html += '<span style="color:#22c55e;font-size:18px;" title="Access granted">&#10003;</span>';
+        } else {
+          html += '<span style="color:#d1d5db;font-size:18px;" title="No access">&#8212;</span>';
+        }
+        html += '</td>';
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+    return html;
   }
 
   function bindStaffUsersEvents() {
