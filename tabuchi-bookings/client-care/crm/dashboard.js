@@ -48,6 +48,7 @@
   // ─── State ───────────────────────────────────────────────────
   var state = {
     data: null,
+    bookings: [],
     loading: false,
     role: (_u && _u.role) || '',
     isAdmin: false,
@@ -56,6 +57,7 @@
   state.isAdmin = (state.role === 'ADMIN' || state.role === 'MANAGER');
 
   var REFRESH_INTERVAL = 300000; // 5 minutes
+  var BOOKINGS_ENDPOINT = 'https://tabuchilaw.app.n8n.cloud/webhook/api/dashboard/bookings';
 
   // ─── Helpers ─────────────────────────────────────────────────
 
@@ -82,6 +84,22 @@
 
   // ─── Data Loading ────────────────────────────────────────────
 
+  async function fetchBookings() {
+    try {
+      var token = API.auth.getToken();
+      var res = await fetch(BOOKINGS_ENDPOINT + '?status=upcoming', {
+        headers: { 'Dashboard_Token': token }
+      });
+      var data = await res.json();
+      if (data && data.success) {
+        state.bookings = data.bookings || [];
+      }
+    } catch (e) {
+      // Bookings fetch is non-critical; fail silently
+      state.bookings = [];
+    }
+  }
+
   async function loadDashboard(showSkeleton) {
     if (state.loading) return;
     state.loading = true;
@@ -93,7 +111,11 @@
     }
 
     try {
-      var result = await API.dashboard.get();
+      var results = await Promise.all([
+        API.dashboard.get(),
+        fetchBookings()
+      ]);
+      var result = results[0];
       if (!result || !result.success) {
         throw new Error((result && result.error) || 'Failed to load dashboard');
       }
@@ -137,6 +159,9 @@
 
     // Stat cards
     html += renderStatCards(d);
+
+    // Bookings — prominent position right after stats
+    html += renderBookings(state.bookings);
 
     // Two-column: Tasks + Pipeline
     html += '<div class="cc-dash-grid-2">';
@@ -193,9 +218,22 @@
 
     var overdueClass = (tasks.overdue || 0) > 0 ? 'red' : 'green';
 
+    // Count today's meetings from bookings
+    var todayStr = new Date().toISOString().split('T')[0];
+    var todayMeetings = 0;
+    var totalUpcoming = 0;
+    if (state.bookings && state.bookings.length) {
+      for (var i = 0; i < state.bookings.length; i++) {
+        if (state.bookings[i].date === todayStr) todayMeetings++;
+        totalUpcoming++;
+      }
+    }
+    var meetingColor = todayMeetings > 0 ? 'teal' : 'gray';
+
     return '<div class="cc-dash-stats">' +
       statCard('Open Pipeline', fmtNum(pipe.total_open), 'leads in funnel', 'blue') +
       statCard('Weighted Revenue', fmtCurrency(rev.weighted_total), fmtNum(rev.eligible_leads) + ' eligible leads', 'purple') +
+      statCard('Today\'s Meetings', fmtNum(todayMeetings), fmtNum(totalUpcoming) + ' total upcoming', meetingColor) +
       statCard('SLA Compliance', fmtPct(slaPct), fmtNum(sla.within_sla) + '/' + fmtNum(sla.total) + ' within SLA', slaClass) +
       statCard('Overdue Tasks', fmtNum(tasks.overdue), fmtNum(tasks.total_open) + ' total open', overdueClass) +
     '</div>';
@@ -371,6 +409,100 @@
         '<div class="cc-dash-sla-row"><span>Total</span><span>' + fmtNum(sla.total) + '</span></div>' +
       '</div>' +
     '</div>';
+  }
+
+  // ─── Bookings Widget ────────────────────────────────────────
+
+  function renderBookings(bookings) {
+    var today = new Date().toISOString().split('T')[0];
+    var todayList = [];
+    var upcomingList = [];
+
+    if (bookings && bookings.length) {
+      for (var i = 0; i < bookings.length; i++) {
+        var b = bookings[i];
+        if (b.date === today) {
+          todayList.push(b);
+        } else {
+          upcomingList.push(b);
+        }
+      }
+    }
+
+    var html = '<div class="cc-dash-card cc-dash-full">' +
+      '<h3 class="cc-dash-card-title">Upcoming Meetings' +
+        '<span class="cc-muted" style="font-weight:400;font-size:0.85rem;margin-left:0.5rem;">' +
+          (todayList.length ? todayList.length + ' today' : '') +
+          (todayList.length && upcomingList.length ? ' &middot; ' : '') +
+          (upcomingList.length ? upcomingList.length + ' upcoming' : '') +
+        '</span>' +
+      '</h3>';
+
+    if (!todayList.length && !upcomingList.length) {
+      html += '<p class="cc-muted" style="margin:0.5rem 0;">No upcoming meetings scheduled</p>';
+    }
+
+    if (todayList.length) {
+      html += '<h4 class="cc-dash-sub-title">Today</h4>';
+      html += '<div class="cc-dash-booking-list">';
+      for (var t = 0; t < todayList.length; t++) {
+        html += bookingRow(todayList[t]);
+      }
+      html += '</div>';
+    }
+
+    if (upcomingList.length) {
+      html += '<h4 class="cc-dash-sub-title" style="margin-top:1rem;">Upcoming</h4>';
+      html += '<div class="cc-dash-booking-list">';
+      var limit = Math.min(upcomingList.length, 8);
+      for (var u = 0; u < limit; u++) {
+        html += bookingRow(upcomingList[u]);
+      }
+      if (upcomingList.length > 8) {
+        html += '<div class="cc-muted" style="padding:0.4rem 0;">+ ' + (upcomingList.length - 8) + ' more</div>';
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function bookingRow(b) {
+    var timeStr = formatBookingTime(b.startTime || b.time);
+    var endStr = b.endTime ? ' – ' + formatBookingTime(b.endTime) : '';
+    var dateStr = b.date ? API.util.formatDate(b.date) : '';
+    var statusCls = b.status === 'confirmed' ? 'green' : b.status === 'cancelled' ? 'red' : 'yellow';
+    var statusLabel = b.status === 'pending_approval' ? 'Pending' : (b.status || 'Unknown');
+    statusLabel = statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1);
+
+    var html = '<div class="cc-dash-booking-row">' +
+      '<div class="cc-dash-booking-time">' + escapeHtml(timeStr + endStr) + '</div>' +
+      '<div class="cc-dash-booking-info">' +
+        '<span class="cc-dash-booking-client">' + escapeHtml(b.clientName || '—') + '</span>' +
+        '<span class="cc-dash-booking-service">' + escapeHtml(b.meetingTypeName || b.serviceName || '') +
+          (dateStr && b.date !== new Date().toISOString().split('T')[0] ? ' &middot; ' + escapeHtml(dateStr) : '') +
+        '</span>' +
+      '</div>' +
+      '<div class="cc-dash-booking-actions">' +
+        '<span class="cc-badge cc-badge-' + statusCls + ' cc-badge-sm">' + escapeHtml(statusLabel) + '</span>';
+
+    if (b.meetingLink) {
+      html += ' <a href="' + escapeHtml(b.meetingLink) + '" target="_blank" rel="noopener" class="cc-btn cc-btn-sm cc-btn-outline" style="font-size:0.75rem;padding:0.15rem 0.5rem;">Join</a>';
+    }
+
+    html += '</div></div>';
+    return html;
+  }
+
+  function formatBookingTime(time) {
+    if (!time) return '';
+    var parts = time.split(':');
+    var h = parseInt(parts[0], 10);
+    var m = parts[1] || '00';
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + m + ' ' + ampm;
   }
 
   // ─── Admin: Rep Comparison ───────────────────────────────────
