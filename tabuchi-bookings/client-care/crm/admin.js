@@ -43,8 +43,6 @@
     { key: 'system-status', label: 'System Status' },
     { key: 'staff-users', label: 'Users' },
     { key: 'templates', label: 'Templates' },
-    { key: 'booking-priority', label: 'Booking Priority' },
-    { key: 'cost', label: 'Cost' },
     { key: 'categories', label: 'Categories' },
     { key: 'lead-sources', label: 'Lead Sources' },
     { key: 'stages', label: 'Stages' },
@@ -252,8 +250,6 @@
       case 'staff-users':    renderStaffUsersTab(); break;
       case 'templates':      renderTemplatesTab(); break;
       case 'categories':     renderCategoriesTab(); break;
-      case 'booking-priority': renderBookingPriorityTab(); break;
-      case 'cost':           renderCostTab(); break;
       case 'price-book':     renderPriceBookTab(); break;
       case 'drip-enrollment': renderDripTab(); break;
       case 'lead-sources':
@@ -270,8 +266,6 @@
       case 'staff-users':   fetchStaffUsers(); break;
       case 'templates':     fetchTemplates(); break;
       case 'categories':    fetchCategories(); break;
-      case 'booking-priority': fetchRoleConfig(); break;
-      case 'cost':          fetchRoleConfig(); break;
       case 'price-book':    fetchPriceBookItems(); break;
       case 'drip-enrollment': fetchDripData(); break;
       default:
@@ -515,7 +509,8 @@
       var results = await Promise.allSettled([
         API.admin.listUsers(),
         bookingAdminFetch('staff', { action: 'list-staff' }),
-        loadPermissionsConfig()
+        loadPermissionsConfig(),
+        API.admin.config.list('role')
       ]);
 
       if (results[0].status === 'fulfilled' && results[0].value.success) {
@@ -528,6 +523,13 @@
         state.staffList = results[1].value.staff || [];
       } else {
         state.staffList = [];
+      }
+
+      if (results[3].status === 'fulfilled') {
+        var roleRes = results[3].value;
+        state.roleConfigItems = (roleRes && roleRes.items) ? roleRes.items : [];
+      } else {
+        state.roleConfigItems = [];
       }
     } catch (err) {
       state.users = [];
@@ -603,7 +605,9 @@
     // ─── Sub-tab navigation ───────────────────────────────────
     var subTabs = [
       { key: 'manage-users', label: 'Manage Users' },
-      { key: 'permissions', label: 'Permissions' }
+      { key: 'permissions', label: 'Permissions' },
+      { key: 'booking-priority', label: 'Booking Priority' },
+      { key: 'cost', label: 'Cost' }
     ];
 
     var html = '<div class="cc-admin-staff-users">';
@@ -618,10 +622,11 @@
     });
     html += '</div>';
 
-    if (state.usersSubTab === 'manage-users') {
-      html += renderManageUsersContent();
-    } else {
-      html += renderInteractivePermissions();
+    switch (state.usersSubTab) {
+      case 'manage-users':      html += renderManageUsersContent(); break;
+      case 'permissions':       html += renderInteractivePermissions(); break;
+      case 'booking-priority':  html += renderBookingPriorityContent(); break;
+      case 'cost':              html += renderCostContent(); break;
     }
 
     html += '</div>';
@@ -635,10 +640,11 @@
       });
     });
 
-    if (state.usersSubTab === 'manage-users') {
-      bindStaffUsersEvents();
-    } else {
-      bindPermissionsEvents();
+    switch (state.usersSubTab) {
+      case 'manage-users':      bindStaffUsersEvents(); break;
+      case 'permissions':       bindPermissionsEvents(); break;
+      case 'booking-priority':  bindBookingPriorityEvents(); break;
+      case 'cost':              bindCostEvents(); break;
     }
   }
 
@@ -925,8 +931,6 @@
   // ─── Booking Priority & Cost Tabs ─────────────────────────
   async function fetchRoleConfig() {
     state.roleConfigLoading = true;
-    var content = $el('cc-admin-content');
-    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading role data...</p></div>';
     try {
       var res = await API.admin.config.list('role');
       state.roleConfigItems = (res && res.items) ? res.items : [];
@@ -935,8 +939,10 @@
       showToast('Error loading role configuration.', 'error');
     }
     state.roleConfigLoading = false;
-    if (state.activeTab === 'booking-priority') renderBookingPriorityTab();
-    else if (state.activeTab === 'cost') renderCostTab();
+    // Re-render if currently viewing a role sub-tab
+    if (state.activeTab === 'staff-users' && (state.usersSubTab === 'booking-priority' || state.usersSubTab === 'cost')) {
+      renderStaffUsersTab();
+    }
   }
 
   function getRoleConfigValue(roleName, metaKey) {
@@ -971,11 +977,7 @@
     }
   }
 
-  function renderBookingPriorityTab() {
-    var content = $el('cc-admin-content');
-    if (!content) return;
-    if (state.roleConfigLoading) return;
-
+  function renderBookingPriorityContent() {
     var permsData = getPermissionsData();
     var roles = Object.keys(permsData);
 
@@ -1002,9 +1004,12 @@
 
     html += '</tbody></table>';
     html += '</div>';
-    content.innerHTML = html;
+    return html;
+  }
 
-    // Bind blur events to save
+  function bindBookingPriorityEvents() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
     content.querySelectorAll('.cc-role-priority-input').forEach(function(inp) {
       inp.addEventListener('change', function() {
         var role = inp.dataset.role;
@@ -1014,11 +1019,7 @@
     });
   }
 
-  function renderCostTab() {
-    var content = $el('cc-admin-content');
-    if (!content) return;
-    if (state.roleConfigLoading) return;
-
+  function renderCostContent() {
     var permsData = getPermissionsData();
     var roles = Object.keys(permsData);
 
@@ -1045,9 +1046,12 @@
 
     html += '</tbody></table>';
     html += '</div>';
-    content.innerHTML = html;
+    return html;
+  }
 
-    // Bind change events to save
+  function bindCostEvents() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
     content.querySelectorAll('.cc-role-cost-input').forEach(function(inp) {
       inp.addEventListener('change', function() {
         var role = inp.dataset.role;
