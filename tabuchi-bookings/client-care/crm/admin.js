@@ -2361,7 +2361,8 @@
     closeModal();
     var isEdit = !!existing;
     var title = isEdit ? 'Edit Service' : 'Add Service';
-    var selectedPa = (existing && existing.Practice_Area) || defaultPa || '';
+    var rawPa = (existing && existing.Practice_Area) || '';
+    var selectedPa = (rawPa && PB_LABEL_TO_KEY[rawPa]) || rawPa || defaultPa || '';
 
     // Build practice area options from PB_PRACTICE_AREAS
     var paOptions = '<option value="">-- Select --</option>';
