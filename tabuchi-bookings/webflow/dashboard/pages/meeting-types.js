@@ -252,6 +252,7 @@
         + '<span style="font-size:0.8rem;font-weight:600;color:#1E40AF;">Client Booking Link:</span>'
         + '<code style="font-size:0.75rem;color:#374151;word-break:break-all;flex:1;">' + esc(bookingUrl) + '</code>'
         + '<button class="tb-btn tb-btn-secondary tb-copy-link-btn" data-url="' + esc(bookingUrl) + '" style="padding:0.25rem 0.6rem;font-size:0.75rem;white-space:nowrap;">Copy Link</button>'
+        + '<button class="tb-btn tb-btn-secondary tb-preview-link-btn" data-url="' + esc(bookingUrl) + '" style="padding:0.25rem 0.6rem;font-size:0.75rem;white-space:nowrap;">Preview</button>'
         + '</div>' : '')
         + '</div>'
         + '</div>';
@@ -294,6 +295,11 @@
           fallbackCopy();
         }
       });
+    });
+
+    // Wire preview buttons (open booking page in new tab)
+    container.querySelectorAll('.tb-preview-link-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { window.open(btn.dataset.url, '_blank'); });
     });
 
     // Wire collapsible card toggles
@@ -477,6 +483,11 @@
     } else {
       fallbackCopy();
     }
+  });
+
+  $el('tb-mt-preview-link-btn')?.addEventListener('click', function() {
+    var link = $el('tb-mt-booking-link');
+    if (link && link.textContent) window.open(link.textContent, '_blank');
   });
 
   $el('tb-mt-form')?.addEventListener('submit', async function(e) {

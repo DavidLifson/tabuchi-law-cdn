@@ -406,6 +406,7 @@
     // Action bar
     html += '<div class="cc-detail-actions">';
     html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-tpl-edit-meta-btn">Edit Details</button>';
+    html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-tpl-preview-tab-btn">Preview in New Tab</button>';
     html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-tpl-dup-detail-btn">Duplicate</button>';
     html += '<button class="cc-btn cc-btn-sm cc-btn-danger cc-tpl-del-detail-btn">Delete</button>';
     html += '</div>';
@@ -654,6 +655,40 @@
   }
 
   // ═══════════════════════════════════════════════════════════
+  // PREVIEW IN NEW TAB
+  // ═══════════════════════════════════════════════════════════
+
+  function openPreviewTab() {
+    var t = state.activeTemplate;
+    if (!t) return;
+    var cat = t.category || '';
+    var edType = editorTypeForCategory(cat);
+    var body = '';
+
+    if (edType === 'sms') {
+      body = '<div style="max-width:400px;margin:2rem auto;padding:1.5rem;background:#E5F3FF;border-radius:16px;font-family:-apple-system,system-ui,sans-serif;font-size:15px;line-height:1.5">'
+        + escapeHtml(state.smsText || '(empty)')
+        + '</div>';
+    } else {
+      body = compilePreviewHtml();
+    }
+
+    var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Preview: '
+      + escapeHtml(t.name || 'Template')
+      + '</title><style>body{margin:0;padding:2rem;background:#f3f4f6;font-family:-apple-system,system-ui,sans-serif}'
+      + '.preview-wrap{max-width:640px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);padding:2rem}'
+      + '.preview-banner{text-align:center;padding:0.75rem;background:#1E40AF;color:#fff;font-size:0.8rem;border-radius:8px 8px 0 0;margin:-2rem -2rem 1.5rem}'
+      + '</style></head><body>'
+      + '<div class="preview-wrap">'
+      + '<div class="preview-banner">Template Preview: ' + escapeHtml(t.name || '') + ' (' + escapeHtml(cat || 'Email') + ')</div>'
+      + body
+      + '</div></body></html>';
+
+    var w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // EVENT BINDINGS
   // ═══════════════════════════════════════════════════════════
 
@@ -667,6 +702,9 @@
 
     var editMetaBtn = el.querySelector('.cc-tpl-edit-meta-btn');
     if (editMetaBtn) editMetaBtn.addEventListener('click', showEditModal);
+
+    var previewTabBtn = el.querySelector('.cc-tpl-preview-tab-btn');
+    if (previewTabBtn) previewTabBtn.addEventListener('click', openPreviewTab);
 
     var dupBtn = el.querySelector('.cc-tpl-dup-detail-btn');
     if (dupBtn) dupBtn.addEventListener('click', function() {
