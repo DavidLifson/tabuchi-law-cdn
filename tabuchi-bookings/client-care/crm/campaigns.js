@@ -618,7 +618,7 @@
     html += fieldRow('Subject', c.subject || '—');
     html += fieldRow('Preheader', c.preheader || '—');
     html += fieldRow('From', (c.from_name || '—') + ' <' + (c.from_email || '—') + '>');
-    html += fieldRow('Reply-To', c.reply_to_email || '—');
+    html += fieldRow('Reply-To', c.reply_to || '—');
     html += fieldRow('Timezone', c.timezone || 'America/Toronto');
     if (c.template_name) html += fieldRow('Template', c.template_name);
     if (c.original_campaign_name) {
@@ -1949,7 +1949,7 @@
 
     html += '<div class="cc-form-group">';
     html += '<label class="cc-label">Reply-To Email</label>';
-    html += '<input type="email" id="cc-modal-reply-to" class="cc-input" value="' + escapeAttr(c.reply_to_email || '') + '" />';
+    html += '<input type="email" id="cc-modal-reply-to" class="cc-input" value="' + escapeAttr(c.reply_to || '') + '" />';
     html += '</div>';
 
     html += '<div class="cc-form-group">';
