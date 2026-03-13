@@ -39,7 +39,7 @@
   };
 
   // ─── Constants ─────────────────────────────────────────────
-  var CATEGORIES = ['Newsletter', 'Email Marketing', 'Confirmation - Email', 'Confirmation - SMS'];
+  var CATEGORIES = ['Welcome', 'Newsletter', 'Email Marketing', 'Confirmation - Email', 'Confirmation - SMS'];
 
   // Channel is derived from category — no separate selection needed
   function channelForCategory(cat) {

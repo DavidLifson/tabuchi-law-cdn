@@ -436,7 +436,7 @@ const ClientCareAPI = (() => {
   }
 
   async function previewAudience(audienceDefinition) {
-    return request('POST', '/cc/campaigns', { body: { action: 'preview_audience', audience: audienceDefinition } });
+    return request('POST', '/cc/campaigns', { body: { action: 'preview_audience', audience_rules: audienceDefinition } });
   }
 
   // Campaign Steps (drip/automation campaigns)
