@@ -114,21 +114,35 @@
 
     if (showSkeleton) {
       root.innerHTML = renderSkeleton();
+      updateProgress(1, 'Loading dashboard data\u2026');
     }
 
     try {
-      var results = await Promise.all([
-        API.dashboard.get(),
-        fetchBookings()
-      ]);
-      var result = results[0];
+      // Fire both requests in parallel
+      var dashPromise = API.dashboard.get();
+      var bookingsPromise = fetchBookings();
+
+      if (showSkeleton) updateProgress(2, 'Fetching pipeline & tasks\u2026');
+
+      var result = await dashPromise;
       if (!result || !result.success) {
         throw new Error((result && result.error) || 'Failed to load dashboard');
       }
       state.data = result.data;
       state.role = result.role || state.role;
       state.isAdmin = (state.role === 'ADMIN' || state.role === 'MANAGER');
-      render();
+
+      if (showSkeleton) updateProgress(4, 'Rendering dashboard\u2026');
+
+      // Wait for bookings (non-blocking — dashboard renders even if this is slow)
+      await bookingsPromise;
+
+      if (showSkeleton) {
+        updateProgress(5, 'Almost there\u2026');
+        renderProgressive(root);
+      } else {
+        render();
+      }
     } catch (err) {
       root.innerHTML = '<div class="cc-error"><p>' + escapeHtml(err.message || 'Error loading dashboard') + '</p>' +
         '<button class="cc-btn cc-btn-sm" onclick="location.reload()">Retry</button></div>';
@@ -137,10 +151,76 @@
     }
   }
 
-  // ─── Skeleton ────────────────────────────────────────────────
+  // Render sections progressively so the user sees content appearing
+  function renderProgressive(root) {
+    if (!state.data) { render(); return; }
+    var d = state.data;
+
+    // Phase 1: Greeting + stats (instant)
+    var html = renderGreeting(d.greeting);
+    html += renderStatCards(d);
+    root.innerHTML = html;
+    bindEvents();
+    updateProgress(6, 'Done');
+
+    // Phase 2: Bookings + Tasks/Pipeline (next frame)
+    requestAnimationFrame(function() {
+      var frag = document.createDocumentFragment();
+
+      var bookingsDiv = document.createElement('div');
+      bookingsDiv.innerHTML = renderBookings(state.bookings);
+      while (bookingsDiv.firstChild) frag.appendChild(bookingsDiv.firstChild);
+
+      var gridDiv = document.createElement('div');
+      gridDiv.innerHTML = '<div class="cc-dash-grid-2">' + renderTasks(d.tasks) + renderPipeline(d.pipeline) + '</div>';
+      while (gridDiv.firstChild) frag.appendChild(gridDiv.firstChild);
+
+      root.appendChild(frag);
+
+      // Phase 3: Activity + SLA + Admin (next frame)
+      requestAnimationFrame(function() {
+        var frag2 = document.createDocumentFragment();
+
+        var actDiv = document.createElement('div');
+        actDiv.innerHTML = '<div class="cc-dash-grid-2">' + renderActivity(d.recent_activity) + renderSLADetail(d.sla) + '</div>';
+        while (actDiv.firstChild) frag2.appendChild(actDiv.firstChild);
+
+        if (state.isAdmin) {
+          var adminDiv = document.createElement('div');
+          adminDiv.innerHTML = renderRepComparison(d.rep_comparison) +
+            renderRevenueTimeline(d.revenue_timeline) +
+            renderWorkload(d.workload, d.pipeline);
+          while (adminDiv.firstChild) frag2.appendChild(adminDiv.firstChild);
+        }
+
+        root.appendChild(frag2);
+      });
+    });
+  }
+
+  // ─── Progress Loader ─────────────────────────────────────────
+
+  var progressState = { current: 0, total: 6, status: '' };
+
+  function updateProgress(step, status) {
+    progressState.current = step;
+    progressState.status = status;
+    var bar = document.getElementById('cc-dash-progress-fill');
+    var label = document.getElementById('cc-dash-progress-label');
+    if (bar) bar.style.width = Math.round((step / progressState.total) * 100) + '%';
+    if (label) label.textContent = status;
+  }
 
   function renderSkeleton() {
     return '<div class="cc-dash-skeleton">' +
+      // Progress bar
+      '<div class="cc-dash-progress">' +
+        '<div class="cc-dash-progress-bar">' +
+          '<div class="cc-dash-progress-fill" id="cc-dash-progress-fill" style="width:5%"></div>' +
+        '</div>' +
+        '<div class="cc-dash-progress-label" id="cc-dash-progress-label">Connecting to server\u2026</div>' +
+      '</div>' +
+      // Skeleton placeholders
       '<div class="cc-dash-greeting-skel cc-skel-pulse" style="height:48px;margin-bottom:1.5rem;border-radius:8px;background:#1F2937;"></div>' +
       '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">' +
         '<div class="cc-skel-pulse" style="height:100px;border-radius:8px;background:#1F2937;"></div>'.repeat(4) +

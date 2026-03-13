@@ -2,7 +2,7 @@
  * Tabuchi Law Booking System - Dashboard Meeting Types Manager
  * Handles: /dashboard-meeting-types
  *
- * Requires: api-client.js loaded first, Quill.js 1.3.7 (CDN) for email reminder editor
+ * Requires: api-client.js loaded first
  *
  * Page element IDs:
  * - #tb-mt-list (container for meeting type cards)
@@ -19,8 +19,7 @@
  * - #tb-mt-time-block (range slider %), #tb-mt-time-block-val (label)
  * - #tb-mt-custom-avail-toggle, #tb-mt-custom-avail-panel, #tb-mt-avail-grid
  * - #tb-mt-confirmation-message
- * - #tb-mt-reminders-list (rich text reminder rows container)
- * - #tb-mt-add-reminder-btn
+ * - #tb-mt-reminders-list (template/drip campaign picker container)
  * - #tb-mt-max-per-day
  * - #tb-mt-save-btn, #tb-mt-cancel-btn
  * - #tb-mt-form-error
@@ -377,10 +376,7 @@
     // Hide modal delete button for create
     var modalDelBtn = $el('tb-mt-modal-delete-btn');
     if (modalDelBtn) modalDelBtn.style.display = 'none';
-    renderReminders([
-      {channel: 'email', hoursBefore: 24, template: defaultReminderTemplate('email')},
-      {channel: 'sms', hoursBefore: 2, template: defaultReminderTemplate('sms')}
-    ]);
+    loadReminderOptions().then(function() { renderReminderPicker({}); });
     showEl('tb-mt-form-modal');
   }
 
@@ -415,20 +411,9 @@
 
     setChecked('tb-mt-active', mt.active !== false);
 
-    // Load reminders - parse from reminderConfig or fall back to legacy emailReminderSchedule
-    var reminders = [];
-    if (mt.reminderConfig) {
-      try { reminders = typeof mt.reminderConfig === 'string' ? JSON.parse(mt.reminderConfig) : mt.reminderConfig; } catch(e) {}
-    }
-    if (!reminders || reminders.length === 0) {
-      // Legacy fallback
-      var legacyEmail = mt.emailReminderSchedule || '24h';
-      if (legacyEmail !== 'none') {
-        var hrs = legacyEmail === '24h' ? 24 : legacyEmail === '2h' ? 2 : 1;
-        reminders = [{channel: 'email', hoursBefore: hrs, template: ''}];
-      }
-    }
-    renderReminders(reminders);
+    // Load reminder picker with existing config
+    var reminderCfg = migrateReminderConfig(mt);
+    loadReminderOptions().then(function() { renderReminderPicker(reminderCfg); });
 
     hideEl('tb-mt-form-error');
 
@@ -512,7 +497,7 @@
       color: getVal('tb-mt-color'),
       bufferAfter: parseInt(getVal('tb-mt-buffer-after')) || 0,
       confirmationMessage: getVal('tb-mt-confirmation-message'),
-      reminderConfig: JSON.stringify(collectReminders()),
+      reminderConfig: JSON.stringify(collectReminderConfig()),
       maxPerDay: parseInt(getVal('tb-mt-max-per-day')) || 0,
       requiredWitnesses: parseInt(getVal('tb-mt-required-witnesses')) || 0,
       slotInterval: parseInt(getVal('tb-mt-slot-interval')) || 30,
@@ -710,147 +695,184 @@
     }
   }
 
-  // ─── Reminders List Builder (Quill Rich Text for Email, Textarea for SMS) ───
-  var _quillInstances = [];
-  var _reminderTemplates = [];
+  // ─── Reminder Picker (Template / Drip Campaign selection) ───
+  var _reminderTemplatesCache = { email: [], sms: [] };
+  var _reminderCampaignsCache = [];
+  var _reminderPickerLoaded = false;
 
-  function renderReminders(reminders) {
+  async function loadReminderOptions() {
+    if (_reminderPickerLoaded) return;
+    _reminderPickerLoaded = true;
+    var webhookBase = 'https://tabuchilaw.app.n8n.cloud/webhook';
+    try {
+      var [tplRes, campRes] = await Promise.all([
+        fetch(webhookBase + '/cc/campaign-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Dashboard_Token': token },
+          body: JSON.stringify({ action: 'list' })
+        }).then(function(r) { return r.json(); }),
+        fetch(webhookBase + '/cc/campaigns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Dashboard_Token': token },
+          body: JSON.stringify({ action: 'list' })
+        }).then(function(r) { return r.json(); })
+      ]);
+      var templates = (tplRes.success ? tplRes.templates : []) || [];
+      _reminderTemplatesCache.email = templates.filter(function(t) { return t.category === 'Confirmation - Email'; });
+      _reminderTemplatesCache.sms = templates.filter(function(t) { return t.category === 'Confirmation - SMS'; });
+      // Only show drip-type campaigns
+      _reminderCampaignsCache = ((campRes.success ? campRes.campaigns : []) || []).filter(function(c) { return c.type === 'drip'; });
+    } catch (e) {
+      console.warn('Failed to load reminder options:', e);
+    }
+  }
+
+  function renderReminderPicker(config) {
     var container = $el('tb-mt-reminders-list');
     if (!container) return;
-    _quillInstances = [];
-    _reminderTemplates = [];
-    container.innerHTML = '';
 
-    (reminders || []).forEach(function(r, i) {
-      var row = document.createElement('div');
-      row.dataset.reminderIndex = i;
-      row.style.cssText = 'margin-bottom:0.75rem;padding:0.75rem;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;';
+    // config format: { email: { type: 'template'|'drip', id: 'recXXX' }, sms: { type: 'template'|'drip', id: 'recXXX' } }
+    config = config || {};
+    var emailCfg = config.email || { type: 'none', id: '' };
+    var smsCfg = config.sms || { type: 'none', id: '' };
 
-      var isEmail = r.channel === 'email';
+    var html = '';
 
-      // Decompose hoursBefore into days + hours for display
-      var totalHours = r.hoursBefore || 24;
-      var daysBefore = Math.floor(totalHours / 24);
-      var hoursBefore = Math.round(totalHours - (daysBefore * 24));
-
-      var topRow = '<div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">'
-        + '<select data-field="channel" style="padding:0.4rem;border:1px solid #E5E7EB;border-radius:4px;font-size:0.85rem;">'
-        + '<option value="email"' + (isEmail ? ' selected' : '') + '>Email</option>'
-        + '<option value="sms"' + (!isEmail ? ' selected' : '') + '>SMS</option></select>'
-        + '<div style="display:flex;align-items:center;gap:0.3rem;">'
-        + '<input type="number" data-field="daysBefore" min="0" max="30" step="1" value="' + daysBefore + '" style="width:50px;padding:0.4rem;border:1px solid #E5E7EB;border-radius:4px;font-size:0.85rem;box-sizing:border-box;text-align:center;">'
-        + '<span style="font-size:0.75rem;color:#9CA3AF;">days</span>'
-        + '<input type="number" data-field="hoursBefore" min="0" max="23" step="1" value="' + hoursBefore + '" style="width:50px;padding:0.4rem;border:1px solid #E5E7EB;border-radius:4px;font-size:0.85rem;box-sizing:border-box;text-align:center;">'
-        + '<span style="font-size:0.75rem;color:#9CA3AF;">hrs before</span>'
-        + '</div>'
-        + '<button type="button" class="tb-reminder-remove" style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:1.2rem;padding:0.2rem;margin-left:auto;" title="Remove">&times;</button>'
-        + '</div>';
-
-      var editorHtml;
-      if (isEmail) {
-        // Store template for safe insertion via Quill API after init (avoids raw innerHTML XSS)
-        _reminderTemplates[i] = r.template || '';
-        editorHtml = '<div class="tb-quill-wrap"><div data-field="template" data-quill-idx="' + i + '"></div></div>';
-      } else {
-        var plainText = stripHtml(r.template || '');
-        editorHtml = '<textarea data-field="template" class="tb-sms-textarea">' + plainText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>';
-      }
-
-      row.innerHTML = topRow + editorHtml;
-      container.appendChild(row);
+    // Email reminder picker
+    html += '<div class="tb-reminder-channel-section" style="margin-bottom:1rem;padding:0.75rem;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;">';
+    html += '<div style="font-weight:600;font-size:0.9rem;margin-bottom:0.5rem;">Email Reminders</div>';
+    html += '<div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">';
+    html += '<label style="font-size:0.85rem;cursor:pointer;display:flex;align-items:center;gap:0.3rem;">';
+    html += '<input type="radio" name="tb-mt-email-reminder-type" value="none"' + (emailCfg.type === 'none' ? ' checked' : '') + '> None';
+    html += '</label>';
+    html += '<label style="font-size:0.85rem;cursor:pointer;display:flex;align-items:center;gap:0.3rem;">';
+    html += '<input type="radio" name="tb-mt-email-reminder-type" value="template"' + (emailCfg.type === 'template' ? ' checked' : '') + '> Template';
+    html += '</label>';
+    html += '<label style="font-size:0.85rem;cursor:pointer;display:flex;align-items:center;gap:0.3rem;">';
+    html += '<input type="radio" name="tb-mt-email-reminder-type" value="drip"' + (emailCfg.type === 'drip' ? ' checked' : '') + '> Drip Campaign';
+    html += '</label>';
+    html += '</div>';
+    // Template dropdown
+    html += '<div id="tb-mt-email-tpl-picker" style="' + (emailCfg.type === 'template' ? '' : 'display:none;') + '">';
+    html += '<select id="tb-mt-email-tpl-select" style="width:100%;padding:0.4rem;border:1px solid #E5E7EB;border-radius:4px;font-size:0.85rem;">';
+    html += '<option value="">— Select a template —</option>';
+    _reminderTemplatesCache.email.forEach(function(t) {
+      html += '<option value="' + esc(t.id) + '"' + (emailCfg.id === t.id ? ' selected' : '') + '>' + esc(t.name || 'Untitled') + '</option>';
     });
+    html += '</select>';
+    if (_reminderTemplatesCache.email.length === 0) html += '<div style="font-size:0.75rem;color:#9CA3AF;margin-top:4px;">No Confirmation - Email templates found. <a href="/crm/campaign-templates" target="_blank" style="color:#2563EB;">Create one</a></div>';
+    html += '</div>';
+    // Drip dropdown
+    html += '<div id="tb-mt-email-drip-picker" style="' + (emailCfg.type === 'drip' ? '' : 'display:none;') + '">';
+    html += '<select id="tb-mt-email-drip-select" style="width:100%;padding:0.4rem;border:1px solid #E5E7EB;border-radius:4px;font-size:0.85rem;">';
+    html += '<option value="">— Select a drip campaign —</option>';
+    _reminderCampaignsCache.forEach(function(c) {
+      html += '<option value="' + esc(c.id) + '"' + (emailCfg.id === c.id ? ' selected' : '') + '>' + esc(c.name || 'Untitled') + '</option>';
+    });
+    html += '</select>';
+    if (_reminderCampaignsCache.length === 0) html += '<div style="font-size:0.75rem;color:#9CA3AF;margin-top:4px;">No drip campaigns found. <a href="/crm/campaigns" target="_blank" style="color:#2563EB;">Create one</a></div>';
+    html += '</div>';
+    html += '</div>';
 
-    // Initialize Quill rich text editors for email reminders
-    container.querySelectorAll('[data-quill-idx]').forEach(function(el) {
-      var idx = parseInt(el.dataset.quillIdx);
-      var quill = new Quill(el, {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            [{ 'align': [] }],
-            ['link'],
-            ['clean']
-          ]
-        },
-        placeholder: 'Compose email reminder...'
+    // SMS reminder picker
+    html += '<div class="tb-reminder-channel-section" style="padding:0.75rem;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;">';
+    html += '<div style="font-weight:600;font-size:0.9rem;margin-bottom:0.5rem;">SMS Reminders</div>';
+    html += '<div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">';
+    html += '<label style="font-size:0.85rem;cursor:pointer;display:flex;align-items:center;gap:0.3rem;">';
+    html += '<input type="radio" name="tb-mt-sms-reminder-type" value="none"' + (smsCfg.type === 'none' ? ' checked' : '') + '> None';
+    html += '</label>';
+    html += '<label style="font-size:0.85rem;cursor:pointer;display:flex;align-items:center;gap:0.3rem;">';
+    html += '<input type="radio" name="tb-mt-sms-reminder-type" value="template"' + (smsCfg.type === 'template' ? ' checked' : '') + '> Template';
+    html += '</label>';
+    html += '<label style="font-size:0.85rem;cursor:pointer;display:flex;align-items:center;gap:0.3rem;">';
+    html += '<input type="radio" name="tb-mt-sms-reminder-type" value="drip"' + (smsCfg.type === 'drip' ? ' checked' : '') + '> Drip Campaign';
+    html += '</label>';
+    html += '</div>';
+    // Template dropdown
+    html += '<div id="tb-mt-sms-tpl-picker" style="' + (smsCfg.type === 'template' ? '' : 'display:none;') + '">';
+    html += '<select id="tb-mt-sms-tpl-select" style="width:100%;padding:0.4rem;border:1px solid #E5E7EB;border-radius:4px;font-size:0.85rem;">';
+    html += '<option value="">— Select a template —</option>';
+    _reminderTemplatesCache.sms.forEach(function(t) {
+      html += '<option value="' + esc(t.id) + '"' + (smsCfg.id === t.id ? ' selected' : '') + '>' + esc(t.name || 'Untitled') + '</option>';
+    });
+    html += '</select>';
+    if (_reminderTemplatesCache.sms.length === 0) html += '<div style="font-size:0.75rem;color:#9CA3AF;margin-top:4px;">No Confirmation - SMS templates found. <a href="/crm/campaign-templates" target="_blank" style="color:#2563EB;">Create one</a></div>';
+    html += '</div>';
+    // Drip dropdown
+    html += '<div id="tb-mt-sms-drip-picker" style="' + (smsCfg.type === 'drip' ? '' : 'display:none;') + '">';
+    html += '<select id="tb-mt-sms-drip-select" style="width:100%;padding:0.4rem;border:1px solid #E5E7EB;border-radius:4px;font-size:0.85rem;">';
+    html += '<option value="">— Select a drip campaign —</option>';
+    _reminderCampaignsCache.forEach(function(c) {
+      html += '<option value="' + esc(c.id) + '"' + (smsCfg.id === c.id ? ' selected' : '') + '>' + esc(c.name || 'Untitled') + '</option>';
+    });
+    html += '</select>';
+    if (_reminderCampaignsCache.length === 0) html += '<div style="font-size:0.75rem;color:#9CA3AF;margin-top:4px;">No drip campaigns found. <a href="/crm/campaigns" target="_blank" style="color:#2563EB;">Create one</a></div>';
+    html += '</div>';
+    html += '</div>';
+
+    container.innerHTML = html;
+    bindReminderPickerEvents();
+  }
+
+  function bindReminderPickerEvents() {
+    // Email type toggle
+    var emailRadios = _root.querySelectorAll('input[name="tb-mt-email-reminder-type"]');
+    emailRadios.forEach(function(r) {
+      r.addEventListener('change', function() {
+        var tplPicker = $el('tb-mt-email-tpl-picker');
+        var dripPicker = $el('tb-mt-email-drip-picker');
+        if (tplPicker) tplPicker.style.display = r.value === 'template' ? '' : 'none';
+        if (dripPicker) dripPicker.style.display = r.value === 'drip' ? '' : 'none';
       });
-      // Set template content safely via Quill's API (sanitizes HTML through its content model)
-      if (_reminderTemplates[idx]) {
-        quill.clipboard.dangerouslyPasteHTML(_reminderTemplates[idx]);
-      }
-      _quillInstances.push({ idx: idx, quill: quill });
     });
-
-    // Wire channel change to swap between rich text (email) and plain text (sms)
-    container.querySelectorAll('[data-field="channel"]').forEach(function(sel) {
-      sel.addEventListener('change', function() {
-        var current = collectReminders();
-        var parentRow = sel.closest('[data-reminder-index]');
-        var idx = parentRow ? parseInt(parentRow.dataset.reminderIndex) : -1;
-        if (idx >= 0 && current[idx]) {
-          var newChannel = sel.value;
-          var oldDefault = defaultReminderTemplate(current[idx].channel);
-          var curTpl = current[idx].template.trim();
-          current[idx].channel = newChannel;
-          if (!curTpl || curTpl === '<p><br></p>' || stripHtml(curTpl) === stripHtml(oldDefault)) {
-            current[idx].template = defaultReminderTemplate(newChannel);
-          }
-          renderReminders(current);
-        }
-      });
-    });
-
-    // Wire remove buttons
-    container.querySelectorAll('.tb-reminder-remove').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var current = collectReminders();
-        var parentRow = btn.closest('[data-reminder-index]');
-        var idx = parentRow ? parseInt(parentRow.dataset.reminderIndex) : -1;
-        if (idx >= 0) { current.splice(idx, 1); renderReminders(current); }
+    // SMS type toggle
+    var smsRadios = _root.querySelectorAll('input[name="tb-mt-sms-reminder-type"]');
+    smsRadios.forEach(function(r) {
+      r.addEventListener('change', function() {
+        var tplPicker = $el('tb-mt-sms-tpl-picker');
+        var dripPicker = $el('tb-mt-sms-drip-picker');
+        if (tplPicker) tplPicker.style.display = r.value === 'template' ? '' : 'none';
+        if (dripPicker) dripPicker.style.display = r.value === 'drip' ? '' : 'none';
       });
     });
   }
 
-  function collectReminders() {
-    var container = $el('tb-mt-reminders-list');
-    if (!container) return [];
-    var rows = container.querySelectorAll('[data-reminder-index]');
-    var result = [];
-    rows.forEach(function(row) {
-      var channel = row.querySelector('[data-field="channel"]').value;
-      var daysBefore = parseInt(row.querySelector('[data-field="daysBefore"]').value) || 0;
-      var hrs = parseInt(row.querySelector('[data-field="hoursBefore"]').value) || 0;
-      var hoursBefore = (daysBefore * 24) + hrs;
-      if (hoursBefore <= 0) hoursBefore = 1; // minimum 1 hour
-      var template = '';
-      if (channel === 'email') {
-        var quillEl = row.querySelector('[data-quill-idx]');
-        if (quillEl) {
-          var idx = parseInt(quillEl.dataset.quillIdx);
-          var inst = _quillInstances.find(function(q) { return q.idx === idx; });
-          if (inst) {
-            template = inst.quill.root.innerHTML;
-            if (template === '<p><br></p>') template = '';
-          }
-        }
-      } else {
-        var ta = row.querySelector('textarea[data-field="template"]');
-        if (ta) template = ta.value;
-      }
-      result.push({ channel: channel, hoursBefore: hoursBefore, template: template });
-    });
-    return result;
+  function collectReminderConfig() {
+    var config = {};
+    // Email
+    var emailType = (_root.querySelector('input[name="tb-mt-email-reminder-type"]:checked') || {}).value || 'none';
+    if (emailType === 'template') {
+      var emailTplId = (($el('tb-mt-email-tpl-select') || {}).value) || '';
+      if (emailTplId) config.email = { type: 'template', id: emailTplId };
+    } else if (emailType === 'drip') {
+      var emailDripId = (($el('tb-mt-email-drip-select') || {}).value) || '';
+      if (emailDripId) config.email = { type: 'drip', id: emailDripId };
+    }
+    // SMS
+    var smsType = (_root.querySelector('input[name="tb-mt-sms-reminder-type"]:checked') || {}).value || 'none';
+    if (smsType === 'template') {
+      var smsTplId = (($el('tb-mt-sms-tpl-select') || {}).value) || '';
+      if (smsTplId) config.sms = { type: 'template', id: smsTplId };
+    } else if (smsType === 'drip') {
+      var smsDripId = (($el('tb-mt-sms-drip-select') || {}).value) || '';
+      if (smsDripId) config.sms = { type: 'drip', id: smsDripId };
+    }
+    return config;
   }
 
-  $el('tb-mt-add-reminder-btn')?.addEventListener('click', function() {
-    var current = collectReminders();
-    current.push({channel: 'email', hoursBefore: 24, template: defaultReminderTemplate('email')});
-    renderReminders(current);
-  });
+  // Migrate legacy reminder format to new config format
+  function migrateReminderConfig(mt) {
+    // New format: { email: { type, id }, sms: { type, id } }
+    if (mt.reminderConfig) {
+      try {
+        var rc = typeof mt.reminderConfig === 'string' ? JSON.parse(mt.reminderConfig) : mt.reminderConfig;
+        // Already in new format
+        if (rc.email || rc.sms) return rc;
+        // Legacy array format — no template IDs, just inline content — show as "none"
+      } catch(e) {}
+    }
+    return {};
+  }
 
   function setText(id, t) { var el = $el(id); if (el) el.textContent = t || ''; }
   function setVal(id, v) { var el = $el(id); if (el) el.value = v ?? ''; }

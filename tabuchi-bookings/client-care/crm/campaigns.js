@@ -2122,6 +2122,8 @@
       var tId = t.id;
       var tName = t.name || t.Name || tId;
       var tCat = t.category || t.Category || '';
+      // Skip confirmation templates — those are for meeting reminders, not campaigns
+      if (tCat.indexOf('Confirmation') === 0) return;
       var label = tCat ? tName + ' (' + tCat + ')' : tName;
       html += '<option value="' + escapeAttr(tId) + '"' + (templateId === tId ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
     });

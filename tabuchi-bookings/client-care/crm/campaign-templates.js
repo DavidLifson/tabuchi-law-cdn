@@ -39,8 +39,23 @@
   };
 
   // ─── Constants ─────────────────────────────────────────────
-  var CATEGORIES = ['General', 'Welcome', 'Follow-Up', 'Newsletter', 'Announcement', 'Reminder', 'Legal Update', 'Holiday'];
-  var CHANNELS = ['EMAIL', 'SMS'];
+  var CATEGORIES = ['Newsletter', 'Email Marketing', 'Confirmation - Email', 'Confirmation - SMS'];
+
+  // Channel is derived from category — no separate selection needed
+  function channelForCategory(cat) {
+    return cat === 'Confirmation - SMS' ? 'SMS' : 'EMAIL';
+  }
+
+  // Editor type per category
+  function editorTypeForCategory(cat) {
+    if (cat === 'Confirmation - Email') return 'richtext';
+    if (cat === 'Confirmation - SMS') return 'sms';
+    return 'blocks'; // Newsletter, Email Marketing
+  }
+
+  function isConfirmationCategory(cat) {
+    return cat === 'Confirmation - Email' || cat === 'Confirmation - SMS';
+  }
 
   var BLOCK_TYPES = [
     { type: 'heading', label: 'Heading', icon: 'H' },
@@ -66,6 +81,9 @@
     // Detail
     activeTemplate: null,
     contentBlocks: [],
+    richTextHtml: '',
+    smsText: '',
+    quillInstance: null,
     editorDirty: false,
     listStale: false,
     detailLoading: false,
@@ -127,10 +145,24 @@
       var result = await API.campaignTemplates.get(templateId);
       if (result.success) {
         state.activeTemplate = result.template;
+        var cat = result.template.category || result.template.Category || '';
+        var edType = editorTypeForCategory(cat);
         try {
           var cj = result.template.content_json || result.template.Content_JSON || '';
-          state.contentBlocks = cj ? JSON.parse(cj).blocks || [] : [];
-        } catch (e) { state.contentBlocks = []; }
+          var parsed = cj ? JSON.parse(cj) : {};
+          if (edType === 'richtext') {
+            state.richTextHtml = parsed.html || '';
+            state.contentBlocks = [];
+          } else if (edType === 'sms') {
+            state.smsText = parsed.text || '';
+            state.contentBlocks = [];
+          } else {
+            state.contentBlocks = parsed.blocks || [];
+            state.richTextHtml = '';
+            state.smsText = '';
+          }
+        } catch (e) { state.contentBlocks = []; state.richTextHtml = ''; state.smsText = ''; }
+        state.quillInstance = null;
         state.editorDirty = false;
         renderDetail();
       } else {
@@ -379,46 +411,86 @@
     html += '</div>';
 
     // Template fields
+    var cat = t.category || '';
+    var edType = editorTypeForCategory(cat);
+    var derivedChannel = channelForCategory(cat);
+
     html += '<div class="cc-overview-grid" style="margin-bottom:1.5rem">';
     html += '<div class="cc-card">';
     html += '<h4>Template Details</h4>';
     html += '<div class="cc-detail-fields">';
-    html += fieldRow('Subject', t.subject || '—');
-    html += fieldRow('Category', t.category || 'General');
-    html += fieldRow('Channel', t.channel || 'EMAIL');
-    html += fieldRow('Brand Theme', t.brand_theme || '—');
+    if (edType !== 'sms') html += fieldRow('Subject', t.subject || '—');
+    html += fieldRow('Category', cat || '—');
+    html += fieldRow('Channel', derivedChannel);
+    if (edType === 'blocks') html += fieldRow('Brand Theme', t.brand_theme || '—');
     html += fieldRow('Active', isActive ? 'Yes' : 'No');
+    if (isConfirmationCategory(cat)) {
+      var timing = '';
+      try { var cj = t.content_json || t.Content_JSON || ''; var p = cj ? JSON.parse(cj) : {}; timing = p.send_before || ''; } catch(e){}
+      html += fieldRow('Send Before', timing ? timing + ' before appointment' : 'Not set');
+    }
     html += '</div></div></div>';
 
-    // Editor
+    // Editor — conditional based on category
     html += '<div class="cc-editor-container">';
 
-    // Toolbar
-    html += '<div class="cc-editor-toolbar">';
-    html += '<span class="cc-editor-toolbar-label">Add Block:</span>';
-    BLOCK_TYPES.forEach(function(bt) {
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-add-block-btn" data-type="' + bt.type + '" title="' + bt.label + '">' + bt.icon + ' ' + bt.label + '</button>';
-    });
-    html += '<div style="flex:1"></div>';
-    html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-save-content-btn"' + (!state.editorDirty ? ' disabled' : '') + '>Save Template</button>';
-    html += '</div>';
-
-    // Blocks
-    html += '<div class="cc-editor-blocks">';
-    if (state.contentBlocks.length === 0) {
-      html += '<div class="cc-empty" style="padding:3rem">No content blocks yet. Add blocks using the toolbar above.</div>';
-    } else {
-      state.contentBlocks.forEach(function(block, idx) {
-        html += renderBlock(block, idx);
+    if (edType === 'blocks') {
+      // Block editor toolbar
+      html += '<div class="cc-editor-toolbar">';
+      html += '<span class="cc-editor-toolbar-label">Add Block:</span>';
+      BLOCK_TYPES.forEach(function(bt) {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-add-block-btn" data-type="' + bt.type + '" title="' + bt.label + '">' + bt.icon + ' ' + bt.label + '</button>';
       });
-    }
-    html += '</div>';
+      html += '<div style="flex:1"></div>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-save-content-btn"' + (!state.editorDirty ? ' disabled' : '') + '>Save Template</button>';
+      html += '</div>';
 
-    // Preview
-    html += '<div class="cc-editor-preview-section">';
-    html += '<h4>Preview</h4>';
-    html += '<div class="cc-editor-preview">' + compilePreviewHtml() + '</div>';
-    html += '</div>';
+      // Blocks
+      html += '<div class="cc-editor-blocks">';
+      if (state.contentBlocks.length === 0) {
+        html += '<div class="cc-empty" style="padding:3rem">No content blocks yet. Add blocks using the toolbar above.</div>';
+      } else {
+        state.contentBlocks.forEach(function(block, idx) {
+          html += renderBlock(block, idx);
+        });
+      }
+      html += '</div>';
+
+      // Preview
+      html += '<div class="cc-editor-preview-section">';
+      html += '<h4>Preview</h4>';
+      html += '<div class="cc-editor-preview">' + compilePreviewHtml() + '</div>';
+      html += '</div>';
+
+    } else if (edType === 'richtext') {
+      // Quill rich text editor for Confirmation - Email
+      html += '<div class="cc-editor-toolbar" style="justify-content:flex-end">';
+      html += '<span class="cc-editor-toolbar-label" style="flex:1">Rich Text Editor</span>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-save-content-btn"' + (!state.editorDirty ? ' disabled' : '') + '>Save Template</button>';
+      html += '</div>';
+      html += '<div class="cc-tpl-merge-tags" style="margin-bottom:0.5rem;font-size:0.8rem;color:#6B7280;">';
+      html += 'Merge tags: <code>{{clientName}}</code> <code>{{staffName}}</code> <code>{{date}}</code> <code>{{time}}</code> <code>{{joinUrl}}</code> <code>{{rescheduleUrl}}</code> <code>{{cancelUrl}}</code> <code>{{meetingTypeName}}</code>';
+      html += '</div>';
+      html += '<div id="cc-tpl-quill-editor" class="cc-tpl-quill-wrap"></div>';
+
+      // Preview
+      html += '<div class="cc-editor-preview-section">';
+      html += '<h4>Preview</h4>';
+      html += '<div class="cc-editor-preview" id="cc-tpl-richtext-preview">' + (state.richTextHtml || '<p style="color:#9CA3AF;text-align:center;padding:2rem">No content to preview</p>') + '</div>';
+      html += '</div>';
+
+    } else if (edType === 'sms') {
+      // Plain textarea for Confirmation - SMS
+      html += '<div class="cc-editor-toolbar" style="justify-content:flex-end">';
+      html += '<span class="cc-editor-toolbar-label" style="flex:1">SMS Template</span>';
+      html += '<span id="cc-tpl-sms-charcount" style="font-size:0.8rem;color:#6B7280;margin-right:1rem;">' + (state.smsText || '').length + '/160 chars</span>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-save-content-btn"' + (!state.editorDirty ? ' disabled' : '') + '>Save Template</button>';
+      html += '</div>';
+      html += '<div class="cc-tpl-merge-tags" style="margin-bottom:0.5rem;font-size:0.8rem;color:#6B7280;">';
+      html += 'Merge tags: <code>{{clientName}}</code> <code>{{staffName}}</code> <code>{{date}}</code> <code>{{time}}</code> <code>{{rescheduleUrl}}</code> <code>{{cancelUrl}}</code> <code>{{meetingTypeName}}</code>';
+      html += '</div>';
+      html += '<textarea id="cc-tpl-sms-textarea" class="cc-input cc-textarea" style="min-height:120px;font-size:0.9rem;" placeholder="SMS message text...">' + escapeHtml(state.smsText || '') + '</textarea>';
+    }
 
     html += '</div>';
 
@@ -488,6 +560,17 @@
   }
 
   function compilePreviewHtml() {
+    // For richtext/sms, return appropriate preview
+    var cat = state.activeTemplate ? (state.activeTemplate.category || '') : '';
+    var edType = editorTypeForCategory(cat);
+    if (edType === 'richtext') {
+      return state.richTextHtml || '<p style="color:#9CA3AF;text-align:center;padding:2rem">No content to preview</p>';
+    }
+    if (edType === 'sms') {
+      return state.smsText
+        ? '<div style="max-width:320px;margin:0 auto;padding:12px;background:#E5F3FF;border-radius:12px;font-size:14px;line-height:1.5">' + escapeHtml(state.smsText) + '</div>'
+        : '<p style="color:#9CA3AF;text-align:center;padding:2rem">No content to preview</p>';
+    }
     if (state.contentBlocks.length === 0) return '<p style="color:#9CA3AF;text-align:center;padding:2rem">No content to preview</p>';
 
     var html = '<div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#1F2937;line-height:1.6">';
@@ -535,7 +618,24 @@
   }
 
   function getContentJSON() {
+    var cat = state.activeTemplate ? (state.activeTemplate.category || '') : '';
+    var edType = editorTypeForCategory(cat);
+    if (edType === 'richtext') {
+      return JSON.stringify({ version: 1, type: 'richtext', html: state.richTextHtml, send_before: getSendBefore() });
+    }
+    if (edType === 'sms') {
+      return JSON.stringify({ version: 1, type: 'sms', text: state.smsText, send_before: getSendBefore() });
+    }
     return JSON.stringify({ version: 1, blocks: state.contentBlocks, theme: {} });
+  }
+
+  function getSendBefore() {
+    if (!state.activeTemplate) return '';
+    try {
+      var cj = state.activeTemplate.content_json || state.activeTemplate.Content_JSON || '';
+      var p = cj ? JSON.parse(cj) : {};
+      return p.send_before || '';
+    } catch(e) { return ''; }
   }
 
   function getDefaultBlockData(type) {
@@ -578,64 +678,127 @@
       handleDelete(state.activeTemplate.id, state.activeTemplate.name);
     });
 
-    // Add block
-    el.querySelectorAll('.cc-add-block-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        state.contentBlocks.push({ id: uid(), type: btn.dataset.type, data: getDefaultBlockData(btn.dataset.type) });
-        state.editorDirty = true;
-        renderDetail();
-      });
-    });
+    // Editor bindings — conditional on editor type
+    var cat = state.activeTemplate ? (state.activeTemplate.category || '') : '';
+    var edType = editorTypeForCategory(cat);
 
-    // Block inputs
-    el.querySelectorAll('.cc-block-input').forEach(function(input) {
-      input.addEventListener('input', function() {
-        var idx = parseInt(input.dataset.idx, 10);
-        var field = input.dataset.field;
-        if (state.contentBlocks[idx]) {
-          var val = input.value;
-          if (field === 'level' || field === 'height') val = parseInt(val, 10);
-          state.contentBlocks[idx].data[field] = val;
+    if (edType === 'blocks') {
+      // Add block
+      el.querySelectorAll('.cc-add-block-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          state.contentBlocks.push({ id: uid(), type: btn.dataset.type, data: getDefaultBlockData(btn.dataset.type) });
           state.editorDirty = true;
-          var previewEl = el.querySelector('.cc-editor-preview');
-          if (previewEl) previewEl.innerHTML = compilePreviewHtml();
+          renderDetail();
+        });
+      });
+
+      // Block inputs
+      el.querySelectorAll('.cc-block-input').forEach(function(input) {
+        input.addEventListener('input', function() {
+          var idx = parseInt(input.dataset.idx, 10);
+          var field = input.dataset.field;
+          if (state.contentBlocks[idx]) {
+            var val = input.value;
+            if (field === 'level' || field === 'height') val = parseInt(val, 10);
+            state.contentBlocks[idx].data[field] = val;
+            state.editorDirty = true;
+            var previewEl = el.querySelector('.cc-editor-preview');
+            if (previewEl) previewEl.innerHTML = compilePreviewHtml();
+            var saveBtn = el.querySelector('.cc-save-content-btn');
+            if (saveBtn) saveBtn.disabled = false;
+          }
+        });
+      });
+
+      // Move/delete blocks
+      el.querySelectorAll('.cc-block-move-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var idx = parseInt(btn.dataset.idx, 10);
+          var dir = btn.dataset.dir;
+          if (dir === 'up' && idx > 0) {
+            var tmp = state.contentBlocks[idx];
+            state.contentBlocks[idx] = state.contentBlocks[idx - 1];
+            state.contentBlocks[idx - 1] = tmp;
+          } else if (dir === 'down' && idx < state.contentBlocks.length - 1) {
+            var tmp2 = state.contentBlocks[idx];
+            state.contentBlocks[idx] = state.contentBlocks[idx + 1];
+            state.contentBlocks[idx + 1] = tmp2;
+          }
+          state.editorDirty = true;
+          renderDetail();
+        });
+      });
+
+      el.querySelectorAll('.cc-block-delete-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var idx = parseInt(btn.dataset.idx, 10);
+          state.contentBlocks.splice(idx, 1);
+          state.editorDirty = true;
+          renderDetail();
+        });
+      });
+
+    } else if (edType === 'richtext') {
+      // Initialize Quill for Confirmation - Email
+      initQuillEditor();
+
+    } else if (edType === 'sms') {
+      // SMS textarea binding
+      var smsArea = document.getElementById('cc-tpl-sms-textarea');
+      if (smsArea) {
+        smsArea.addEventListener('input', function() {
+          state.smsText = smsArea.value;
+          state.editorDirty = true;
           var saveBtn = el.querySelector('.cc-save-content-btn');
           if (saveBtn) saveBtn.disabled = false;
-        }
-      });
-    });
-
-    // Move/delete blocks
-    el.querySelectorAll('.cc-block-move-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var idx = parseInt(btn.dataset.idx, 10);
-        var dir = btn.dataset.dir;
-        if (dir === 'up' && idx > 0) {
-          var tmp = state.contentBlocks[idx];
-          state.contentBlocks[idx] = state.contentBlocks[idx - 1];
-          state.contentBlocks[idx - 1] = tmp;
-        } else if (dir === 'down' && idx < state.contentBlocks.length - 1) {
-          var tmp2 = state.contentBlocks[idx];
-          state.contentBlocks[idx] = state.contentBlocks[idx + 1];
-          state.contentBlocks[idx + 1] = tmp2;
-        }
-        state.editorDirty = true;
-        renderDetail();
-      });
-    });
-
-    el.querySelectorAll('.cc-block-delete-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var idx = parseInt(btn.dataset.idx, 10);
-        state.contentBlocks.splice(idx, 1);
-        state.editorDirty = true;
-        renderDetail();
-      });
-    });
+          var charCount = document.getElementById('cc-tpl-sms-charcount');
+          if (charCount) charCount.textContent = smsArea.value.length + '/160 chars';
+        });
+      }
+    }
 
     // Save
     var saveBtn = el.querySelector('.cc-save-content-btn');
     if (saveBtn) saveBtn.addEventListener('click', handleSaveContent);
+  }
+
+  // ─── Quill Editor Init ──────────────────────────────────
+  function initQuillEditor() {
+    if (typeof Quill === 'undefined') {
+      console.warn('Quill.js not loaded — rich text editor unavailable');
+      return;
+    }
+    var container = document.getElementById('cc-tpl-quill-editor');
+    if (!container) return;
+
+    state.quillInstance = new Quill(container, {
+      theme: 'snow',
+      placeholder: 'Compose confirmation email...',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link'],
+          ['clean']
+        ]
+      }
+    });
+
+    // Set initial content
+    if (state.richTextHtml) {
+      state.quillInstance.root.innerHTML = state.richTextHtml;
+    }
+
+    // Track changes
+    state.quillInstance.on('text-change', function() {
+      state.richTextHtml = state.quillInstance.root.innerHTML;
+      state.editorDirty = true;
+      var saveBtn = document.querySelector('.cc-save-content-btn');
+      if (saveBtn) saveBtn.disabled = false;
+      var preview = document.getElementById('cc-tpl-richtext-preview');
+      if (preview) preview.innerHTML = state.richTextHtml || '<p style="color:#9CA3AF;text-align:center;padding:2rem">No content to preview</p>';
+    });
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -771,49 +934,98 @@
     html += '</div>';
 
     html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Default Subject</label>';
-    html += '<input type="text" id="cc-modal-subject" class="cc-input" placeholder="Email subject line" />';
-    html += '</div>';
-
-    html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Category</label>';
+    html += '<label class="cc-label">Category *</label>';
     html += '<select id="cc-modal-category" class="cc-input">';
     CATEGORIES.forEach(function(c) {
       html += '<option value="' + c + '">' + c + '</option>';
     });
     html += '</select>';
+    html += '<span style="font-size:0.75rem;color:#6B7280;margin-top:2px;display:block" id="cc-modal-channel-hint">Channel: EMAIL</span>';
     html += '</div>';
 
-    html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Channel</label>';
-    html += '<select id="cc-modal-channel" class="cc-input">';
-    CHANNELS.forEach(function(ch) {
-      html += '<option value="' + ch + '">' + ch + '</option>';
-    });
-    html += '</select>';
+    html += '<div class="cc-form-group cc-modal-subject-group">';
+    html += '<label class="cc-label">Default Subject</label>';
+    html += '<input type="text" id="cc-modal-subject" class="cc-input" placeholder="Email subject line" />';
     html += '</div>';
 
-    html += '<div class="cc-form-group">';
+    html += '<div class="cc-form-group cc-modal-brand-group">';
     html += '<label class="cc-label">Brand Theme (optional)</label>';
     html += '<input type="text" id="cc-modal-brand-theme" class="cc-input" placeholder="e.g. default, dark, minimal" />';
+    html += '</div>';
+
+    html += '<div class="cc-form-group cc-modal-timing-group" style="display:none">';
+    html += '<label class="cc-label">Send Before Appointment</label>';
+    html += '<div style="display:flex;gap:8px;align-items:center">';
+    html += '<input type="number" id="cc-modal-send-before-val" class="cc-input" style="width:80px" min="1" value="24" />';
+    html += '<select id="cc-modal-send-before-unit" class="cc-input" style="width:100px">';
+    html += '<option value="hours">hours</option>';
+    html += '<option value="days">days</option>';
+    html += '</select>';
+    html += '<span style="font-size:0.8rem;color:#6B7280">before appointment</span>';
+    html += '</div>';
     html += '</div>';
 
     html += '</div>';
 
     showModal('New Template', html, handleCreate);
+    bindCreateModalCategoryToggle();
+  }
+
+  function bindCreateModalCategoryToggle() {
+    var catSelect = document.getElementById('cc-modal-category');
+    if (!catSelect) return;
+    catSelect.addEventListener('change', function() {
+      var cat = catSelect.value;
+      var isSms = cat === 'Confirmation - SMS';
+      var isConfirm = isConfirmationCategory(cat);
+      var isBlocks = editorTypeForCategory(cat) === 'blocks';
+      var hint = document.getElementById('cc-modal-channel-hint');
+      if (hint) hint.textContent = 'Channel: ' + channelForCategory(cat);
+      var subjectGroup = activeModal ? activeModal.querySelector('.cc-modal-subject-group') : null;
+      if (subjectGroup) subjectGroup.style.display = isSms ? 'none' : '';
+      var brandGroup = activeModal ? activeModal.querySelector('.cc-modal-brand-group') : null;
+      if (brandGroup) brandGroup.style.display = isBlocks ? '' : 'none';
+      var timingGroup = activeModal ? activeModal.querySelector('.cc-modal-timing-group') : null;
+      if (timingGroup) timingGroup.style.display = isConfirm ? '' : 'none';
+    });
+    // Fire once to set initial state
+    catSelect.dispatchEvent(new Event('change'));
   }
 
   async function handleCreate(form) {
     var name = form.querySelector('#cc-modal-name').value.trim();
     if (!name) { showToast('Template name is required.', 'error'); return; }
 
+    var cat = form.querySelector('#cc-modal-category').value;
+    var edType = editorTypeForCategory(cat);
+
     var data = {
       name: name,
-      subject: form.querySelector('#cc-modal-subject').value.trim(),
-      category: form.querySelector('#cc-modal-category').value,
-      channel: form.querySelector('#cc-modal-channel').value,
-      brand_theme: form.querySelector('#cc-modal-brand-theme').value.trim()
+      category: cat,
+      channel: channelForCategory(cat)
     };
+
+    // Subject only for email types
+    if (edType !== 'sms') {
+      data.subject = form.querySelector('#cc-modal-subject').value.trim();
+    }
+
+    // Brand theme only for block editor types
+    if (edType === 'blocks') {
+      data.brand_theme = form.querySelector('#cc-modal-brand-theme').value.trim();
+    }
+
+    // Timing for confirmation categories — seed into content_json
+    if (isConfirmationCategory(cat)) {
+      var val = parseInt(form.querySelector('#cc-modal-send-before-val').value, 10) || 24;
+      var unit = form.querySelector('#cc-modal-send-before-unit').value || 'hours';
+      var sendBefore = val + ' ' + unit;
+      if (edType === 'richtext') {
+        data.content_json = JSON.stringify({ version: 1, type: 'richtext', html: '', send_before: sendBefore });
+      } else {
+        data.content_json = JSON.stringify({ version: 1, type: 'sms', text: '', send_before: sendBefore });
+      }
+    }
 
     try {
       var result = await API.campaignTemplates.create(data);
@@ -833,6 +1045,16 @@
   function showEditModal() {
     if (!state.activeTemplate) return;
     var t = state.activeTemplate;
+    var cat = t.category || '';
+    var edType = editorTypeForCategory(cat);
+    var isConfirm = isConfirmationCategory(cat);
+
+    // Parse existing send_before
+    var existingSendBefore = '';
+    try { var p = JSON.parse(t.content_json || t.Content_JSON || '{}'); existingSendBefore = p.send_before || ''; } catch(e){}
+    var sbParts = existingSendBefore.match(/^(\d+)\s+(hours|days)$/);
+    var sbVal = sbParts ? sbParts[1] : '24';
+    var sbUnit = sbParts ? sbParts[2] : 'hours';
 
     var html = '<div class="cc-modal-form">';
 
@@ -842,31 +1064,35 @@
     html += '</div>';
 
     html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Category</label>';
+    html += '<select id="cc-modal-category" class="cc-input">';
+    CATEGORIES.forEach(function(c) {
+      html += '<option value="' + c + '"' + (cat === c ? ' selected' : '') + '>' + c + '</option>';
+    });
+    html += '</select>';
+    html += '<span style="font-size:0.75rem;color:#6B7280;margin-top:2px;display:block" id="cc-modal-channel-hint">Channel: ' + channelForCategory(cat) + '</span>';
+    html += '</div>';
+
+    html += '<div class="cc-form-group cc-modal-subject-group"' + (edType === 'sms' ? ' style="display:none"' : '') + '>';
     html += '<label class="cc-label">Default Subject</label>';
     html += '<input type="text" id="cc-modal-subject" class="cc-input" value="' + escapeAttr(t.subject || '') + '" />';
     html += '</div>';
 
-    html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Category</label>';
-    html += '<select id="cc-modal-category" class="cc-input">';
-    CATEGORIES.forEach(function(c) {
-      html += '<option value="' + c + '"' + ((t.category || '') === c ? ' selected' : '') + '>' + c + '</option>';
-    });
-    html += '</select>';
-    html += '</div>';
-
-    html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Channel</label>';
-    html += '<select id="cc-modal-channel" class="cc-input">';
-    CHANNELS.forEach(function(ch) {
-      html += '<option value="' + ch + '"' + ((t.channel || '') === ch ? ' selected' : '') + '>' + ch + '</option>';
-    });
-    html += '</select>';
-    html += '</div>';
-
-    html += '<div class="cc-form-group">';
+    html += '<div class="cc-form-group cc-modal-brand-group"' + (edType !== 'blocks' ? ' style="display:none"' : '') + '>';
     html += '<label class="cc-label">Brand Theme</label>';
     html += '<input type="text" id="cc-modal-brand-theme" class="cc-input" value="' + escapeAttr(t.brand_theme || '') + '" />';
+    html += '</div>';
+
+    html += '<div class="cc-form-group cc-modal-timing-group"' + (!isConfirm ? ' style="display:none"' : '') + '>';
+    html += '<label class="cc-label">Send Before Appointment</label>';
+    html += '<div style="display:flex;gap:8px;align-items:center">';
+    html += '<input type="number" id="cc-modal-send-before-val" class="cc-input" style="width:80px" min="1" value="' + escapeAttr(sbVal) + '" />';
+    html += '<select id="cc-modal-send-before-unit" class="cc-input" style="width:100px">';
+    html += '<option value="hours"' + (sbUnit === 'hours' ? ' selected' : '') + '>hours</option>';
+    html += '<option value="days"' + (sbUnit === 'days' ? ' selected' : '') + '>days</option>';
+    html += '</select>';
+    html += '<span style="font-size:0.8rem;color:#6B7280">before appointment</span>';
+    html += '</div>';
     html += '</div>';
 
     html += '<div class="cc-form-group">';
@@ -881,20 +1107,44 @@
     html += '</div>';
 
     showModal('Edit Template', html, handleEdit);
+    bindCreateModalCategoryToggle();
   }
 
   async function handleEdit(form) {
     var name = form.querySelector('#cc-modal-name').value.trim();
     if (!name) { showToast('Template name is required.', 'error'); return; }
 
+    var cat = form.querySelector('#cc-modal-category').value;
+    var edType = editorTypeForCategory(cat);
+
     var updates = {
       name: name,
-      subject: form.querySelector('#cc-modal-subject').value.trim(),
-      category: form.querySelector('#cc-modal-category').value,
-      channel: form.querySelector('#cc-modal-channel').value,
-      brand_theme: form.querySelector('#cc-modal-brand-theme').value.trim(),
+      category: cat,
+      channel: channelForCategory(cat),
       is_active: form.querySelector('#cc-modal-active').value === 'true'
     };
+
+    if (edType !== 'sms') {
+      updates.subject = form.querySelector('#cc-modal-subject').value.trim();
+    }
+    if (edType === 'blocks') {
+      updates.brand_theme = form.querySelector('#cc-modal-brand-theme').value.trim();
+    }
+
+    // Update send_before in content_json for confirmation categories
+    if (isConfirmationCategory(cat)) {
+      var val = parseInt(form.querySelector('#cc-modal-send-before-val').value, 10) || 24;
+      var unit = form.querySelector('#cc-modal-send-before-unit').value || 'hours';
+      var sendBefore = val + ' ' + unit;
+      // Merge into existing content_json
+      try {
+        var existing = JSON.parse(state.activeTemplate.content_json || state.activeTemplate.Content_JSON || '{}');
+        existing.send_before = sendBefore;
+        updates.content_json = JSON.stringify(existing);
+      } catch(e) {
+        updates.content_json = JSON.stringify({ version: 1, type: edType, send_before: sendBefore });
+      }
+    }
 
     try {
       var result = await API.campaignTemplates.update(state.activeTemplate.id, updates);
