@@ -1,3 +1,4 @@
+/* v2.4.0 */
 /**
  * Tabuchi Law Client Care CRM - Admin Configuration
  * Handles: /crm/admin
