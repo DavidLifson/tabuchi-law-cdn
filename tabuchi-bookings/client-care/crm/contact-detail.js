@@ -409,26 +409,43 @@
     html += '</select></div>';
 
     // ── CRM Pipeline ──
-    html += '<div class="cc-edit-field"><label>Practice Area</label>' +
-      '<select class="cc-input" id="cc-edit-practice">' +
-      '<option value="">— Select —</option>';
     var practiceAreas = [
-      { key: 'ESTATE_PLANNING', label: 'Estate Planning' },
-      { key: 'PROBATE', label: 'Probate' },
+      { key: 'ESTATE_PLANNING_WILL_POA', label: 'Estate Planning (Will & POA)' },
+      { key: 'TRUSTS_HENSON_SPOUSAL', label: 'Trusts (Henson/Spousal)' },
+      { key: 'GUARDIANSHIP_MINORS', label: 'Guardianship (Minors)' },
+      { key: 'PROBATE_ESTATE_ADMIN', label: 'Probate & Estate Admin' },
+      { key: 'BUSINESS_SUCCESSION', label: 'Business Succession' },
       { key: 'REAL_ESTATE', label: 'Real Estate' },
       { key: 'CORPORATE', label: 'Corporate' },
-      { key: 'FAMILY_LAW', label: 'Family Law' },
-      { key: 'COMMISSION_NOTARY', label: 'Commission Notary' },
-      { key: 'OTHER', label: 'Other' }
+      { key: 'FAMILY_LAW', label: 'Family Law' }
     ];
-    var currentPA = Array.isArray(c.Practice_Area) ? c.Practice_Area[0] : (c.Practice_Area || '');
+    var currentPAs = Array.isArray(c.Practice_Area) ? c.Practice_Area : (c.Practice_Area ? [c.Practice_Area] : []);
+    html += '<div class="cc-edit-field"><label>Practice Area</label>';
+    html += '<div class="cc-checkbox-group">';
     practiceAreas.forEach(function(pa) {
-      html += '<option value="' + pa.key + '"' + (currentPA === pa.key || currentPA === pa.label ? ' selected' : '') + '>' + escapeHtml(pa.label) + '</option>';
+      var checked = currentPAs.indexOf(pa.key) >= 0 || currentPAs.indexOf(pa.label) >= 0 ? ' checked' : '';
+      html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-edit-pa-check" value="' + pa.key + '"' + checked + '> ' + escapeHtml(pa.label) + '</label>';
     });
-    html += '</select></div>';
+    html += '</div></div>';
 
-    html += '<div class="cc-edit-field"><label>Service Package</label>' +
-      '<input class="cc-input" id="cc-edit-service" value="' + escapeAttr(Array.isArray(c.Service_Package) ? c.Service_Package.join(', ') : (c.Service_Package || '')) + '" /></div>';
+    var servicePackages = [
+      { key: 'SIMPLE_WILL_POA', label: 'Simple Will & POA' },
+      { key: 'COUPLES_WILLS_POA', label: 'Couples Wills & POA' },
+      { key: 'BLENDED_FAMILY_PLAN', label: 'Blended Family Plan' },
+      { key: 'MINORS_GUARDIANSHIP_PLAN', label: 'Minors Guardianship Plan' },
+      { key: 'HENSON_TRUST_PLAN', label: 'Henson Trust Plan' },
+      { key: 'SPOUSAL_TRUST_PLAN', label: 'Spousal Trust Plan' },
+      { key: 'PROBATE_APPLICATION', label: 'Probate Application' },
+      { key: 'PROBATE_FULL_ADMIN', label: 'Probate Full Admin' }
+    ];
+    var currentSPs = Array.isArray(c.Service_Package) ? c.Service_Package : (c.Service_Package ? [c.Service_Package] : []);
+    html += '<div class="cc-edit-field"><label>Service Package</label>';
+    html += '<div class="cc-checkbox-group">';
+    servicePackages.forEach(function(sp) {
+      var checked = currentSPs.indexOf(sp.key) >= 0 || currentSPs.indexOf(sp.label) >= 0 ? ' checked' : '';
+      html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-edit-sp-check" value="' + sp.key + '"' + checked + '> ' + escapeHtml(sp.label) + '</label>';
+    });
+    html += '</div></div>';
 
     html += '<div class="cc-edit-field"><label>Lead Source</label>' +
       '<input class="cc-input" id="cc-edit-source" value="' + escapeAttr(c.Source || '') + '" /></div>';
@@ -740,8 +757,8 @@
           Marital_Status: document.getElementById('cc-edit-marital').value,
           Preferred_Language: document.getElementById('cc-edit-language').value,
           Referral_Source: document.getElementById('cc-edit-referral').value.trim(),
-          Practice_Area: document.getElementById('cc-edit-practice').value,
-          Service_Package: document.getElementById('cc-edit-service').value.trim(),
+          Practice_Area: Array.from(document.querySelectorAll('.cc-edit-pa-check:checked')).map(function(cb) { return cb.value; }),
+          Service_Package: Array.from(document.querySelectorAll('.cc-edit-sp-check:checked')).map(function(cb) { return cb.value; }),
           Source: document.getElementById('cc-edit-source').value.trim(),
           Lead_Stage: document.getElementById('cc-edit-stage').value,
           Disposition: document.getElementById('cc-edit-disposition').value,

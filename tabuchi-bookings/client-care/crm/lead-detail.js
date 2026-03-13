@@ -795,8 +795,33 @@
       // Practice Area multi-checkbox
       html += '<div class="cc-info-item cc-info-item-full"><div class="cc-info-label">Practice Area</div>';
       html += '<div class="cc-checkbox-group" data-field="Practice_Area">';
-      ['ESTATE_PLANNING', 'PROBATE', 'REAL_ESTATE', 'CORPORATE', 'FAMILY_LAW', 'COMMISSION_NOTARY', 'OTHER'].forEach(function(pa) {
-        html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-pa-check" value="' + pa + '"> ' + escapeHtml(formatPracticeArea(pa)) + '</label>';
+      [
+        { key: 'ESTATE_PLANNING_WILL_POA', label: 'Estate Planning (Will & POA)' },
+        { key: 'TRUSTS_HENSON_SPOUSAL', label: 'Trusts (Henson/Spousal)' },
+        { key: 'GUARDIANSHIP_MINORS', label: 'Guardianship (Minors)' },
+        { key: 'PROBATE_ESTATE_ADMIN', label: 'Probate & Estate Admin' },
+        { key: 'BUSINESS_SUCCESSION', label: 'Business Succession' },
+        { key: 'REAL_ESTATE', label: 'Real Estate' },
+        { key: 'CORPORATE', label: 'Corporate' },
+        { key: 'FAMILY_LAW', label: 'Family Law' }
+      ].forEach(function(pa) {
+        html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-pa-check" value="' + pa.key + '"> ' + escapeHtml(pa.label) + '</label>';
+      });
+      html += '</div></div>';
+      // Service Package multi-checkbox
+      html += '<div class="cc-info-item cc-info-item-full"><div class="cc-info-label">Service Package</div>';
+      html += '<div class="cc-checkbox-group" data-field="Service_Package">';
+      [
+        { key: 'SIMPLE_WILL_POA', label: 'Simple Will & POA' },
+        { key: 'COUPLES_WILLS_POA', label: 'Couples Wills & POA' },
+        { key: 'BLENDED_FAMILY_PLAN', label: 'Blended Family Plan' },
+        { key: 'MINORS_GUARDIANSHIP_PLAN', label: 'Minors Guardianship Plan' },
+        { key: 'HENSON_TRUST_PLAN', label: 'Henson Trust Plan' },
+        { key: 'SPOUSAL_TRUST_PLAN', label: 'Spousal Trust Plan' },
+        { key: 'PROBATE_APPLICATION', label: 'Probate Application' },
+        { key: 'PROBATE_FULL_ADMIN', label: 'Probate Full Admin' }
+      ].forEach(function(sp) {
+        html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-sp-check" value="' + sp.key + '"> ' + escapeHtml(sp.label) + '</label>';
       });
       html += '</div></div>';
       // Lead Source dropdown
@@ -1217,6 +1242,12 @@
         var paChecks = document.querySelectorAll('.cc-pa-check:checked');
         if (paChecks.length) {
           data.Practice_Area = Array.from(paChecks).map(function(cb) { return cb.value; });
+        }
+
+        // Collect Service Package checkboxes
+        var spChecks = document.querySelectorAll('.cc-sp-check:checked');
+        if (spChecks.length) {
+          data.Service_Package = Array.from(spChecks).map(function(cb) { return cb.value; });
         }
 
         // Services Required: use selections from modal
