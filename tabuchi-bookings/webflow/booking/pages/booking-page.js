@@ -12,6 +12,9 @@
  * - #tb-form-container (booking form goes here)
  * - #tb-intake-fields (dynamic intake questions go here)
  * - #tb-loading, #tb-error
+ * - #tb-date-time-section (wraps calendar + slots side-by-side)
+ * - #tb-meeting-info (meeting type card)
+ * - #tb-booking-badge, #tb-badge-name (booking badge pill)
  */
 
 (async function BookingPage() {
@@ -40,7 +43,7 @@
     .tb-cal-day { position: relative; }
     .tb-cal-day.tb-has-availability::after {
       content: ''; width: 6px; height: 6px; background: #22c55e;
-      border-radius: 50%; position: absolute; bottom: 4px;
+      border-radius: 50%; position: absolute; bottom: 3px;
       left: 50%; transform: translateX(-50%);
     }
     .tb-cal-day.tb-no-availability { opacity: 0.4; }
@@ -61,7 +64,12 @@
     renderCalendar();
     renderIntakeForm();
     hideElement('tb-loading');
-    showElement('tb-calendar-container');
+
+    // Show the sections
+    showElement('tb-meeting-info');
+    showElement('tb-booking-badge');
+    showElement('tb-staff-header');
+    showElement('tb-date-time-section');
 
     // Kick off batch availability fetch for current month (non-blocking)
     fetchMonthAvailability(new Date());
@@ -85,9 +93,28 @@
 
   function renderMeetingTypeInfo() {
     setText('tb-meeting-name', meetingTypeData.name);
-    setText('tb-meeting-duration', `${meetingTypeData.duration} minutes`);
+    setText('tb-meeting-duration', meetingTypeData.duration + ' min');
     setText('tb-meeting-description', meetingTypeData.description);
-    setText('tb-meeting-location', meetingTypeData.location || 'Teams Video Call');
+    setText('tb-meeting-location', meetingTypeData.location || 'Video Call');
+    setText('tb-badge-name', meetingTypeData.name);
+
+    // Read more toggle for long descriptions
+    var desc = meetingTypeData.description || '';
+    if (desc.length > 120) {
+      var descEl = document.getElementById('tb-meeting-description');
+      var readMoreBtn = document.getElementById('tb-read-more-btn');
+      if (descEl && readMoreBtn) {
+        var shortDesc = desc.substring(0, 120) + '...';
+        descEl.textContent = shortDesc;
+        readMoreBtn.style.display = 'inline';
+        var expanded = false;
+        readMoreBtn.addEventListener('click', function() {
+          expanded = !expanded;
+          descEl.textContent = expanded ? desc : shortDesc;
+          readMoreBtn.textContent = expanded ? 'Show less' : 'Read more';
+        });
+      }
+    }
 
     // Set color accent if available
     if (meetingTypeData.color) {
@@ -96,9 +123,9 @@
 
     // Show witness note if meeting type requires witnesses
     if (meetingTypeData.requiredWitnesses > 0) {
-      const noteEl = document.getElementById('tb-witness-note');
+      var noteEl = document.getElementById('tb-witness-note');
       if (noteEl) {
-        noteEl.textContent = `This meeting will include ${meetingTypeData.requiredWitnesses} additional staff member${meetingTypeData.requiredWitnesses > 1 ? 's' : ''} as witness${meetingTypeData.requiredWitnesses > 1 ? 'es' : ''}.`;
+        noteEl.textContent = 'This meeting will include ' + meetingTypeData.requiredWitnesses + ' additional staff member' + (meetingTypeData.requiredWitnesses > 1 ? 's' : '') + ' as witness' + (meetingTypeData.requiredWitnesses > 1 ? 'es' : '') + '.';
         noteEl.style.display = '';
       }
     }
@@ -108,14 +135,14 @@
 
   async function fetchMonthAvailability(monthDate) {
     if (!staffData || !meetingTypeData) return;
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth();
-    const key = `${year}-${month}`;
+    var year = monthDate.getFullYear();
+    var month = monthDate.getMonth();
+    var key = year + '-' + month;
     if (_fetchedMonths.has(key)) { applyDayIndicators(); return; }
 
-    const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    var startDate = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+    var lastDay = new Date(year, month + 1, 0).getDate();
+    var endDate = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
 
     try {
       await TabuchiAPI.getBatchAvailability(staffData.id, meetingTypeData.id, startDate, endDate);
@@ -126,9 +153,9 @@
 
   function applyDayIndicators() {
     if (!staffData || !meetingTypeData) return;
-    document.querySelectorAll('.tb-cal-day[data-date]').forEach(el => {
-      const date = el.dataset.date;
-      const indicators = TabuchiAPI.getCachedDayIndicators(staffData.id, meetingTypeData.id, date, date);
+    document.querySelectorAll('.tb-cal-day[data-date]').forEach(function(el) {
+      var date = el.dataset.date;
+      var indicators = TabuchiAPI.getCachedDayIndicators(staffData.id, meetingTypeData.id, date, date);
       if (date in indicators) {
         el.classList.remove('tb-has-availability', 'tb-no-availability');
         el.classList.add(indicators[date] ? 'tb-has-availability' : 'tb-no-availability');
@@ -137,60 +164,58 @@
   }
 
   function renderCalendar() {
-    const container = document.getElementById('tb-calendar-container');
+    var container = document.getElementById('tb-calendar-container');
     if (!container) return;
 
-    const today = new Date();
-    const maxDate = new Date();
+    var today = new Date();
+    var maxDate = new Date();
     maxDate.setDate(maxDate.getDate() + (meetingTypeData.maxAdvanceDays || 60));
 
-    let currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    var currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
     function buildMonth(monthDate) {
-      const year = monthDate.getFullYear();
-      const month = monthDate.getMonth();
-      const firstDay = new Date(year, month, 1).getDay();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      var year = monthDate.getFullYear();
+      var month = monthDate.getMonth();
+      var firstDay = new Date(year, month, 1).getDay();
+      var daysInMonth = new Date(year, month + 1, 0).getDate();
+      var monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-      let html = `
-        <div class="tb-calendar">
-          <div class="tb-calendar-header">
-            <button class="tb-cal-prev" id="tb-cal-prev">&larr;</button>
-            <span class="tb-cal-month">${monthName}</span>
-            <button class="tb-cal-next" id="tb-cal-next">&rarr;</button>
-          </div>
-          <div class="tb-calendar-grid">
-            <div class="tb-cal-day-header">Sun</div>
-            <div class="tb-cal-day-header">Mon</div>
-            <div class="tb-cal-day-header">Tue</div>
-            <div class="tb-cal-day-header">Wed</div>
-            <div class="tb-cal-day-header">Thu</div>
-            <div class="tb-cal-day-header">Fri</div>
-            <div class="tb-cal-day-header">Sat</div>
-      `;
+      var html = '<div class="tb-calendar">' +
+        '<div class="tb-calendar-header">' +
+          '<button class="tb-cal-prev" id="tb-cal-prev">&larr;</button>' +
+          '<span class="tb-cal-month">' + monthName + '</span>' +
+          '<button class="tb-cal-next" id="tb-cal-next">&rarr;</button>' +
+        '</div>' +
+        '<div class="tb-calendar-grid">' +
+          '<div class="tb-cal-day-header">Sun</div>' +
+          '<div class="tb-cal-day-header">Mon</div>' +
+          '<div class="tb-cal-day-header">Tue</div>' +
+          '<div class="tb-cal-day-header">Wed</div>' +
+          '<div class="tb-cal-day-header">Thu</div>' +
+          '<div class="tb-cal-day-header">Fri</div>' +
+          '<div class="tb-cal-day-header">Sat</div>';
 
       // Empty cells before first day
-      for (let i = 0; i < firstDay; i++) {
+      for (var i = 0; i < firstDay; i++) {
         html += '<div class="tb-cal-day tb-cal-empty"></div>';
       }
 
       // Day cells
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateObj = new Date(year, month, day);
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const isPast = dateObj < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const isTooFar = dateObj > maxDate;
-        const isSelected = dateStr === selectedDate;
-        const isToday = dateObj.toDateString() === today.toDateString();
+      for (var day = 1; day <= daysInMonth; day++) {
+        var dateObj = new Date(year, month, day);
+        var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        var isPast = dateObj < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        var isTooFar = dateObj > maxDate;
+        var isSelected = dateStr === selectedDate;
+        var isToday = dateObj.toDateString() === today.toDateString();
 
-        let classes = 'tb-cal-day';
+        var classes = 'tb-cal-day';
         if (isPast || isTooFar) classes += ' tb-cal-disabled';
         else classes += ' tb-cal-available';
         if (isSelected) classes += ' tb-cal-selected';
         if (isToday) classes += ' tb-cal-today';
 
-        html += `<div class="${classes}" data-date="${dateStr}">${day}</div>`;
+        html += '<div class="' + classes + '" data-date="' + dateStr + '">' + day + '</div>';
       }
 
       html += '</div></div>';
@@ -201,9 +226,9 @@
       container.innerHTML = buildMonth(currentMonth);
 
       // Bind navigation
-      const prev = document.getElementById('tb-cal-prev');
-      const next = document.getElementById('tb-cal-next');
-      if (prev) prev.addEventListener('click', () => {
+      var prev = document.getElementById('tb-cal-prev');
+      var next = document.getElementById('tb-cal-next');
+      if (prev) prev.addEventListener('click', function() {
         currentMonth.setMonth(currentMonth.getMonth() - 1);
         if (currentMonth < new Date(today.getFullYear(), today.getMonth(), 1)) {
           currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -211,15 +236,15 @@
         render();
         fetchMonthAvailability(currentMonth);
       });
-      if (next) next.addEventListener('click', () => {
+      if (next) next.addEventListener('click', function() {
         currentMonth.setMonth(currentMonth.getMonth() + 1);
         render();
         fetchMonthAvailability(currentMonth);
       });
 
       // Bind day clicks
-      container.querySelectorAll('.tb-cal-available').forEach(el => {
-        el.addEventListener('click', () => onDateSelected(el.dataset.date));
+      container.querySelectorAll('.tb-cal-available').forEach(function(el) {
+        el.addEventListener('click', function() { onDateSelected(el.dataset.date); });
       });
     }
 
@@ -231,95 +256,97 @@
     selectedTime = null;
 
     // Update calendar selection visually
-    document.querySelectorAll('.tb-cal-day').forEach(el => el.classList.remove('tb-cal-selected'));
-    document.querySelector(`[data-date="${dateStr}"]`)?.classList.add('tb-cal-selected');
+    document.querySelectorAll('.tb-cal-day').forEach(function(el) { el.classList.remove('tb-cal-selected'); });
+    var selectedEl = document.querySelector('[data-date="' + dateStr + '"]');
+    if (selectedEl) selectedEl.classList.add('tb-cal-selected');
 
-    // Load time slots — show spinner only if not cached
-    const slotsContainer = document.getElementById('tb-slots-container');
+    // Load time slots in the side panel
+    var slotsContainer = document.getElementById('tb-slots-container');
     if (!slotsContainer) return;
 
-    const indicators = TabuchiAPI.getCachedDayIndicators(staffData.id, meetingTypeData.id, dateStr, dateStr);
-    const isCached = dateStr in indicators;
+    var indicators = TabuchiAPI.getCachedDayIndicators(staffData.id, meetingTypeData.id, dateStr, dateStr);
+    var isCached = dateStr in indicators;
 
     if (!isCached) {
-      slotsContainer.innerHTML = '<div class="tb-loading"><div class="tb-spinner"></div><p>Loading available times...</p></div>';
+      slotsContainer.innerHTML = '<div class="tb-loading"><div class="tb-spinner"></div><p>Loading times...</p></div>';
     }
-    showElement('tb-slots-container');
 
     try {
-      const result = await TabuchiAPI.getAvailability(staffData.id, meetingTypeData.id, dateStr);
+      var result = await TabuchiAPI.getAvailability(staffData.id, meetingTypeData.id, dateStr);
       currentStep = 'time';
       if (result.slots.length === 0) {
-        slotsContainer.innerHTML = `<p class="tb-no-slots">No available times on ${TabuchiAPI.util.formatDate(dateStr)}. Please select another date.</p>`;
+        slotsContainer.innerHTML = '<p class="tb-no-slots">No available times on ' + TabuchiAPI.util.formatDate(dateStr) + '.</p>';
       } else {
         renderTimeSlots(result.slots);
       }
-      renderBackButton('tb-slots-container', 'Back to Calendar', 'date');
     } catch (err) {
       slotsContainer.innerHTML = '<p class="tb-error">Unable to load available times. Please try again.</p>';
     }
   }
 
   function renderTimeSlots(slots) {
-    const container = document.getElementById('tb-slots-container');
+    var container = document.getElementById('tb-slots-container');
     if (!container) return;
 
-    let html = `<h3 class="tb-slots-title">Available times for ${TabuchiAPI.util.formatDate(selectedDate)}</h3><div class="tb-slots-grid">`;
-    for (const slot of slots) {
-      html += `<button class="tb-slot" data-time="${slot}">${TabuchiAPI.util.formatTime(slot)}</button>`;
+    var html = '<h3 class="tb-slots-title">' + TabuchiAPI.util.formatDate(selectedDate) + '</h3><div class="tb-slots-grid">';
+    for (var i = 0; i < slots.length; i++) {
+      html += '<button class="tb-slot" data-time="' + slots[i] + '">' + TabuchiAPI.util.formatTime(slots[i]) + '</button>';
     }
     html += '</div>';
     container.innerHTML = html;
 
     // Bind slot clicks
-    container.querySelectorAll('.tb-slot').forEach(el => {
-      el.addEventListener('click', () => {
+    container.querySelectorAll('.tb-slot').forEach(function(el) {
+      el.addEventListener('click', function() {
         selectedTime = el.dataset.time;
-        document.querySelectorAll('.tb-slot').forEach(s => s.classList.remove('tb-slot-selected'));
+        document.querySelectorAll('.tb-slot').forEach(function(s) { s.classList.remove('tb-slot-selected'); });
         el.classList.add('tb-slot-selected');
         currentStep = 'form';
         showElement('tb-form-container');
         updateFormSummary();
-        renderBackButton('tb-form-container', 'Back to Time Selection', 'time');
+        // Scroll form into view
+        var formEl = document.getElementById('tb-form-container');
+        if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
   }
 
   function renderIntakeForm() {
-    const container = document.getElementById('tb-intake-fields');
+    var container = document.getElementById('tb-intake-fields');
     if (!container || intakeQuestions.length === 0) return;
 
-    let html = '';
-    for (const q of intakeQuestions) {
-      const reqAttr = q.required ? 'required' : '';
-      const reqStar = q.required ? '<span class="tb-required">*</span>' : '';
-      const safeId = escapeAttr(q.id);
+    var html = '';
+    for (var i = 0; i < intakeQuestions.length; i++) {
+      var q = intakeQuestions[i];
+      var reqAttr = q.required ? 'required' : '';
+      var reqStar = q.required ? '<span class="tb-required">*</span>' : '';
+      var safeId = escapeAttr(q.id);
 
-      html += `<div class="tb-form-field">`;
-      html += `<label for="intake-${safeId}">${escapeHtml(q.label)}${reqStar}</label>`;
+      html += '<div class="tb-form-field">';
+      html += '<label for="intake-' + safeId + '">' + escapeHtml(q.label) + reqStar + '</label>';
 
       switch (q.fieldType) {
         case 'textarea':
-          html += `<textarea id="intake-${safeId}" name="intake-${safeId}" rows="3" ${reqAttr}></textarea>`;
+          html += '<textarea id="intake-' + safeId + '" name="intake-' + safeId + '" rows="3" ' + reqAttr + '></textarea>';
           break;
         case 'select':
-          html += `<select id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}><option value="">Select...</option>`;
-          for (const opt of (q.options || [])) {
-            html += `<option value="${escapeAttr(opt)}">${escapeHtml(opt)}</option>`;
+          html += '<select id="intake-' + safeId + '" name="intake-' + safeId + '" ' + reqAttr + '><option value="">Select...</option>';
+          for (var j = 0; j < (q.options || []).length; j++) {
+            html += '<option value="' + escapeAttr(q.options[j]) + '">' + escapeHtml(q.options[j]) + '</option>';
           }
           html += '</select>';
           break;
         case 'checkbox':
-          html += `<input type="checkbox" id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}>`;
+          html += '<input type="checkbox" id="intake-' + safeId + '" name="intake-' + safeId + '" ' + reqAttr + '>';
           break;
         case 'email':
-          html += `<input type="email" id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}>`;
+          html += '<input type="email" id="intake-' + safeId + '" name="intake-' + safeId + '" ' + reqAttr + '>';
           break;
         case 'phone':
-          html += `<input type="tel" id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}>`;
+          html += '<input type="tel" id="intake-' + safeId + '" name="intake-' + safeId + '" ' + reqAttr + '>';
           break;
         default: // text
-          html += `<input type="text" id="intake-${safeId}" name="intake-${safeId}" ${reqAttr}>`;
+          html += '<input type="text" id="intake-' + safeId + '" name="intake-' + safeId + '" ' + reqAttr + '>';
       }
       html += '</div>';
     }
@@ -329,70 +356,9 @@
   function updateFormSummary() {
     setText('tb-summary-date', TabuchiAPI.util.formatDate(selectedDate));
     setText('tb-summary-time', TabuchiAPI.util.formatTime(selectedTime));
-    setText('tb-summary-duration', `${meetingTypeData.duration} minutes`);
+    setText('tb-summary-duration', meetingTypeData.duration + ' min');
     setText('tb-summary-meeting', meetingTypeData.name);
     setText('tb-summary-staff', staffData.name);
-  }
-
-  // ─── Step Navigation ──────────────────────────────────────────
-  function goToStep(step) {
-    currentStep = step;
-    switch (step) {
-      case 'date':
-        showElement('tb-calendar-container');
-        hideElement('tb-slots-container');
-        hideElement('tb-form-container');
-        selectedDate = null;
-        selectedTime = null;
-        document.querySelectorAll('.tb-cal-day').forEach(el => el.classList.remove('tb-cal-selected'));
-        break;
-      case 'time':
-        showElement('tb-calendar-container');
-        showElement('tb-slots-container');
-        hideElement('tb-form-container');
-        selectedTime = null;
-        document.querySelectorAll('.tb-slot').forEach(s => s.classList.remove('tb-slot-selected'));
-        break;
-      case 'form':
-        showElement('tb-calendar-container');
-        showElement('tb-slots-container');
-        showElement('tb-form-container');
-        break;
-    }
-  }
-
-  function renderBackButton(containerId, label, targetStep) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    // Remove any existing nav
-    const existing = container.querySelector('.tb-booking-nav');
-    if (existing) existing.remove();
-
-    const nav = document.createElement('div');
-    nav.className = 'tb-booking-nav';
-
-    const backBtn = document.createElement('button');
-    backBtn.type = 'button';
-    backBtn.className = 'tb-btn tb-btn-secondary tb-back-btn';
-    backBtn.textContent = '\u2190 ' + label;
-    backBtn.addEventListener('click', () => goToStep(targetStep));
-    nav.appendChild(backBtn);
-
-    if (targetStep === 'time') {
-      // On the form step, also add a cancel button
-      const cancelBtn = document.createElement('button');
-      cancelBtn.type = 'button';
-      cancelBtn.className = 'tb-btn tb-btn-secondary tb-cancel-btn';
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.addEventListener('click', () => {
-        if (confirm('Are you sure you want to cancel this booking?')) {
-          window.history.back();
-        }
-      });
-      nav.appendChild(cancelBtn);
-    }
-
-    container.insertBefore(nav, container.firstChild);
   }
 
   // ─── Form Submission ───────────────────────────────────────────
@@ -400,39 +366,40 @@
     if (!e.target.matches('#tb-booking-form')) return;
     e.preventDefault();
 
-    const form = e.target;
-    const submitBtn = form.querySelector('[type="submit"]');
-    const originalText = submitBtn?.textContent;
+    var form = e.target;
+    var submitBtn = form.querySelector('[type="submit"]');
+    var originalText = submitBtn ? submitBtn.textContent : '';
 
     try {
       if (submitBtn) { submitBtn.textContent = 'Booking...'; submitBtn.disabled = true; }
 
       // Collect intake responses
-      const intakeResponses = {};
-      for (const q of intakeQuestions) {
-        const el = document.getElementById(`intake-${q.id}`);
+      var intakeResponses = {};
+      for (var i = 0; i < intakeQuestions.length; i++) {
+        var q = intakeQuestions[i];
+        var el = document.getElementById('intake-' + q.id);
         if (el) {
           intakeResponses[q.label] = q.fieldType === 'checkbox' ? el.checked : el.value;
         }
       }
 
-      const bookingData = {
+      var bookingData = {
         meetingTypeId: meetingTypeData.id,
         date: selectedDate,
         time: selectedTime,
-        clientName: form.querySelector('[name="clientName"]')?.value,
-        clientEmail: form.querySelector('[name="clientEmail"]')?.value,
-        clientPhone: form.querySelector('[name="clientPhone"]')?.value || '',
-        intakeResponses
+        clientName: form.querySelector('[name="clientName"]') ? form.querySelector('[name="clientName"]').value : '',
+        clientEmail: form.querySelector('[name="clientEmail"]') ? form.querySelector('[name="clientEmail"]').value : '',
+        clientPhone: form.querySelector('[name="clientPhone"]') ? form.querySelector('[name="clientPhone"]').value : '',
+        intakeResponses: intakeResponses
       };
 
-      const result = await TabuchiAPI.createBooking(bookingData);
+      var result = await TabuchiAPI.createBooking(bookingData);
 
       // Clear availability cache since a slot is now taken
       TabuchiAPI.clearAvailabilityCache();
 
       // Redirect to confirmation page with booking data
-      const confirmParams = {
+      var confirmParams = {
         bookingId: result.booking.bookingId,
         staffName: result.booking.staffName,
         meetingType: result.booking.meetingTypeName,
@@ -448,12 +415,12 @@
       };
       // Only include joinUrl if present (not for In-Office/Phone)
       if (result.booking.joinUrl) confirmParams.joinUrl = result.booking.joinUrl;
-      const params = new URLSearchParams(confirmParams);
-      window.location.href = `/book-confirm?${params.toString()}`;
+      var qp = new URLSearchParams(confirmParams);
+      window.location.href = '/book-confirm?' + qp.toString();
 
     } catch (err) {
       if (submitBtn) { submitBtn.textContent = originalText; submitBtn.disabled = false; }
-      const errorEl = document.getElementById('tb-form-error');
+      var errorEl = document.getElementById('tb-form-error');
       if (errorEl) {
         errorEl.textContent = err.error || 'Unable to complete booking. Please try again.';
         errorEl.style.display = 'block';
@@ -468,15 +435,15 @@
 
   // ─── Helpers ───────────────────────────────────────────────────
   function setText(id, text) {
-    const el = document.getElementById(id);
+    var el = document.getElementById(id);
     if (el) el.textContent = text || '';
   }
   function showElement(id) {
-    const el = document.getElementById(id);
+    var el = document.getElementById(id);
     if (el) el.style.display = '';
   }
   function hideElement(id) {
-    const el = document.getElementById(id);
+    var el = document.getElementById(id);
     if (el) el.style.display = 'none';
   }
 

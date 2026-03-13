@@ -6,15 +6,72 @@
 :root {
   --tb-accent: #2563EB;
   --tb-accent-hover: #1D4ED8;
+  --tb-accent-light: #EFF6FF;
   --tb-text: #1F2937;
   --tb-text-light: #6B7280;
   --tb-bg: #FFFFFF;
   --tb-bg-light: #F9FAFB;
+  --tb-bg-page: #F3F4F6;
   --tb-border: #E5E7EB;
   --tb-success: #059669;
   --tb-error: #DC2626;
   --tb-radius: 8px;
-  --tb-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  --tb-radius-lg: 12px;
+  --tb-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  --tb-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+/* ─── Public Booking Page Shell ──────────────────────────────── */
+
+.tb-page-shell {
+  min-height: 100vh;
+  background: var(--tb-bg-page);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--tb-text);
+}
+
+.tb-page-header {
+  text-align: center;
+  padding: 2rem 1rem 1.5rem;
+  background: var(--tb-bg);
+  border-bottom: 1px solid var(--tb-border);
+}
+
+.tb-page-header img {
+  height: 48px;
+  width: auto;
+}
+
+.tb-page-body {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.tb-page-footer {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  border-top: 1px solid var(--tb-border);
+  background: var(--tb-bg);
+  font-size: 0.8rem;
+  color: var(--tb-text-light);
+}
+
+.tb-page-footer a {
+  color: var(--tb-text-light);
+  text-decoration: none;
+  margin: 0 0.5rem;
+}
+.tb-page-footer a:hover { color: var(--tb-accent); text-decoration: underline; }
+
+.tb-footer-phone {
+  font-weight: 500;
+  color: var(--tb-text);
+  margin-bottom: 0.5rem;
+}
+
+.tb-footer-links {
+  margin-top: 0.4rem;
 }
 
 /* ─── Loading & Error ────────────────────────────────────────── */
@@ -42,6 +99,177 @@
   font-style: italic;
 }
 
+/* ─── Meeting Type Info Card ─────────────────────────────────── */
+
+.tb-meeting-info-card {
+  background: var(--tb-bg);
+  border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--tb-shadow);
+}
+
+.tb-meeting-info-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.tb-meeting-check {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  background: var(--tb-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.tb-meeting-info-content {
+  flex: 1;
+}
+
+.tb-meeting-info-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--tb-text);
+}
+
+.tb-meeting-info-card .tb-meeting-desc {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--tb-text-light);
+  line-height: 1.5;
+}
+
+.tb-meeting-read-more {
+  display: none;
+  font-size: 0.85rem;
+  color: var(--tb-accent);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+.tb-meeting-read-more:hover { text-decoration: underline; }
+
+.tb-meeting-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--tb-text-light);
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--tb-bg-light);
+  margin-top: 0.5rem;
+}
+
+.tb-meeting-meta span {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* ─── Booking Badge ──────────────────────────────────────────── */
+
+.tb-booking-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--tb-accent-light);
+  color: var(--tb-accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  margin-bottom: 1.25rem;
+}
+
+/* ─── Staff Selector ─────────────────────────────────────────── */
+
+.tb-staff-selector {
+  margin-bottom: 1.25rem;
+}
+
+.tb-staff-selector label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tb-text-light);
+  margin-bottom: 0.4rem;
+}
+
+.tb-staff-selector select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius);
+  font-size: 0.95rem;
+  background: var(--tb-bg);
+  color: var(--tb-text);
+  cursor: pointer;
+}
+
+/* ─── Staff Info Compact ─────────────────────────────────────── */
+
+.tb-staff-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--tb-bg);
+  border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius);
+}
+
+.tb-staff-compact img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.tb-staff-compact .tb-staff-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.tb-staff-compact .tb-staff-title {
+  font-size: 0.8rem;
+  color: var(--tb-text-light);
+}
+
+/* ─── Calendar + Slots Side-by-Side Layout ───────────────────── */
+
+.tb-date-time-section {
+  background: var(--tb-bg);
+  border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--tb-shadow);
+}
+
+.tb-date-time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.tb-date-time-grid .tb-calendar-col,
+.tb-date-time-grid .tb-slots-col {
+  min-width: 0;
+}
+
 /* ─── Calendar ───────────────────────────────────────────────── */
 
 .tb-calendar {
@@ -50,13 +278,13 @@
 
 .tb-calendar-header {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 0.75rem 0; font-weight: 600; font-size: 1.1rem;
+  padding: 0.5rem 0 0.75rem; font-weight: 600; font-size: 1rem;
 }
 
 .tb-calendar-header button {
   background: none; border: 1px solid var(--tb-border); border-radius: var(--tb-radius);
-  padding: 0.4rem 0.8rem; cursor: pointer; font-size: 1rem;
-  transition: background 0.15s;
+  padding: 0.35rem 0.7rem; cursor: pointer; font-size: 0.9rem;
+  transition: background 0.15s; color: var(--tb-text);
 }
 .tb-calendar-header button:hover { background: var(--tb-bg-light); }
 
@@ -65,14 +293,14 @@
 }
 
 .tb-cal-day-header {
-  text-align: center; font-size: 0.75rem; font-weight: 600;
-  color: var(--tb-text-light); padding: 0.5rem 0;
+  text-align: center; font-size: 0.7rem; font-weight: 600;
+  color: var(--tb-text-light); padding: 0.4rem 0;
   text-transform: uppercase;
 }
 
 .tb-cal-day {
-  text-align: center; padding: 0.6rem 0; border-radius: var(--tb-radius);
-  font-size: 0.9rem; transition: all 0.15s;
+  text-align: center; padding: 0.5rem 0; border-radius: var(--tb-radius);
+  font-size: 0.85rem; transition: all 0.15s;
 }
 
 .tb-cal-empty { visibility: hidden; }
@@ -85,7 +313,7 @@
   cursor: pointer; color: var(--tb-text);
 }
 .tb-cal-available:hover {
-  background: var(--tb-bg-light); color: var(--tb-accent);
+  background: var(--tb-accent-light); color: var(--tb-accent);
 }
 
 .tb-cal-selected {
@@ -97,7 +325,7 @@
   font-weight: 700; position: relative;
 }
 .tb-cal-today::after {
-  content: ''; position: absolute; bottom: 4px; left: 50%;
+  content: ''; position: absolute; bottom: 3px; left: 50%;
   transform: translateX(-50%); width: 4px; height: 4px;
   background: var(--tb-accent); border-radius: 50%;
 }
@@ -105,34 +333,43 @@
 /* ─── Time Slots ─────────────────────────────────────────────── */
 
 .tb-slots-title {
-  font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem;
+  font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem;
   color: var(--tb-text);
 }
 
 .tb-slots-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 0.5rem;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 0.4rem;
 }
 
 .tb-slot {
-  padding: 0.6rem 0.75rem; border: 1px solid var(--tb-border);
+  padding: 0.5rem 0.5rem; border: 1px solid var(--tb-border);
   border-radius: var(--tb-radius); background: white; cursor: pointer;
-  font-size: 0.9rem; text-align: center; transition: all 0.15s;
+  font-size: 0.85rem; text-align: center; transition: all 0.15s;
   color: var(--tb-text);
 }
 .tb-slot:hover {
   border-color: var(--tb-accent); color: var(--tb-accent);
+  background: var(--tb-accent-light);
 }
 .tb-slot-selected {
   background: var(--tb-accent) !important; color: white !important;
   border-color: var(--tb-accent) !important; font-weight: 600;
 }
 
-/* ─── Meeting Type Cards ─────────────────────────────────────── */
+.tb-slots-placeholder {
+  color: var(--tb-text-light);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 3rem 1rem;
+  font-style: italic;
+}
+
+/* ─── Meeting Type Cards (for staff landing) ─────────────────── */
 
 .tb-meeting-card {
   display: block; padding: 1.25rem; background: white;
-  border: 1px solid var(--tb-border); border-radius: var(--tb-radius);
+  border: 1px solid var(--tb-border); border-radius: var(--tb-radius-lg);
   margin-bottom: 0.75rem; text-decoration: none; color: var(--tb-text);
   transition: all 0.15s; box-shadow: var(--tb-shadow);
 }
@@ -165,23 +402,44 @@
   font-size: 0.8rem; color: var(--tb-text-light);
 }
 
-/* ─── Form ───────────────────────────────────────────────────── */
+/* ─── Form Section ───────────────────────────────────────────── */
+
+.tb-form-section {
+  background: var(--tb-bg);
+  border: 1px solid var(--tb-border);
+  border-radius: var(--tb-radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--tb-shadow);
+}
+
+.tb-form-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tb-text-light);
+  margin: 0 0 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--tb-border);
+}
 
 .tb-form-field {
   margin-bottom: 1rem;
 }
 
 .tb-form-field label {
-  display: block; font-size: 0.9rem; font-weight: 500;
+  display: block; font-size: 0.85rem; font-weight: 500;
   margin-bottom: 0.3rem; color: var(--tb-text);
 }
 
 .tb-form-field input,
 .tb-form-field select,
 .tb-form-field textarea {
-  width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--tb-border);
+  width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--tb-border);
   border-radius: var(--tb-radius); font-size: 0.95rem;
   transition: border-color 0.15s; box-sizing: border-box;
+  background: var(--tb-bg);
 }
 
 .tb-form-field input:focus,
@@ -193,11 +451,35 @@
 
 .tb-required { color: var(--tb-error); margin-left: 2px; }
 
+.tb-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* ─── Booking Summary (in form section) ──────────────────────── */
+
+.tb-booking-summary {
+  background: var(--tb-accent-light);
+  border: 1px solid #BFDBFE;
+  border-radius: var(--tb-radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: var(--tb-accent);
+}
+
+.tb-booking-summary strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--tb-text);
+}
+
 /* ─── Buttons ────────────────────────────────────────────────── */
 
 .tb-btn {
-  display: inline-block; padding: 0.7rem 1.5rem; border-radius: var(--tb-radius);
-  font-size: 1rem; font-weight: 500; cursor: pointer; border: none;
+  display: inline-block; padding: 0.75rem 1.5rem; border-radius: var(--tb-radius);
+  font-size: 1rem; font-weight: 600; cursor: pointer; border: none;
   text-decoration: none; text-align: center; transition: all 0.15s;
 }
 
@@ -210,19 +492,21 @@
 .tb-btn-secondary {
   background: white; color: var(--tb-accent); border: 1px solid var(--tb-accent);
 }
-.tb-btn-secondary:hover { background: #EFF6FF; }
+.tb-btn-secondary:hover { background: var(--tb-accent-light); }
 
 .tb-btn-danger {
   background: var(--tb-error); color: white;
 }
 .tb-btn-danger:hover { background: #B91C1C; }
 
+.tb-btn-full { width: 100%; }
+
 /* ─── Confirmation Page ──────────────────────────────────────── */
 
 .tb-confirm-card {
   background: white; border: 1px solid var(--tb-border);
-  border-radius: var(--tb-radius); padding: 2rem;
-  box-shadow: var(--tb-shadow); max-width: 600px; margin: 2rem auto;
+  border-radius: var(--tb-radius-lg); padding: 2rem;
+  box-shadow: var(--tb-shadow-md); max-width: 600px; margin: 0 auto;
 }
 
 .tb-confirm-card h2 {
@@ -231,7 +515,7 @@
 
 .tb-confirm-detail {
   display: flex; justify-content: space-between;
-  padding: 0.5rem 0; border-bottom: 1px solid var(--tb-bg-light);
+  padding: 0.6rem 0; border-bottom: 1px solid var(--tb-bg-light);
 }
 
 .tb-confirm-label {
@@ -312,7 +596,30 @@
   background: #FEF2F2;
 }
 
+/* ─── Witness Note ───────────────────────────────────────────── */
+
+.tb-witness-note {
+  font-size: 0.85rem;
+  color: #92400E;
+  background: #FEF3C7;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-top: 0.75rem;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .tb-date-time-grid {
+    grid-template-columns: 1fr;
+  }
+  .tb-form-row {
+    grid-template-columns: 1fr;
+  }
+  .tb-page-body {
+    padding: 1rem 0.75rem 2rem;
+  }
+}
 
 @media (max-width: 640px) {
   .tb-slots-grid {
@@ -324,5 +631,9 @@
   .tb-confirm-actions {
     flex-direction: column;
   }
-  .tb-btn { width: 100%; }
+  .tb-btn-full { width: 100%; }
+  .tb-meeting-meta {
+    flex-direction: column;
+    gap: 0.3rem;
+  }
 }
