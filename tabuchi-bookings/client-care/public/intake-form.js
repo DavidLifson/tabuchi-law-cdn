@@ -1007,11 +1007,12 @@
     if (existingError) existingError.remove();
 
     var errorDiv = document.createElement('div');
-    errorDiv.className = 'cc-form-error';
+    errorDiv.className = 'cc-form-error cc-error';
     errorDiv.textContent = message;
     content.insertBefore(errorDiv, content.firstChild);
+    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    setTimeout(function() { errorDiv.remove(); }, 5000);
+    setTimeout(function() { errorDiv.remove(); }, 8000);
   }
 
   // ─── Conditional Field Logic ───────────────────────────────────
