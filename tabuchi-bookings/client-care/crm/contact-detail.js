@@ -187,7 +187,7 @@
           (c.Disposition === 'LOST' ? ' <span class="cc-badge cc-badge-red">LOST</span>' : '') +
         '</div>' +
         '<div class="cc-contact-header-actions">' +
-          ((_u && (_u.role === 'ADMIN' || _u.role === 'MANAGER')) ? '<button class="cc-btn cc-btn-sm cc-btn-danger" id="cc-delete-contact" style="margin-right:8px;">Delete</button>' : '') +
+          ((_u && ((_u.role || '').toUpperCase() === 'ADMIN' || (_u.role || '').toUpperCase() === 'MANAGER')) ? '<button class="cc-btn cc-btn-sm cc-btn-danger" id="cc-delete-contact" style="margin-right:8px;">Delete</button>' : '') +
           '<button class="cc-btn cc-btn-sm" id="cc-edit-toggle">' + (state.editMode ? 'Cancel Edit' : 'Edit') + '</button>' +
         '</div>' +
       '</div>' +

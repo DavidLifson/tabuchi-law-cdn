@@ -54,7 +54,7 @@
     isAdmin: false,
     refreshTimer: null
   };
-  state.isAdmin = (state.role === 'ADMIN' || state.role === 'MANAGER');
+  state.isAdmin = ((state.role || '').toUpperCase() === 'ADMIN' || (state.role || '').toUpperCase() === 'MANAGER');
 
   var REFRESH_INTERVAL = 300000; // 5 minutes
 
@@ -130,7 +130,7 @@
       }
       state.data = result.data;
       state.role = result.role || state.role;
-      state.isAdmin = (state.role === 'ADMIN' || state.role === 'MANAGER');
+      state.isAdmin = ((state.role || '').toUpperCase() === 'ADMIN' || (state.role || '').toUpperCase() === 'MANAGER');
 
       if (showSkeleton) updateProgress(4, 'Rendering dashboard\u2026');
 

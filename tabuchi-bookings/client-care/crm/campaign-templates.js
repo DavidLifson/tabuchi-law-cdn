@@ -92,7 +92,7 @@
 
   // ─── Role Gate ─────────────────────────────────────────────
   function checkRole() {
-    var role = state.user ? state.user.role : '';
+    var role = state.user ? (state.user.role || '').toUpperCase() : '';
     if (!['ADMIN', 'MARKETING', 'MANAGER'].includes(role)) {
       var container = $el('cc-templates-container');
       if (container) container.innerHTML =
