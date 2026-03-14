@@ -702,7 +702,7 @@
       if (!d.date) return;
       html += '<div class="cc-key-date-item">';
       html += '<span class="cc-key-date-icon">' + d.icon + '</span>';
-      html += '<span class="cc-key-date-label">' + escapeHtml(d.label) + '</span>';
+      html += '<span class="cc-key-date-label">' + escapeHtml(d.label) + '</span> ';
       html += '<span class="cc-key-date-value">' + escapeHtml(API.util.formatDateTime(d.date)) + '</span>';
       html += '</div>';
     });
