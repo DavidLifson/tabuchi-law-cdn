@@ -26,7 +26,21 @@
   const meetingSlug = params.type;
 
   // Only run in booking mode: both ?staff= and ?type= present
-  if (!staffSlug || !meetingSlug) return;
+  if (!staffSlug || !meetingSlug) {
+    var errorEl = document.getElementById('tb-error');
+    if (errorEl) {
+      errorEl.textContent = 'Invalid booking link. Please use a booking link provided by our team, or visit our website to select a meeting type.';
+      errorEl.style.display = '';
+      errorEl.style.padding = '1.5rem';
+      errorEl.style.color = '#b91c1c';
+      errorEl.style.background = '#fef2f2';
+      errorEl.style.borderRadius = '8px';
+      errorEl.style.textAlign = 'center';
+      errorEl.style.margin = '2rem auto';
+      errorEl.style.maxWidth = '600px';
+    }
+    return;
+  }
 
   // ─── State ─────────────────────────────────────────────────────
   let staffData = null;
@@ -93,7 +107,7 @@
 
   function renderMeetingTypeInfo() {
     setText('tb-meeting-name', meetingTypeData.name);
-    setText('tb-meeting-duration', meetingTypeData.duration + ' min');
+    setText('tb-meeting-duration', (meetingTypeData.duration || meetingTypeData.durationMinutes || '--') + ' min');
     setText('tb-meeting-description', meetingTypeData.description);
     setText('tb-meeting-location', meetingTypeData.location || 'Video Call');
     setText('tb-badge-name', meetingTypeData.name);
@@ -356,7 +370,7 @@
   function updateFormSummary() {
     setText('tb-summary-date', TabuchiAPI.util.formatDate(selectedDate));
     setText('tb-summary-time', TabuchiAPI.util.formatTime(selectedTime));
-    setText('tb-summary-duration', meetingTypeData.duration + ' min');
+    setText('tb-summary-duration', (meetingTypeData.duration || meetingTypeData.durationMinutes || '--') + ' min');
     setText('tb-summary-meeting', meetingTypeData.name);
     setText('tb-summary-staff', staffData.name);
   }

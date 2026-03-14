@@ -1263,12 +1263,12 @@
           if (res.success && newId) {
             window.location.href = '/crm/lead?id=' + newId;
           } else {
-            alert('Create failed: ' + (res.error || 'Unknown error'));
+            alert('Create failed: ' + (res.error || res.message || res.details || JSON.stringify(res)));
             createBtn.disabled = false;
             createBtn.textContent = 'Create Lead';
           }
         } catch (err) {
-          alert('Create failed: ' + (err.error || 'Network error'));
+          alert('Create failed: ' + (err.error || err.message || 'Network error'));
           createBtn.disabled = false;
           createBtn.textContent = 'Create Lead';
         }
