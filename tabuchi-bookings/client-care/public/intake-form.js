@@ -223,12 +223,15 @@
 
       if (result.success && result.session_id) {
         state.sessionId = result.session_id;
-        sessionStorage.setItem('cc_intake_session', result.session_id);
-
-        // Update URL with session param for resume
-        var url = new URL(window.location);
-        url.searchParams.set('session', result.session_id);
-        window.history.replaceState(null, '', url.toString());
+        try {
+          sessionStorage.setItem('cc_intake_session', result.session_id);
+          var url = new URL(window.location);
+          url.searchParams.set('session', result.session_id);
+          window.history.replaceState(null, '', url.toString());
+        } catch (storageErr) {
+          // Non-critical: session storage or URL update failed (private browsing, etc.)
+          console.warn('Intake autoSave: could not persist session locally:', storageErr);
+        }
       }
 
       if (statusEl) statusEl.textContent = 'Saved';
@@ -236,6 +239,7 @@
         if (statusEl) statusEl.textContent = '';
       }, 2000);
     } catch (err) {
+      console.error('Intake autoSave error:', err);
       if (statusEl) statusEl.textContent = 'Save failed';
     }
 
@@ -314,6 +318,15 @@
 
     // Restore saved values
     restoreFieldValues();
+
+    // After restoring values, sync conditional UI visibility
+    if (state.currentStep === 'service_type') {
+      var pkgGroup = document.getElementById('cc-service-pkg-group');
+      if (pkgGroup) {
+        var pa = state.formData.practice_area || '';
+        pkgGroup.style.display = (pa.includes('ESTATE') || pa.includes('TRUST') || pa.includes('GUARDIANSHIP') || pa.includes('PROBATE')) ? '' : 'none';
+      }
+    }
 
     // Scroll to top
     content.scrollTop = 0;
@@ -413,7 +426,7 @@
       html += '<label class="cc-radio-card">' +
         '<input type="radio" name="practice_area" data-field="practice_area" value="' + area.value + '">' +
         '<div class="cc-radio-card-content">' +
-          '<strong>' + area.label + '</strong>' +
+          '<strong>' + area.label + '</strong><br>' +
           '<span>' + area.desc + '</span>' +
         '</div>' +
       '</label>';
