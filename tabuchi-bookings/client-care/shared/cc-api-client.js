@@ -31,7 +31,7 @@ const ClientCareAPI = (() => {
   // Actions that are read-only (safe to cache)
   var READ_ACTIONS = ['list', 'get', 'get_history', 'list_users', 'list_templates',
     'system_stats', 'list_recipients', 'report', 'preview_audience', 'list_steps',
-    'approve_review', 'link_lead'];
+    'approve_review', 'link_lead', 'recent_messages'];
 
   // Actions that mutate data (invalidate cache)
   var WRITE_ACTIONS = ['create', 'update', 'delete', 'bulk_update_tags',
@@ -516,6 +516,12 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/admin', { body: { action: 'system_stats' } });
   }
 
+  async function getRecentMessages(limit) {
+    var body = { action: 'recent_messages' };
+    if (limit) body.limit = limit;
+    return request('POST', '/cc/admin', { body: body });
+  }
+
   // ─── Config (Admin) ────────────────────────────────────────
 
   /**
@@ -858,7 +864,7 @@ const ClientCareAPI = (() => {
     },
     // Admin
     admin: {
-      listUsers, createUser, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats,
+      listUsers, createUser, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats, getRecentMessages,
       config: { list: listConfig, create: createConfig, update: updateConfig, delete: deleteConfig }
     },
     // Price Book

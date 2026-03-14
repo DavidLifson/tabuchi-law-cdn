@@ -158,7 +158,11 @@
     dripConfig: null,
     dripConfigRecordId: null,
     dripCampaigns: [],
-    dripLoading: false
+    dripLoading: false,
+    // Messages Sent
+    recentMessages: [],
+    messagesLoading: false,
+    messagesDisplayCount: 25
   };
 
   // ─── Role Gate ─────────────────────────────────────────────
@@ -293,11 +297,12 @@
     if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading overview...</p></div>';
 
     try {
-      // Fetch system stats, Clio failures, and drip heartbeat in parallel
+      // Fetch system stats, Clio failures, drip heartbeat, and recent messages in parallel
       var results = await Promise.allSettled([
         API.admin.getSystemStats(),
         API.leads.list({ disposition: 'WON', limit: 100 }),
-        API.admin.config.list('system_status')
+        API.admin.config.list('system_status'),
+        API.admin.getRecentMessages(50)
       ]);
 
       // Stats
@@ -329,10 +334,17 @@
       } else {
         state.dripHeartbeat = null;
       }
+      // Recent messages
+      if (results[3].status === 'fulfilled' && results[3].value.success) {
+        state.recentMessages = results[3].value.messages || [];
+      } else {
+        state.recentMessages = [];
+      }
     } catch (err) {
       state.stats = null;
       state.clioFailures = [];
       state.dripHeartbeat = null;
+      state.recentMessages = [];
     }
 
     state.statsLoading = false;
@@ -388,6 +400,55 @@
       html += '</tbody></table>';
     } else {
       html += '<p class="cc-admin-hint">No heartbeat data available. CC-14 has not reported yet, or the system_status config record has not been created.</p>';
+    }
+    html += '</div>';
+
+    // Messages Sent
+    html += '<h3 class="cc-admin-section-title">Messages Sent</h3>';
+    html += '<div class="cc-admin-config-card">';
+    if (state.recentMessages.length > 0) {
+      var visibleMessages = state.recentMessages.slice(0, state.messagesDisplayCount);
+      html += '<div style="max-height:480px;overflow-y:auto;border:1px solid #E5E7EB;border-radius:6px;">';
+      html += '<table class="cc-table" style="margin:0;">';
+      html += '<thead style="position:sticky;top:0;background:#F9FAFB;z-index:1;"><tr>';
+      html += '<th class="cc-th">From</th>';
+      html += '<th class="cc-th">To</th>';
+      html += '<th class="cc-th">Type</th>';
+      html += '<th class="cc-th">Template / Subject</th>';
+      html += '<th class="cc-th">Date</th>';
+      html += '<th class="cc-th">Time</th>';
+      html += '</tr></thead><tbody>';
+      visibleMessages.forEach(function(msg) {
+        var d = msg.occurred_at ? new Date(msg.occurred_at) : null;
+        var dateStr = d ? d.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+        var timeStr = d ? d.toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' }) : '';
+        var typeBadge = msg.type === 'EMAIL'
+          ? '<span class="cc-badge cc-badge-blue">Email</span>'
+          : '<span class="cc-badge cc-badge-purple">SMS</span>';
+        var toDisplay = msg.to_name ? escapeHtml(msg.to_name) + '<br><span style="color:#6B7280;font-size:0.85em;">' + escapeHtml(msg.to) + '</span>' : escapeHtml(msg.to || '—');
+        var templateDisplay = escapeHtml(msg.template || msg.subject || '—');
+        if (msg.automation && msg.automation !== 'MANUAL') {
+          templateDisplay += ' <span style="color:#9CA3AF;font-size:0.8em;">(' + escapeHtml(msg.automation) + ')</span>';
+        }
+        html += '<tr>';
+        html += '<td>' + escapeHtml(msg.from || 'info@tabuchilaw.com') + '</td>';
+        html += '<td>' + toDisplay + '</td>';
+        html += '<td>' + typeBadge + '</td>';
+        html += '<td>' + templateDisplay + '</td>';
+        html += '<td>' + escapeHtml(dateStr) + '</td>';
+        html += '<td>' + escapeHtml(timeStr) + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      html += '</div>';
+      if (state.recentMessages.length > state.messagesDisplayCount) {
+        html += '<div style="text-align:center;padding:0.75rem;">';
+        html += '<button class="cc-btn cc-btn-secondary" id="cc-load-more-messages">Show More (' + (state.recentMessages.length - state.messagesDisplayCount) + ' remaining)</button>';
+        html += '</div>';
+      }
+      html += '<p class="cc-admin-hint">Showing ' + visibleMessages.length + ' of ' + state.recentMessages.length + ' recent messages. Scroll to view more.</p>';
+    } else {
+      html += '<p class="cc-admin-hint">No recent email or SMS messages found in activity log.</p>';
     }
     html += '</div>';
 
@@ -528,6 +589,15 @@
 
     html += '</div>';
     content.innerHTML = html;
+
+    // Bind "Show More" messages button
+    var loadMoreBtn = document.getElementById('cc-load-more-messages');
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener('click', function() {
+        state.messagesDisplayCount += 25;
+        renderSystemStatus();
+      });
+    }
   }
 
   function renderStatCard(label, value, color) {
