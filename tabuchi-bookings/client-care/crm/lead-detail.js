@@ -1259,8 +1259,9 @@
         createBtn.textContent = 'Creating...';
         try {
           var res = await API.leads.create(data);
-          if (res.success && res.id) {
-            window.location.href = '/crm/lead?id=' + res.id;
+          var newId = res.id || (res.lead && res.lead.id);
+          if (res.success && newId) {
+            window.location.href = '/crm/lead?id=' + newId;
           } else {
             alert('Create failed: ' + (res.error || 'Unknown error'));
             createBtn.disabled = false;

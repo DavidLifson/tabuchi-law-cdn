@@ -94,7 +94,7 @@
     try {
       var token = API.auth.getToken();
       var res = await fetch(BOOKINGS_ENDPOINT + '?status=upcoming', {
-        headers: { 'Dashboard_Token': token }
+        headers: { 'X-Dashboard-Token': token }
       });
       var data = await res.json();
       if (data && data.success) {

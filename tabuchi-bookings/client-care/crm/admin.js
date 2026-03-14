@@ -103,7 +103,7 @@
     var t = localStorage.getItem('app_token') || '';
     var r = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/categories', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
+      headers: { 'Content-Type': 'application/json', 'X-Dashboard-Token': t },
       body: JSON.stringify(Object.assign({ action: action }, data || {}))
     });
     var j;
