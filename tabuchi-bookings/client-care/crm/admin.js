@@ -141,6 +141,7 @@
     // Clio sync failures
     clioFailures: [],
     clioLoading: false,
+    dripHeartbeat: null,
     // (staff state merged into staffList above)
     // Categories
     categories: [],
@@ -292,10 +293,11 @@
     if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading overview...</p></div>';
 
     try {
-      // Fetch system stats and Clio failures in parallel
+      // Fetch system stats, Clio failures, and drip heartbeat in parallel
       var results = await Promise.allSettled([
         API.admin.getSystemStats(),
-        API.leads.list({ disposition: 'WON', limit: 100 })
+        API.leads.list({ disposition: 'WON', limit: 100 }),
+        API.admin.config.list('system_status')
       ]);
 
       // Stats
@@ -314,9 +316,23 @@
       } else {
         state.clioFailures = [];
       }
+
+      // Drip sender heartbeat
+      if (results[2].status === 'fulfilled' && results[2].value.success) {
+        var configs = results[2].value.data || [];
+        var hb = configs.find(function(c) { return c.Label === 'drip_sender_last_run'; });
+        if (hb && hb.Meta) {
+          try { state.dripHeartbeat = typeof hb.Meta === 'string' ? JSON.parse(hb.Meta) : hb.Meta; } catch(e) { state.dripHeartbeat = null; }
+        } else {
+          state.dripHeartbeat = null;
+        }
+      } else {
+        state.dripHeartbeat = null;
+      }
     } catch (err) {
       state.stats = null;
       state.clioFailures = [];
+      state.dripHeartbeat = null;
     }
 
     state.statsLoading = false;
@@ -349,6 +365,30 @@
       html += '</div>';
     }
 
+    html += '</div>';
+
+    // Drip Sender Status
+    html += '<h3 class="cc-admin-section-title">Drip Sender Status</h3>';
+    html += '<div class="cc-admin-config-card">';
+    if (state.dripHeartbeat) {
+      var hb = state.dripHeartbeat;
+      var lastRun = hb.last_run ? new Date(hb.last_run) : null;
+      var minutesAgo = lastRun ? Math.round((Date.now() - lastRun.getTime()) / 60000) : null;
+      var isHealthy = minutesAgo !== null && minutesAgo <= 90;
+      var statusBadge = isHealthy
+        ? '<span class="cc-badge cc-badge-green">Active</span>'
+        : '<span class="cc-badge cc-badge-red">Stale</span>';
+      html += '<table class="cc-table cc-admin-config-table">';
+      html += '<thead><tr><th class="cc-th">Indicator</th><th class="cc-th">Value</th></tr></thead>';
+      html += '<tbody>';
+      html += '<tr><td>Status</td><td>' + statusBadge + (isHealthy ? '' : ' &mdash; last run was over 90 minutes ago') + '</td></tr>';
+      html += '<tr><td>Last Successful Run</td><td>' + (lastRun ? escapeHtml(API.util.formatDateTime(hb.last_run)) : 'Unknown') + (minutesAgo !== null ? ' (' + minutesAgo + ' min ago)' : '') + '</td></tr>';
+      html += '<tr><td>Active Drip Campaigns</td><td>' + escapeHtml(String(hb.active_campaigns || 0)) + '</td></tr>';
+      html += '<tr><td>Schedule</td><td>Every 1 hour (CC-14)</td></tr>';
+      html += '</tbody></table>';
+    } else {
+      html += '<p class="cc-admin-hint">No heartbeat data available. CC-14 has not reported yet, or the system_status config record has not been created.</p>';
+    }
     html += '</div>';
 
     // Clio Sync Failures
