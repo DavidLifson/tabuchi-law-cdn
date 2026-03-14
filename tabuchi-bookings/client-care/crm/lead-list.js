@@ -179,16 +179,17 @@
     state.leads.forEach(function(lead) {
       html += '<tr class="cc-lead-row" data-id="' + lead.id + '">';
       html += '<td class="cc-cell-name">';
-      html += '<div class="cc-lead-name">' + escapeHtml(lead.Client_Name || '—') + '</div>';
-      html += '<div class="cc-lead-email">' + escapeHtml(lead.Client_Email || '') + '</div>';
+      var displayName = lead.Client_Name || lead.Client_Email || lead.Client_Phone || 'Unnamed';
+      html += '<div class="cc-lead-name">' + escapeHtml(displayName) + '</div>';
+      html += lead.Client_Name && lead.Client_Email ? '<div class="cc-lead-email">' + escapeHtml(lead.Client_Email) + '</div>' : '';
       html += '</td>';
-      html += '<td>' + escapeHtml(lead.Client_Phone || '—') + '</td>';
+      html += '<td>' + (lead.Client_Phone ? escapeHtml(lead.Client_Phone) : '<span class="cc-text-muted cc-text-empty"></span>') + '</td>';
       html += '<td><span class="cc-badge cc-badge-' + API.util.stageColor(lead.Lead_Stage) + '">' + escapeHtml(API.util.stageLabel(lead.Lead_Stage)) + '</span></td>';
       html += '<td>' + escapeHtml(formatPracticeArea(lead.Practice_Area)) + '</td>';
-      html += '<td><span class="cc-badge cc-badge-' + API.util.priorityColor(lead.Priority) + '">' + escapeHtml(lead.Priority || '—') + '</span></td>';
-      html += '<td>' + escapeHtml(lead.Lead_Owner_Name || '—') + '</td>';
-      html += '<td>' + escapeHtml(lead.Source || '—') + '</td>';
-      html += '<td>' + escapeHtml(API.util.formatRelativeTime(lead.Last_Contacted_At) || '—') + '</td>';
+      html += '<td>' + (lead.Priority ? '<span class="cc-badge cc-badge-' + API.util.priorityColor(lead.Priority) + '">' + escapeHtml(lead.Priority) + '</span>' : '<span class="cc-text-muted cc-text-empty"></span>') + '</td>';
+      html += '<td>' + (lead.Lead_Owner_Name ? escapeHtml(lead.Lead_Owner_Name) : '<span class="cc-text-muted cc-text-empty"></span>') + '</td>';
+      html += '<td>' + (lead.Source ? escapeHtml(lead.Source) : '<span class="cc-text-muted cc-text-empty"></span>') + '</td>';
+      html += '<td>' + (lead.Last_Contacted_At ? escapeHtml(API.util.formatRelativeTime(lead.Last_Contacted_At)) : '<span class="cc-text-muted cc-text-empty"></span>') + '</td>';
       html += '<td>' + escapeHtml(API.util.formatDate(lead.Created_At)) + '</td>';
       html += '</tr>';
     });
@@ -270,7 +271,9 @@
 
     var html = '<div class="cc-pagination">';
     html += '<button class="cc-page-btn" data-page="prev" ' + (currentPage <= 1 ? 'disabled' : '') + '>&laquo; Prev</button>';
-    html += '<span class="cc-page-info">Page ' + currentPage + ' of ' + totalPages + '</span>';
+    var showFrom = state.offset + 1;
+    var showTo = Math.min(state.offset + state.limit, state.totalCount);
+    html += '<span class="cc-page-info">Showing ' + showFrom + '–' + showTo + ' of ' + state.totalCount + ' (Page ' + currentPage + '/' + totalPages + ')</span>';
     html += '<button class="cc-page-btn" data-page="next" ' + (currentPage >= totalPages ? 'disabled' : '') + '>Next &raquo;</button>';
     html += '</div>';
     container.innerHTML = html;
@@ -379,7 +382,7 @@
   }
 
   function formatPracticeArea(pa) {
-    if (!pa) return '—';
+    if (!pa) return '';
     var items = Array.isArray(pa) ? pa : [pa];
     return items.map(function(item) {
       return item.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');

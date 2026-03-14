@@ -168,7 +168,7 @@
   // ─── Role Gate ─────────────────────────────────────────────
   function checkRole() {
     var u = state.user || {};
-    if (u.role !== 'ADMIN' && !u.is_admin) {
+    if ((u.role || '').toUpperCase() !== 'ADMIN' && !u.is_admin) {
       var container = $el('cc-admin-container');
       if (container) container.innerHTML =
         '<div class="cc-error"><p>Access denied. Admin configuration requires ADMIN role.</p></div>';

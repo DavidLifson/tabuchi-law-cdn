@@ -622,7 +622,7 @@
 
     el.innerHTML =
       '<div class="cc-lead-header-main">' +
-        '<h1 class="cc-lead-title">' + escapeHtml(l.Client_Name || 'Unnamed Lead') + '</h1>' +
+        '<h1 class="cc-lead-title">' + escapeHtml(l.Client_Name || l.Client_Email || l.Client_Phone || 'Unnamed Lead') + '</h1>' +
         '<span class="cc-badge cc-badge-' + API.util.stageColor(l.Lead_Stage) + '">' + escapeHtml(API.util.stageLabel(l.Lead_Stage)) + '</span>' +
         (l.Priority ? ' <span class="cc-badge cc-badge-' + API.util.priorityColor(l.Priority) + '">' + escapeHtml(l.Priority) + '</span>' : '') +
         (l.Disposition === 'WON' ? ' <span class="cc-badge cc-badge-green">WON</span>' : '') +

@@ -178,7 +178,7 @@
 
   // ─── Tag Pills Rendering ──────────────────────────────────
   function renderTagPills(tags) {
-    if (!tags || !tags.length) return '<span class="cc-text-muted">—</span>';
+    if (!tags || !tags.length) return '';
     var maxShow = 3;
     var html = '';
     var shown = tags.slice(0, maxShow);
@@ -193,9 +193,9 @@
 
   // ─── Consent Icon ─────────────────────────────────────────
   function consentIcon(status) {
-    if (status === 'SUBSCRIBED' || status === 'subscribed') return '<span class="cc-consent-yes" title="Subscribed">✓</span>';
-    if (status === 'UNSUBSCRIBED' || status === 'unsubscribed') return '<span class="cc-consent-no" title="Unsubscribed">✗</span>';
-    return '<span class="cc-consent-unknown" title="Unknown">?</span>';
+    if (status === 'SUBSCRIBED' || status === 'subscribed') return '<span class="cc-consent-yes" title="Subscribed" style="color:#16a34a;font-weight:600;">&#10003; Yes</span>';
+    if (status === 'UNSUBSCRIBED' || status === 'unsubscribed') return '<span class="cc-consent-no" title="Unsubscribed" style="color:#dc2626;font-weight:600;">&#10007; No</span>';
+    return '<span class="cc-consent-unknown" title="Unknown" style="color:#9ca3af;">—</span>';
   }
 
   // ─── Render Table ──────────────────────────────────────────
@@ -218,8 +218,9 @@
 
       // Contact name + email
       html += '<td class="cc-cell-name">';
-      html += '<div class="cc-contact-name">' + escapeHtml(contact.Client_Name || '—') + '</div>';
-      html += '<div class="cc-contact-email">' + escapeHtml(contact.Client_Email || '') + '</div>';
+      var cDisplayName = contact.Client_Name || contact.Client_Email || contact.Client_Phone || 'Unnamed';
+      html += '<div class="cc-contact-name">' + escapeHtml(cDisplayName) + '</div>';
+      html += contact.Client_Name && contact.Client_Email ? '<div class="cc-contact-email">' + escapeHtml(contact.Client_Email) + '</div>' : '';
       html += '</td>';
 
       // Tags
@@ -231,20 +232,20 @@
       if (contact.Contact_Status) {
         html += '<td><span class="cc-badge cc-badge-' + statusColor + '">' + escapeHtml(statusLabel) + '</span></td>';
       } else {
-        html += '<td><span class="cc-text-muted">—</span></td>';
+        html += '<td></td>';
       }
 
       // Practice Area
       html += '<td>' + escapeHtml(formatPracticeArea(contact.Practice_Area)) + '</td>';
 
       // Source
-      html += '<td>' + escapeHtml(contact.Source || '—') + '</td>';
+      html += '<td>' + (contact.Source ? escapeHtml(contact.Source) : '') + '</td>';
 
       // Consent
       html += '<td>' + consentIcon(contact.Consent_Status) + '</td>';
 
       // Last Contact
-      html += '<td>' + escapeHtml(API.util.formatRelativeTime(contact.Last_Contacted_At) || '—') + '</td>';
+      html += '<td>' + (contact.Last_Contacted_At ? escapeHtml(API.util.formatRelativeTime(contact.Last_Contacted_At)) : '') + '</td>';
 
       // Created
       html += '<td>' + escapeHtml(API.util.formatDate(contact.Created_At)) + '</td>';
@@ -562,7 +563,7 @@
   }
 
   function formatPracticeArea(pa) {
-    if (!pa) return '—';
+    if (!pa) return '';
     var items = Array.isArray(pa) ? pa : [pa];
     return items.map(function(item) {
       return item.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');

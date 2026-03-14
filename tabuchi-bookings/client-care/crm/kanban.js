@@ -170,10 +170,10 @@
     }
 
     // Client name
-    html += '<div class="cc-kanban-card-name">' + escapeHtml(lead.Client_Name || 'Unnamed') + '</div>';
+    html += '<div class="cc-kanban-card-name">' + escapeHtml(lead.Client_Name || lead.Client_Email || lead.Client_Phone || 'Unnamed') + '</div>';
 
     // Practice area
-    if (practiceArea && practiceArea !== '\u2014') {
+    if (practiceArea) {
       html += '<div class="cc-kanban-card-practice">' + escapeHtml(practiceArea) + '</div>';
     }
 
@@ -408,7 +408,7 @@
   }
 
   function formatPracticeArea(pa) {
-    if (!pa) return '\u2014';
+    if (!pa) return '';
     var items = Array.isArray(pa) ? pa : [pa];
     return items.map(function(item) {
       return item.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
