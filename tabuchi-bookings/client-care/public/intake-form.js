@@ -148,7 +148,7 @@
 
   function determineBranch() {
     var pa = state.formData.practice_area || '';
-    if (pa.includes('ESTATE') || pa.includes('TRUST') || pa.includes('GUARDIANSHIP')) {
+    if (pa.includes('ESTATE_PLANNING') || pa.includes('TRUSTS') || pa.includes('GUARDIANSHIP')) {
       state.branch = 'estate';
     } else if (pa.includes('PROBATE')) {
       state.branch = 'probate';
@@ -324,7 +324,7 @@
       var pkgGroup = document.getElementById('cc-service-pkg-group');
       if (pkgGroup) {
         var pa = state.formData.practice_area || '';
-        pkgGroup.style.display = (pa.includes('ESTATE') || pa.includes('TRUST') || pa.includes('GUARDIANSHIP') || pa.includes('PROBATE')) ? '' : 'none';
+        pkgGroup.style.display = (pa.includes('ESTATE_PLANNING') || pa.includes('TRUSTS') || pa.includes('GUARDIANSHIP') || pa.includes('PROBATE')) ? '' : 'none';
       }
     }
 
