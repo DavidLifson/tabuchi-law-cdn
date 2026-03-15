@@ -1137,25 +1137,27 @@
     // ── Edit Role Modal (hidden) ──
     html += '<div id="cc-edit-role-modal" class="cc-modal-overlay" style="display:none;">';
     html += '<div class="cc-modal" style="max-width:420px;">';
-    html += '<h3 class="cc-modal-title">Edit Role</h3>';
-    html += '<div style="margin-bottom:12px;">';
+    html += '<div class="cc-modal-header">Edit Role<button id="cc-edit-role-close" class="cc-modal-close">&times;</button></div>';
+    html += '<div class="cc-modal-body">';
+    html += '<div style="margin-bottom:16px;">';
     html += '<label class="cc-label">Role Name</label>';
-    html += '<input id="cc-edit-role-name" class="cc-input" style="width:100%;" />';
+    html += '<input id="cc-edit-role-name" class="cc-input" />';
     html += '</div>';
-    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="margin-bottom:16px;">';
     html += '<label class="cc-label">Priority</label>';
-    html += '<input id="cc-edit-role-priority" type="number" class="cc-input" min="0" style="width:100px;" />';
+    html += '<input id="cc-edit-role-priority" type="number" class="cc-input" min="0" style="max-width:120px;" />';
     html += '</div>';
-    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="margin-bottom:0;">';
     html += '<label class="cc-label">Badge Color</label>';
-    html += '<select id="cc-edit-role-color" class="cc-input" style="width:100%;">';
+    html += '<select id="cc-edit-role-color" class="cc-input">';
     ['red','blue','teal','green','purple','gray','orange','yellow'].forEach(function(c) {
       html += '<option value="' + c + '">' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>';
     });
     html += '</select>';
     html += '</div>';
     html += '<input id="cc-edit-role-original" type="hidden" />';
-    html += '<div style="display:flex;gap:8px;justify-content:flex-end;">';
+    html += '</div>';
+    html += '<div class="cc-modal-footer">';
     html += '<button id="cc-edit-role-cancel" class="cc-btn cc-btn-sm cc-btn-outline">Cancel</button>';
     html += '<button id="cc-edit-role-save" class="cc-btn cc-btn-sm cc-btn-primary">Save</button>';
     html += '</div>';
@@ -1164,14 +1166,16 @@
     // ── Delete Role Modal (hidden) ──
     html += '<div id="cc-delete-role-modal" class="cc-modal-overlay" style="display:none;">';
     html += '<div class="cc-modal" style="max-width:480px;">';
-    html += '<h3 class="cc-modal-title" style="color:#DC2626;">Delete Role</h3>';
-    html += '<p id="cc-delete-role-msg" style="margin-bottom:12px;"></p>';
-    html += '<div id="cc-delete-role-reassign" style="margin-bottom:16px;">';
+    html += '<div class="cc-modal-header" style="color:#DC2626;">Delete Role<button id="cc-delete-role-close" class="cc-modal-close">&times;</button></div>';
+    html += '<div class="cc-modal-body">';
+    html += '<p id="cc-delete-role-msg" style="margin-bottom:16px;"></p>';
+    html += '<div id="cc-delete-role-reassign" style="margin-bottom:0;">';
     html += '<label class="cc-label">Reassign all users with this role to:</label>';
-    html += '<select id="cc-delete-role-target" class="cc-input" style="width:100%;"></select>';
+    html += '<select id="cc-delete-role-target" class="cc-input"></select>';
     html += '</div>';
     html += '<input id="cc-delete-role-name" type="hidden" />';
-    html += '<div style="display:flex;gap:8px;justify-content:flex-end;">';
+    html += '</div>';
+    html += '<div class="cc-modal-footer">';
     html += '<button id="cc-delete-role-cancel" class="cc-btn cc-btn-sm cc-btn-outline">Cancel</button>';
     html += '<button id="cc-delete-role-confirm" class="cc-btn cc-btn-sm cc-btn-danger">Delete &amp; Reassign</button>';
     html += '</div>';
@@ -1180,25 +1184,27 @@
     // ── Add Role Modal (hidden) ──
     html += '<div id="cc-add-role-priority-modal" class="cc-modal-overlay" style="display:none;">';
     html += '<div class="cc-modal" style="max-width:420px;">';
-    html += '<h3 class="cc-modal-title">Add New Role</h3>';
-    html += '<div style="margin-bottom:12px;">';
+    html += '<div class="cc-modal-header">Add New Role<button id="cc-add-role-close" class="cc-modal-close">&times;</button></div>';
+    html += '<div class="cc-modal-body">';
+    html += '<div style="margin-bottom:16px;">';
     html += '<label class="cc-label">Role Name</label>';
-    html += '<input id="cc-new-role-name" class="cc-input" style="width:100%;" placeholder="e.g. PARALEGAL" />';
+    html += '<input id="cc-new-role-name" class="cc-input" placeholder="e.g. PARALEGAL" />';
     html += '<p class="cc-admin-hint" style="margin-top:4px;">Use UPPER_CASE with underscores.</p>';
     html += '</div>';
-    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="margin-bottom:16px;">';
     html += '<label class="cc-label">Priority</label>';
-    html += '<input id="cc-new-role-priority" type="number" class="cc-input" min="0" value="5" style="width:100px;" />';
+    html += '<input id="cc-new-role-priority" type="number" class="cc-input" min="0" value="5" style="max-width:120px;" />';
     html += '</div>';
-    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="margin-bottom:0;">';
     html += '<label class="cc-label">Badge Color</label>';
-    html += '<select id="cc-new-role-color" class="cc-input" style="width:100%;">';
+    html += '<select id="cc-new-role-color" class="cc-input">';
     ['gray','red','blue','teal','green','purple','orange','yellow'].forEach(function(c) {
       html += '<option value="' + c + '">' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>';
     });
     html += '</select>';
     html += '</div>';
-    html += '<div style="display:flex;gap:8px;justify-content:flex-end;">';
+    html += '</div>';
+    html += '<div class="cc-modal-footer">';
     html += '<button id="cc-new-role-cancel" class="cc-btn cc-btn-sm cc-btn-outline">Cancel</button>';
     html += '<button id="cc-new-role-save" class="cc-btn cc-btn-sm cc-btn-primary">Add Role</button>';
     html += '</div>';
@@ -1232,6 +1238,10 @@
 
     var newCancel = document.getElementById('cc-new-role-cancel');
     if (newCancel) newCancel.addEventListener('click', function() {
+      document.getElementById('cc-add-role-priority-modal').style.display = 'none';
+    });
+    var newClose = document.getElementById('cc-add-role-close');
+    if (newClose) newClose.addEventListener('click', function() {
       document.getElementById('cc-add-role-priority-modal').style.display = 'none';
     });
 
@@ -1278,6 +1288,10 @@
 
     var editCancel = document.getElementById('cc-edit-role-cancel');
     if (editCancel) editCancel.addEventListener('click', function() {
+      document.getElementById('cc-edit-role-modal').style.display = 'none';
+    });
+    var editClose = document.getElementById('cc-edit-role-close');
+    if (editClose) editClose.addEventListener('click', function() {
       document.getElementById('cc-edit-role-modal').style.display = 'none';
     });
 
@@ -1349,6 +1363,10 @@
 
     var delCancel = document.getElementById('cc-delete-role-cancel');
     if (delCancel) delCancel.addEventListener('click', function() {
+      document.getElementById('cc-delete-role-modal').style.display = 'none';
+    });
+    var delClose = document.getElementById('cc-delete-role-close');
+    if (delClose) delClose.addEventListener('click', function() {
       document.getElementById('cc-delete-role-modal').style.display = 'none';
     });
 
