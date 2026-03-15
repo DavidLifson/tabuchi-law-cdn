@@ -937,6 +937,7 @@ if (typeof ClientCareAPI !== 'undefined') { window.ClientCareAPI = ClientCareAPI
   var nav = document.getElementById('app-crm-nav');
   if (!nav) return;
   var bar = document.getElementById('app-nav-bar');
+  if (bar) bar.style.display = 'flex';
   var ap = bar ? (bar.getAttribute('data-active-page') || '') : '';
 
   // Ensure home link → /crm/dashboard
