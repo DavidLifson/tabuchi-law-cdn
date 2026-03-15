@@ -1,4 +1,4 @@
-/* v2.4.0 */
+/* v2.5.0 */
 /**
  * Tabuchi Law Client Care CRM - Admin Configuration
  * Handles: /crm/admin
@@ -51,7 +51,8 @@
     { key: 'activity-types', label: 'Activity Types' },
     { key: 'entity-types', label: 'Entity Types' },
     { key: 'tags', label: 'Tags' },
-    { key: 'price-book', label: 'Price Books' }
+    { key: 'price-book', label: 'Price Books' },
+    { key: 'assignment-rules', label: 'Assignment Rules' }
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
@@ -167,7 +168,12 @@
     // Messages Sent
     recentMessages: [],
     messagesLoading: false,
-    messagesDisplayCount: 25
+    messagesDisplayCount: 25,
+    // Assignment Rules
+    assignmentRules: [],
+    assignmentRulesLoading: false,
+    assignmentRulesUsers: [],
+    assignmentRulesConfigCache: {}
   };
 
   // ─── Role Gate ─────────────────────────────────────────────
@@ -262,6 +268,7 @@
       case 'templates':      renderTemplatesTab(); break;
       case 'categories':     renderCategoriesTab(); break;
       case 'price-book':     renderPriceBookTab(); break;
+      case 'assignment-rules': renderAssignmentRulesTab(); break;
       case 'drip-enrollment': renderDripTab(); break;
       case 'lead-sources':
       case 'stages':
@@ -278,6 +285,7 @@
       case 'templates':     fetchTemplates(); break;
       case 'categories':    fetchCategories(); break;
       case 'price-book':    fetchPriceBookItems(); break;
+      case 'assignment-rules': fetchAssignmentRulesData(); break;
       case 'drip-enrollment': fetchDripData(); break;
       default:
         var ck = tabToConfigKey(state.activeTab);
@@ -2686,6 +2694,397 @@
   function formatPracticeArea(pa) {
     if (!pa) return '\u2014';
     return pa.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); }).replace(/\bPoa\b/g, 'POA');
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ASSIGNMENT RULES TAB
+  // ═══════════════════════════════════════════════════════════
+
+  var MATCH_FIELD_OPTIONS = [
+    { value: 'Practice_Area', label: 'Practice Area' },
+    { value: 'Service_Package', label: 'Service Package' },
+    { value: 'Source', label: 'Lead Source' }
+  ];
+
+  var ASSIGN_TYPE_OPTIONS = [
+    { value: 'user', label: 'Specific User' },
+    { value: 'role', label: 'Role (first available)' }
+  ];
+
+  async function fetchAssignmentRulesData() {
+    state.assignmentRulesLoading = true;
+    var content = $el('cc-admin-content');
+    if (content) content.innerHTML = '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading assignment rules...</p></div>';
+
+    try {
+      var results = await Promise.allSettled([
+        API.admin.config.list('assignment_rule'),
+        API.admin.listUsers(),
+        API.admin.config.list('lead_source')
+      ]);
+
+      if (results[0].status === 'fulfilled') {
+        state.assignmentRules = (results[0].value.data || results[0].value.items || []).sort(function(a, b) {
+          return (a.Sort_Order || 0) - (b.Sort_Order || 0);
+        });
+      } else {
+        state.assignmentRules = [];
+      }
+
+      if (results[1].status === 'fulfilled' && results[1].value.success) {
+        state.assignmentRulesUsers = (results[1].value.users || []).filter(function(u) { return u.is_active !== false; });
+      }
+
+      if (results[2].status === 'fulfilled') {
+        state.assignmentRulesConfigCache.lead_source = (results[2].value.data || results[2].value.items || []).filter(function(i) { return i.Is_Active !== false; });
+      }
+    } catch (err) {
+      state.assignmentRules = [];
+      showToast('Error loading assignment rules.', 'error');
+    }
+
+    state.assignmentRulesLoading = false;
+    renderAssignmentRulesTab();
+  }
+
+  function getMatchValueLabel(meta) {
+    if (!meta || !meta.match_value) return '\u2014';
+    if (meta.match_value === '*') return 'Any (catch-all)';
+    return meta.match_value.replace(/_/g, ' ');
+  }
+
+  function getAssignToLabel(meta) {
+    if (!meta) return '\u2014';
+    if (meta.assign_type === 'role') {
+      return 'Role: ' + (meta.assign_to || '').replace(/_/g, ' ');
+    }
+    return meta.assign_to_label || meta.assign_to || '\u2014';
+  }
+
+  function renderAssignmentRulesTab() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    var rules = state.assignmentRules || [];
+
+    var html = '<div class="cc-admin-config">';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">Lead Assignment Rules</h3>';
+    html += '<button id="cc-assignment-add-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ Add Rule</button>';
+    html += '</div>';
+
+    html += '<p style="color:#6B7280;margin:0 0 1rem;font-size:0.875rem;">' +
+      'Rules are evaluated in priority order (lowest first). The first matching rule assigns the lead owner and creates an intake task. ' +
+      'Use <strong>match value &ldquo;*&rdquo;</strong> as a catch-all fallback.</p>';
+
+    if (rules.length === 0 && !state.assignmentRulesLoading) {
+      html += '<div class="cc-empty"><p>No assignment rules configured yet. New leads will default to the creating user as owner.</p></div>';
+      html += '</div>';
+      content.innerHTML = html;
+      bindAssignmentRulesAddBtn();
+      return;
+    }
+
+    html += '<table class="cc-table">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th" style="width:60px;">Priority</th>';
+    html += '<th class="cc-th">Match Field</th>';
+    html += '<th class="cc-th">Match Value</th>';
+    html += '<th class="cc-th">Assign To</th>';
+    html += '<th class="cc-th">Task (SLA hrs)</th>';
+    html += '<th class="cc-th" style="width:70px;">Active</th>';
+    html += '<th class="cc-th" style="width:140px;">Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    rules.forEach(function(item) {
+      var meta = {};
+      try { meta = JSON.parse(item.Meta || '{}'); } catch(e) {}
+      var activeCls = item.Is_Active ? 'green' : 'gray';
+      var activeText = item.Is_Active ? 'Yes' : 'No';
+
+      var matchFieldLabel = (MATCH_FIELD_OPTIONS.find(function(o) { return o.value === meta.match_field; }) || {}).label || meta.match_field || '\u2014';
+
+      html += '<tr>';
+      html += '<td style="text-align:center;font-weight:600;">' + (item.Sort_Order || 0) + '</td>';
+      html += '<td>' + escapeHtml(matchFieldLabel) + '</td>';
+      html += '<td>' + escapeHtml(getMatchValueLabel(meta)) + '</td>';
+      html += '<td>';
+      if (meta.assign_type === 'role') {
+        html += '<span class="cc-badge cc-badge-blue">Role</span> ';
+      } else {
+        html += '<span class="cc-badge cc-badge-teal">User</span> ';
+      }
+      html += escapeHtml(getAssignToLabel(meta));
+      html += '</td>';
+      html += '<td>' + escapeHtml(meta.task_due_hours ? meta.task_due_hours + 'h' : '\u2014') + '</td>';
+      html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
+      html += '<td>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-assignment-edit-btn" data-item-id="' + escapeAttr(item.id) + '">Edit</button> ';
+      if (item.Is_Active) {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-assignment-deactivate-btn" data-item-id="' + escapeAttr(item.id) + '">Deactivate</button>';
+      } else {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-assignment-activate-btn" data-item-id="' + escapeAttr(item.id) + '">Activate</button>';
+      }
+      html += '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+    content.innerHTML = html;
+
+    bindAssignmentRulesAddBtn();
+    bindAssignmentRulesTableEvents();
+  }
+
+  function bindAssignmentRulesAddBtn() {
+    var btn = document.getElementById('cc-assignment-add-btn');
+    if (btn) btn.addEventListener('click', function() {
+      showAssignmentRuleModal(null);
+    });
+  }
+
+  function bindAssignmentRulesTableEvents() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    content.querySelectorAll('.cc-assignment-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var item = (state.assignmentRules || []).find(function(i) { return i.id === btn.dataset.itemId; });
+        if (item) showAssignmentRuleModal(item);
+      });
+    });
+
+    content.querySelectorAll('.cc-assignment-deactivate-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        if (!confirm('Deactivate this rule? It will no longer match incoming leads.')) return;
+        try {
+          await API.admin.config.delete(btn.dataset.itemId);
+          showToast('Rule deactivated.', 'success');
+          await fetchAssignmentRulesData();
+        } catch (err) {
+          showToast(err.error || 'Failed to deactivate.', 'error');
+        }
+      });
+    });
+
+    content.querySelectorAll('.cc-assignment-activate-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        try {
+          await API.admin.config.update(btn.dataset.itemId, { Is_Active: true });
+          showToast('Rule activated.', 'success');
+          await fetchAssignmentRulesData();
+        } catch (err) {
+          showToast(err.error || 'Failed to activate.', 'error');
+        }
+      });
+    });
+  }
+
+  function buildMatchValueOptions(matchField) {
+    // Practice Area and Service Package are well-known lists
+    var practiceAreas = ['Estate Planning', 'Probate', 'Will POA', 'Trust', 'Estate Planning Will POA', 'Real Estate', 'Corporate', 'Family Law', 'Immigration', 'Other'];
+    var servicePackages = ['Basic Will', 'Comprehensive Estate Plan', 'Probate Administration', 'Trust Setup', 'Power of Attorney', 'Other'];
+
+    if (matchField === 'Practice_Area') return practiceAreas;
+    if (matchField === 'Service_Package') return servicePackages;
+    if (matchField === 'Source') {
+      return (state.assignmentRulesConfigCache.lead_source || []).map(function(s) { return s.Label || ''; }).filter(Boolean);
+    }
+    return [];
+  }
+
+  function showAssignmentRuleModal(existing) {
+    var isEdit = !!existing;
+    var meta = {};
+    if (existing) { try { meta = JSON.parse(existing.Meta || '{}'); } catch(e) {} }
+
+    var users = state.assignmentRulesUsers || [];
+    var roles = ROLE_OPTIONS;
+
+    var html = '<div class="cc-modal-form">';
+
+    // Priority
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Priority (lower = higher priority)</label>';
+    html += '<input type="number" id="cc-ar-priority" class="cc-input" value="' + (existing ? (existing.Sort_Order || 10) : 10) + '" min="1" max="999" />';
+    html += '</div>';
+
+    // Match Field
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Match Field</label>';
+    html += '<select id="cc-ar-match-field" class="cc-input">';
+    html += '<option value="">— Select —</option>';
+    MATCH_FIELD_OPTIONS.forEach(function(opt) {
+      var sel = meta.match_field === opt.value ? ' selected' : '';
+      html += '<option value="' + escapeAttr(opt.value) + '"' + sel + '>' + escapeHtml(opt.label) + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
+
+    // Match Value (dynamic based on match field)
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Match Value</label>';
+    html += '<div id="cc-ar-match-value-wrap">';
+    html += buildMatchValueSelect(meta.match_field || '', meta.match_value || '');
+    html += '</div>';
+    html += '<p style="font-size:0.75rem;color:#9CA3AF;margin:4px 0 0;">Use * for a catch-all fallback rule.</p>';
+    html += '</div>';
+
+    // Assign Type
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Assign To Type</label>';
+    html += '<select id="cc-ar-assign-type" class="cc-input">';
+    ASSIGN_TYPE_OPTIONS.forEach(function(opt) {
+      var sel = (meta.assign_type || 'user') === opt.value ? ' selected' : '';
+      html += '<option value="' + escapeAttr(opt.value) + '"' + sel + '>' + escapeHtml(opt.label) + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
+
+    // Assign To (dynamic: user list or role list)
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Assign To</label>';
+    html += '<div id="cc-ar-assign-to-wrap">';
+    html += buildAssignToSelect(meta.assign_type || 'user', meta.assign_to || '', users, roles);
+    html += '</div>';
+    html += '</div>';
+
+    // Task Title Template
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Task Title</label>';
+    html += '<input type="text" id="cc-ar-task-title" class="cc-input" value="' + escapeAttr(meta.task_title || 'New lead — contact within {{due_hours}} hours') + '" />';
+    html += '<p style="font-size:0.75rem;color:#9CA3AF;margin:4px 0 0;">Placeholders: {{client_name}}, {{practice_area}}, {{source}}, {{due_hours}}</p>';
+    html += '</div>';
+
+    // Task Due Hours
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Task Due (hours from lead creation)</label>';
+    html += '<input type="number" id="cc-ar-task-due" class="cc-input" value="' + (meta.task_due_hours || 4) + '" min="1" max="168" />';
+    html += '</div>';
+
+    html += '</div>';
+
+    var title = isEdit ? 'Edit Assignment Rule' : 'New Assignment Rule';
+    showModal(title, html, async function(form) {
+      var matchField = form.querySelector('#cc-ar-match-field').value;
+      var matchValue = form.querySelector('#cc-ar-match-value').value.trim();
+      var assignType = form.querySelector('#cc-ar-assign-type').value;
+      var assignTo = form.querySelector('#cc-ar-assign-to').value;
+      var taskTitle = form.querySelector('#cc-ar-task-title').value.trim();
+      var taskDue = parseInt(form.querySelector('#cc-ar-task-due').value) || 4;
+      var priority = parseInt(form.querySelector('#cc-ar-priority').value) || 10;
+
+      if (!matchField) { showToast('Match field is required.', 'error'); return false; }
+      if (!matchValue) { showToast('Match value is required.', 'error'); return false; }
+      if (!assignTo) { showToast('Assign-to selection is required.', 'error'); return false; }
+
+      // Build assign_to_label for user type
+      var assignToLabel = '';
+      if (assignType === 'user') {
+        var u = users.find(function(usr) { return usr.id === assignTo; });
+        assignToLabel = u ? (u.name || u.Name || u.email || u.Email) : assignTo;
+      } else {
+        assignToLabel = assignTo.replace(/_/g, ' ');
+      }
+
+      var metaObj = {
+        match_field: matchField,
+        match_value: matchValue,
+        assign_type: assignType,
+        assign_to: assignTo,
+        assign_to_label: assignToLabel,
+        task_title: taskTitle || 'New lead — contact within ' + taskDue + ' hours',
+        task_due_hours: taskDue
+      };
+
+      // Build descriptive label
+      var matchFieldLabel = (MATCH_FIELD_OPTIONS.find(function(o) { return o.value === matchField; }) || {}).label || matchField;
+      var ruleLabel = matchFieldLabel + ': ' + matchValue + ' \u2192 ' + assignToLabel;
+
+      try {
+        if (isEdit) {
+          await API.admin.config.update(existing.id, {
+            Label: ruleLabel,
+            Sort_Order: priority,
+            Meta: JSON.stringify(metaObj)
+          });
+          showToast('Rule updated.', 'success');
+        } else {
+          await API.admin.config.create({
+            Config_Key: 'assignment_rule',
+            Label: ruleLabel,
+            Sort_Order: priority,
+            Is_Active: true,
+            Meta: JSON.stringify(metaObj)
+          });
+          showToast('Rule created.', 'success');
+        }
+        closeModal();
+        await fetchAssignmentRulesData();
+        return true;
+      } catch (err) {
+        showToast(err.error || 'Failed to save rule.', 'error');
+        return false;
+      }
+    });
+
+    // Bind dynamic field changes after modal is open
+    setTimeout(function() {
+      var matchFieldEl = document.querySelector('#cc-ar-match-field');
+      var assignTypeEl = document.querySelector('#cc-ar-assign-type');
+
+      if (matchFieldEl) {
+        matchFieldEl.addEventListener('change', function() {
+          var wrap = document.querySelector('#cc-ar-match-value-wrap');
+          if (wrap) wrap.innerHTML = buildMatchValueSelect(matchFieldEl.value, '');
+        });
+      }
+
+      if (assignTypeEl) {
+        assignTypeEl.addEventListener('change', function() {
+          var wrap = document.querySelector('#cc-ar-assign-to-wrap');
+          if (wrap) wrap.innerHTML = buildAssignToSelect(assignTypeEl.value, '', users, roles);
+        });
+      }
+    }, 150);
+  }
+
+  function buildMatchValueSelect(matchField, currentValue) {
+    var options = buildMatchValueOptions(matchField);
+    var html = '<select id="cc-ar-match-value" class="cc-input">';
+    html += '<option value="">— Select —</option>';
+    html += '<option value="*"' + (currentValue === '*' ? ' selected' : '') + '>* (catch-all)</option>';
+    options.forEach(function(opt) {
+      var sel = currentValue === opt ? ' selected' : '';
+      html += '<option value="' + escapeAttr(opt) + '"' + sel + '>' + escapeHtml(opt) + '</option>';
+    });
+    // If current value is set but not in the list, show it as selected
+    if (currentValue && currentValue !== '*' && options.indexOf(currentValue) === -1) {
+      html += '<option value="' + escapeAttr(currentValue) + '" selected>' + escapeHtml(currentValue) + '</option>';
+    }
+    html += '</select>';
+    return html;
+  }
+
+  function buildAssignToSelect(assignType, currentValue, users, roles) {
+    var html = '<select id="cc-ar-assign-to" class="cc-input">';
+    html += '<option value="">— Select —</option>';
+    if (assignType === 'role') {
+      roles.forEach(function(role) {
+        var sel = currentValue === role ? ' selected' : '';
+        html += '<option value="' + escapeAttr(role) + '"' + sel + '>' + escapeHtml(role.replace(/_/g, ' ')) + '</option>';
+      });
+    } else {
+      users.forEach(function(u) {
+        var name = u.name || u.Name || u.email || u.Email || '';
+        var role = u.role || u.Role || '';
+        var sel = currentValue === u.id ? ' selected' : '';
+        html += '<option value="' + escapeAttr(u.id) + '"' + sel + '>' + escapeHtml(name) + (role ? ' (' + role + ')' : '') + '</option>';
+      });
+    }
+    html += '</select>';
+    return html;
   }
 
   // ═══════════════════════════════════════════════════════════
