@@ -928,6 +928,10 @@ const ClientCareAPI = (() => {
   };
 })();
 
+// Ensure ClientCareAPI is available on window for scripts loaded via separate <script> tags
+// (const at top-level scope doesn't attach to window automatically)
+if (typeof ClientCareAPI !== 'undefined') { window.ClientCareAPI = ClientCareAPI; }
+
 /* ── Nav Sync: ensure all CRM pages have Dashboard + Contacts links, Campaigns dropdown ── */
 (function navSync() {
   var nav = document.getElementById('app-crm-nav');
