@@ -83,6 +83,7 @@
     contact: null,
     activities: [],
     campaignSends: [],
+    purchases: [],
     tasks: [],
     conversion: null,
     activeTab: 'overview',
@@ -124,6 +125,7 @@
       if (historyResult.success) {
         state.activities = historyResult.activities || [];
         state.campaignSends = historyResult.campaign_sends || [];
+        state.purchases = historyResult.purchases || [];
         state.conversion = historyResult.conversion || { converted: false };
       }
 
@@ -159,6 +161,7 @@
       if (result.success) {
         state.activities = result.activities || [];
         state.campaignSends = result.campaign_sends || [];
+        state.purchases = result.purchases || [];
         state.conversion = result.conversion || { converted: false };
         if (state.activeTab === 'history') renderTabContent();
       }
@@ -620,6 +623,24 @@
       });
     });
 
+    state.purchases.forEach(function(p) {
+      var amt = p.amount ? '$' + Number(p.amount).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+      items.push({
+        sortDate: p.invoice_date || p.paid_date || '',
+        kind: 'purchase',
+        icon: '&#128176;',
+        label: 'Invoice',
+        subject: (p.invoice_number ? p.invoice_number + ' — ' : '') + (p.matter_description || p.service_description || 'Invoice'),
+        body: amt ? 'Amount: ' + amt : '',
+        time: p.invoice_date || p.paid_date,
+        duration: 0,
+        outcome: p.status || '',
+        loggedBy: '',
+        amount: p.amount,
+        amountOutstanding: p.amount_outstanding
+      });
+    });
+
     // Sort by date descending
     items.sort(function(a, b) {
       return new Date(b.sortDate || 0) - new Date(a.sortDate || 0);
@@ -631,7 +652,7 @@
 
     var html = '<div class="cc-timeline">';
     items.forEach(function(item) {
-      html += '<div class="cc-timeline-item">';
+      html += '<div class="cc-timeline-item cc-timeline-' + item.kind + '">';
       html += '<div class="cc-timeline-icon">' + item.icon + '</div>';
       html += '<div class="cc-timeline-content">';
       html += '<div class="cc-timeline-header">';
@@ -641,7 +662,24 @@
       html += '<div class="cc-timeline-subject">' + escapeHtml(item.subject) + '</div>';
       if (item.body) html += '<div class="cc-timeline-body">' + escapeHtml(item.body) + '</div>';
       if (item.duration) html += '<div class="cc-timeline-meta">' + item.duration + ' min</div>';
-      if (item.outcome) html += '<div class="cc-timeline-meta">Outcome: ' + escapeHtml(item.outcome) + '</div>';
+      // Campaign send status badges
+      if (item.kind === 'campaign' && item.outcome) {
+        var csColors = { SENT: '#3B82F6', DELIVERED: '#06B6D4', OPENED: '#059669', CLICKED: '#059669', BOUNCED: '#DC2626', SKIPPED: '#9CA3AF' };
+        var csColor = csColors[item.outcome.toUpperCase()] || '#6B7280';
+        html += '<div class="cc-timeline-meta"><span style="display:inline-block;padding:1px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;color:white;background:' + csColor + ';">' + escapeHtml(item.outcome) + '</span></div>';
+      // Purchase outstanding amount
+      } else if (item.kind === 'purchase') {
+        if (item.outcome) {
+          var pColors = { paid: '#059669', partially_paid: '#D97706', awaiting_payment: '#3B82F6', overdue: '#DC2626', void: '#9CA3AF', draft: '#9CA3AF' };
+          var pColor = pColors[item.outcome.toLowerCase()] || '#6B7280';
+          html += '<div class="cc-timeline-meta"><span style="display:inline-block;padding:1px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;color:white;background:' + pColor + ';">' + escapeHtml(item.outcome) + '</span></div>';
+        }
+        if (item.amountOutstanding && item.amountOutstanding > 0) {
+          html += '<div class="cc-timeline-meta" style="color:#DC2626;font-weight:500;">Outstanding: $' + Number(item.amountOutstanding).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div>';
+        }
+      } else {
+        if (item.outcome) html += '<div class="cc-timeline-meta">Outcome: ' + escapeHtml(item.outcome) + '</div>';
+      }
       if (item.loggedBy) html += '<div class="cc-timeline-meta">By: ' + escapeHtml(item.loggedBy) + '</div>';
       html += '</div></div>';
     });
