@@ -1,31 +1,4 @@
-/**
- * Tabuchi Law Booking System - Dashboard Meeting Types Manager
- * Handles: /dashboard-meeting-types
- *
- * Requires: api-client.js loaded first
- *
- * Page element IDs:
- * - #tb-mt-list (container for meeting type cards)
- * - #tb-mt-add-btn (button to open create form)
- * - #tb-mt-form-modal (form modal/panel)
- * - #tb-mt-form (the form element)
- * - #tb-mt-form-title (modal title - "Create" or "Edit")
- * - #tb-mt-id (hidden input for record ID, empty for create)
- * - #tb-mt-name, #tb-mt-duration, #tb-mt-description
- * - #tb-mt-location, #tb-mt-color, #tb-mt-active
- * - #tb-mt-buffer-after
- * - #tb-mt-slot-interval (Time Between Meetings)
- * - #tb-mt-required-witnesses (greyed out unless In-Office)
- * - #tb-mt-time-block (range slider %), #tb-mt-time-block-val (label)
- * - #tb-mt-custom-avail-toggle, #tb-mt-custom-avail-panel, #tb-mt-avail-grid
- * - #tb-mt-confirmation-message
- * - #tb-mt-reminders-list (template/drip campaign picker container)
- * - #tb-mt-max-per-day
- * - #tb-mt-save-btn, #tb-mt-cancel-btn
- * - #tb-mt-form-error
- * - #tb-loading, #tb-error
- * - #tb-mt-booking-link (displays public booking URL)
- */
+/* Meeting Types Manager - /dashboard-meeting-types */
 
 (async function MeetingTypesPage() {
   'use strict';
