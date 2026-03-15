@@ -28,6 +28,30 @@
 (function ContactDetail() {
   'use strict';
 
+  function ccToast(msg, type) {
+    type = type || 'info';
+    if (!document.getElementById('cc-toast-style')) {
+      var s = document.createElement('style');
+      s.id = 'cc-toast-style';
+      s.textContent = '@keyframes ccToastIn{from{opacity:0;transform:translateX(1rem)}to{opacity:1;transform:translateX(0)}}';
+      document.head.appendChild(s);
+    }
+    var colors = { success: '#059669', error: '#DC2626', info: '#2563EB' };
+    var dur = type === 'error' ? 6000 : 4000;
+    var container = document.getElementById('cc-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'cc-toast-container';
+      container.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:10000;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;';
+      document.body.appendChild(container);
+    }
+    var el = document.createElement('div');
+    el.style.cssText = 'pointer-events:auto;padding:0.75rem 1rem;border-radius:8px;color:white;font-size:0.9rem;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:flex-start;gap:0.5rem;animation:ccToastIn 0.3s ease;background:' + (colors[type] || colors.info) + ';';
+    el.innerHTML = '<span style="flex:1;">' + msg.replace(/</g, '&lt;') + '</span><button style="background:none;border:none;color:white;font-size:1.1rem;cursor:pointer;padding:0;line-height:1;" onclick="this.parentElement.remove()">&times;</button>';
+    container.appendChild(el);
+    setTimeout(function() { if (el.parentElement) el.remove(); }, dur);
+  }
+
   if (!ClientCareAPI.auth.requireAuth()) return;
 
   // Block BOOKINGS-only users from CRM pages
@@ -219,15 +243,15 @@
           delBtn.textContent = 'Deleting…';
           var result = await API.leads.delete(contactId);
           if (result.success) {
-            alert('Contact deleted successfully.');
+            ccToast('Contact deleted successfully.', 'success');
             window.location.href = '/crm/contacts';
           } else {
-            alert('Delete failed: ' + (result.error || 'Unknown error'));
+            ccToast('Delete failed: ' + (result.error || 'Unknown error'), 'error');
             delBtn.disabled = false;
             delBtn.textContent = 'Delete';
           }
         } catch (err) {
-          alert('Delete failed: ' + (err.error || err.message || 'Unknown error'));
+          ccToast('Delete failed: ' + (err.error || err.message || 'Unknown error'), 'error');
           delBtn.disabled = false;
           delBtn.textContent = 'Delete';
         }
@@ -773,10 +797,10 @@
           state.editMode = false;
           reloadContact();
         } else {
-          alert(result.error || 'Failed to save changes');
+          ccToast(result.error || 'Failed to save changes', 'error');
         }
       } catch (err) {
-        alert(err.error || 'Error saving changes');
+        ccToast(err.error || 'Error saving changes', 'error');
       } finally {
         saveBtn.disabled = false;
         saveBtn.textContent = 'Save Changes';
@@ -797,7 +821,7 @@
           var result = await API.leads.update(contactId, { Tags: currentTags });
           if (result.success) reloadContact();
         } catch (err) {
-          alert('Failed to remove tag: ' + (err.error || 'Unknown error'));
+          ccToast('Failed to remove tag: ' + (err.error || 'Unknown error'), 'error');
         }
       });
     });
@@ -832,7 +856,7 @@
       var result = await API.leads.update(contactId, { Tags: currentTags });
       if (result.success) reloadContact();
     } catch (err) {
-      alert('Failed to add tags: ' + (err.error || 'Unknown error'));
+      ccToast('Failed to add tags: ' + (err.error || 'Unknown error'), 'error');
     }
   }
 
@@ -854,11 +878,11 @@
           saveBtn.textContent = 'Saved \u2713';
           setTimeout(function() { saveBtn.textContent = 'Save Notes'; }, 2000);
         } else {
-          alert(result.error || 'Failed to save notes');
+          ccToast(result.error || 'Failed to save notes', 'error');
           saveBtn.textContent = 'Save Notes';
         }
       } catch (err) {
-        alert(err.error || 'Error saving notes');
+        ccToast(err.error || 'Error saving notes', 'error');
         saveBtn.textContent = 'Save Notes';
       } finally {
         saveBtn.disabled = false;
@@ -876,7 +900,7 @@
           var result = await API.tasks.update(taskId, { status: 'DONE' });
           if (result.success) reloadTasks();
         } catch (err) {
-          alert('Failed to complete task: ' + (err.error || 'Unknown error'));
+          ccToast('Failed to complete task: ' + (err.error || 'Unknown error'), 'error');
         }
       });
     });
@@ -911,7 +935,7 @@
       var btn = document.getElementById('cc-act-submit');
       if (btn.disabled) return;
       var subject = document.getElementById('cc-act-subject').value.trim();
-      if (!subject) { alert('Subject is required.'); return; }
+      if (!subject) { ccToast('Subject is required.', 'info'); return; }
 
       btn.disabled = true;
       try {
@@ -931,7 +955,7 @@
           reloadHistory();
         }
       } catch (err) {
-        alert('Failed: ' + (err.error || 'Unknown error'));
+        ccToast('Failed: ' + (err.error || 'Unknown error'), 'error');
       } finally {
         btn.disabled = false;
       }
@@ -963,7 +987,7 @@
       var btn = document.getElementById('cc-task-submit');
       if (btn.disabled) return;
       var title = document.getElementById('cc-task-title').value.trim();
-      if (!title) { alert('Task title is required.'); return; }
+      if (!title) { ccToast('Task title is required.', 'info'); return; }
 
       btn.disabled = true;
       try {
@@ -979,7 +1003,7 @@
           reloadTasks();
         }
       } catch (err) {
-        alert('Failed: ' + (err.error || 'Unknown error'));
+        ccToast('Failed: ' + (err.error || 'Unknown error'), 'error');
       } finally {
         btn.disabled = false;
       }

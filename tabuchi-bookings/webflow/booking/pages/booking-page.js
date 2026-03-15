@@ -412,23 +412,31 @@
       // Clear availability cache since a slot is now taken
       TabuchiAPI.clearAvailabilityCache();
 
+      // Validate response structure before accessing nested properties
+      var booking = result && result.booking ? result.booking : null;
+      if (!booking || !booking.bookingId) {
+        // API returned 200 but without expected booking data
+        var detail = result && result.error ? result.error : (result && result.message ? result.message : 'Server returned an unexpected response. Your booking may not have been created.');
+        throw { error: detail, _rawResult: result };
+      }
+
       // Redirect to confirmation page with booking data
       var confirmParams = {
-        bookingId: result.booking.bookingId,
-        staffName: result.booking.staffName,
-        meetingType: result.booking.meetingTypeName,
-        date: result.booking.date,
-        time: result.booking.time,
-        endTime: result.booking.endTime,
-        duration: result.booking.duration,
-        clientName: result.booking.clientName,
-        rescheduleUrl: result.booking.rescheduleUrl,
-        cancelUrl: result.booking.cancelUrl,
-        location: result.booking.location || meetingTypeData.location || '',
-        message: result.booking.confirmationMessage || result.message
+        bookingId: booking.bookingId,
+        staffName: booking.staffName,
+        meetingType: booking.meetingTypeName,
+        date: booking.date,
+        time: booking.time,
+        endTime: booking.endTime,
+        duration: booking.duration,
+        clientName: booking.clientName,
+        rescheduleUrl: booking.rescheduleUrl,
+        cancelUrl: booking.cancelUrl,
+        location: booking.location || meetingTypeData.location || '',
+        message: booking.confirmationMessage || result.message
       };
       // Only include joinUrl if present (not for In-Office/Phone)
-      if (result.booking.joinUrl) confirmParams.joinUrl = result.booking.joinUrl;
+      if (booking.joinUrl) confirmParams.joinUrl = booking.joinUrl;
       var qp = new URLSearchParams(confirmParams);
       window.location.href = '/book-confirm?' + qp.toString();
 

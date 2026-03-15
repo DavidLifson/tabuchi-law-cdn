@@ -240,7 +240,24 @@
       }, 2000);
     } catch (err) {
       console.error('Intake autoSave error:', err);
-      if (statusEl) statusEl.textContent = 'Save failed';
+      if (statusEl) {
+        statusEl.innerHTML = '';
+        statusEl.style.cssText = 'background:#FEF2F2;border:1px solid #FECACA;color:#DC2626;padding:0.5rem 0.75rem;border-radius:6px;font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;';
+        var warnSpan = document.createElement('span');
+        warnSpan.textContent = '\u26A0 Your progress could not be saved.';
+        warnSpan.style.flex = '1';
+        statusEl.appendChild(warnSpan);
+        var retryBtn = document.createElement('button');
+        retryBtn.textContent = 'Retry';
+        retryBtn.style.cssText = 'background:#DC2626;color:white;border:none;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.8rem;cursor:pointer;font-weight:600;';
+        retryBtn.onclick = function() {
+          statusEl.innerHTML = '';
+          statusEl.style.cssText = '';
+          state.saving = false;
+          autoSave();
+        };
+        statusEl.appendChild(retryBtn);
+      }
     }
 
     state.saving = false;
@@ -339,8 +356,15 @@
     var idx = getCurrentStepIndex();
     var total = getTotalSteps();
     var pct = total > 1 ? Math.round((idx / (total - 1)) * 100) : 0;
+    // Before a branch is selected (only 2 generic steps), show step number without misleading total
+    var label;
+    if (!state.branch) {
+      label = 'Step ' + (idx + 1);
+    } else {
+      label = 'Step ' + (idx + 1) + ' of ' + total;
+    }
     bar.innerHTML = '<div class="cc-progress-track"><div class="cc-progress-fill" style="width:' + pct + '%"></div></div>' +
-      '<span class="cc-progress-label">Step ' + (idx + 1) + ' of ' + total + '</span>';
+      '<span class="cc-progress-label">' + label + '</span>';
   }
 
   function restoreFieldValues() {

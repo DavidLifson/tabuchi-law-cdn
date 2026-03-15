@@ -27,6 +27,30 @@
 (function LeadDetail() {
   'use strict';
 
+  function ccToast(msg, type) {
+    type = type || 'info';
+    if (!document.getElementById('cc-toast-style')) {
+      var s = document.createElement('style');
+      s.id = 'cc-toast-style';
+      s.textContent = '@keyframes ccToastIn{from{opacity:0;transform:translateX(1rem)}to{opacity:1;transform:translateX(0)}}';
+      document.head.appendChild(s);
+    }
+    var colors = { success: '#059669', error: '#DC2626', info: '#2563EB' };
+    var dur = type === 'error' ? 6000 : 4000;
+    var container = document.getElementById('cc-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'cc-toast-container';
+      container.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:10000;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;';
+      document.body.appendChild(container);
+    }
+    var el = document.createElement('div');
+    el.style.cssText = 'pointer-events:auto;padding:0.75rem 1rem;border-radius:8px;color:white;font-size:0.9rem;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:flex-start;gap:0.5rem;animation:ccToastIn 0.3s ease;background:' + (colors[type] || colors.info) + ';';
+    el.innerHTML = '<span style="flex:1;">' + msg.replace(/</g, '&lt;') + '</span><button style="background:none;border:none;color:white;font-size:1.1rem;cursor:pointer;padding:0;line-height:1;" onclick="this.parentElement.remove()">&times;</button>';
+    container.appendChild(el);
+    setTimeout(function() { if (el.parentElement) el.remove(); }, dur);
+  }
+
   if (!ClientCareAPI.auth.requireAuth()) return;
 
   // Block BOOKINGS-only users from CRM pages
@@ -468,9 +492,9 @@
         try {
           var res = await API.recordings.approveReview(btn.dataset.recId);
           if (res.success) reloadRecordings();
-          else alert('Failed: ' + (res.error || 'Unknown error'));
+          else ccToast('Failed: ' + (res.error || 'Unknown error'), 'error');
         } catch (err) {
-          alert('Failed: ' + (err.error || 'Network error'));
+          ccToast('Failed: ' + (err.error || 'Network error'), 'error');
         }
         btn.disabled = false;
       });
@@ -484,9 +508,9 @@
         try {
           var res = await API.recordings.retryProcessing(btn.dataset.recId);
           if (res.success) reloadRecordings();
-          else alert('Failed: ' + (res.error || 'Unknown error'));
+          else ccToast('Failed: ' + (res.error || 'Unknown error'), 'error');
         } catch (err) {
-          alert('Failed: ' + (err.error || 'Network error'));
+          ccToast('Failed: ' + (err.error || 'Network error'), 'error');
         }
         btn.disabled = false;
       });
@@ -497,7 +521,7 @@
     if (genBtn) {
       genBtn.addEventListener('click', async function() {
         var templateId = (document.getElementById('cc-will-template') || {}).value;
-        if (!templateId) { alert('Please select a template.'); return; }
+        if (!templateId) { ccToast('Please select a template.', 'info'); return; }
 
         var overrides = {};
         var clientName = (document.getElementById('cc-will-client-name') || {}).value;
@@ -509,20 +533,20 @@
 
         // Find best recording (most recent completed)
         var targetRec = state.recordings.find(function(r) { return r.Status === 'completed'; });
-        if (!targetRec) { alert('No completed recording available.'); return; }
+        if (!targetRec) { ccToast('No completed recording available.', 'info'); return; }
 
         genBtn.disabled = true;
         genBtn.textContent = 'Generating...';
         try {
           var res = await API.recordings.generateWill(targetRec.id, templateId, overrides);
           if (res.success) {
-            alert('Will draft generated successfully!');
+            ccToast('Will draft generated successfully!', 'success');
             reloadRecordings();
           } else {
-            alert('Generation failed: ' + (res.error || 'Unknown error'));
+            ccToast('Generation failed: ' + (res.error || 'Unknown error'), 'error');
           }
         } catch (err) {
-          alert('Generation failed: ' + (err.error || 'Network error'));
+          ccToast('Generation failed: ' + (err.error || 'Network error'), 'error');
         }
         genBtn.disabled = false;
         genBtn.textContent = 'Generate Will Draft';
@@ -537,14 +561,14 @@
         try {
           var res = await API.recordings.uploadToClio(btn.dataset.recId);
           if (res.success) {
-            alert('Will uploaded to Clio successfully!');
+            ccToast('Will uploaded to Clio successfully!', 'success');
             reloadRecordings();
             reloadLead(); // Refresh Clio IDs
           } else {
-            alert('Upload failed: ' + (res.error || 'Unknown error'));
+            ccToast('Upload failed: ' + (res.error || 'Unknown error'), 'error');
           }
         } catch (err) {
-          alert('Upload failed: ' + (err.error || 'Network error'));
+          ccToast('Upload failed: ' + (err.error || 'Network error'), 'error');
         }
         btn.disabled = false;
         btn.textContent = 'Upload Will to Clio';
@@ -645,15 +669,15 @@
           delBtn.textContent = 'Deleting…';
           var result = await API.leads.delete(state.lead.id);
           if (result.success) {
-            alert('Lead deleted successfully.');
+            ccToast('Lead deleted successfully.', 'success');
             window.location.href = '/crm';
           } else {
-            alert('Delete failed: ' + (result.error || 'Unknown error'));
+            ccToast('Delete failed: ' + (result.error || 'Unknown error'), 'error');
             delBtn.disabled = false;
             delBtn.textContent = 'Delete Lead';
           }
         } catch (err) {
-          alert('Delete failed: ' + (err.error || err.message || 'Unknown error'));
+          ccToast('Delete failed: ' + (err.error || err.message || 'Unknown error'), 'error');
           delBtn.disabled = false;
           delBtn.textContent = 'Delete Lead';
         }
@@ -729,10 +753,10 @@
       if (result.success) {
         reloadLead(); // Only reload lead (stage changed)
       } else {
-        alert('Stage update failed: ' + (result.error || 'Unknown error'));
+        ccToast('Stage update failed: ' + (result.error || 'Unknown error'), 'error');
       }
     } catch (err) {
-      alert('Stage update failed: ' + (err.error || (err.errors ? err.errors.join('; ') : 'Network error')));
+      ccToast('Stage update failed: ' + (err.error || (err.errors ? err.errors.join('; ') : 'Network error')), 'error');
     }
   }
 
@@ -973,7 +997,7 @@
           var result = await API.tasks.update(taskId, { status: 'DONE' });
           if (result.success) reloadTasks(); // Only reload tasks
         } catch (err) {
-          alert('Failed to complete task: ' + (err.error || 'Unknown error'));
+          ccToast('Failed to complete task: ' + (err.error || 'Unknown error'), 'error');
         }
       });
     });
@@ -1018,7 +1042,7 @@
       if (btn.disabled) return;
       var type = $el('cc-act-type').value;
       var subject = $el('cc-act-subject').value.trim();
-      if (!subject) { alert('Subject is required.'); return; }
+      if (!subject) { ccToast('Subject is required.', 'info'); return; }
 
       btn.disabled = true;
       try {
@@ -1038,7 +1062,7 @@
           reloadActivities(); // Only reload activities
         }
       } catch (err) {
-        alert('Failed: ' + (err.error || 'Unknown error'));
+        ccToast('Failed: ' + (err.error || 'Unknown error'), 'error');
       } finally {
         btn.disabled = false;
       }
@@ -1071,7 +1095,7 @@
       var btn = $el('cc-task-submit');
       if (btn.disabled) return;
       var title = $el('cc-task-title').value.trim();
-      if (!title) { alert('Task title is required.'); return; }
+      if (!title) { ccToast('Task title is required.', 'info'); return; }
 
       btn.disabled = true;
       try {
@@ -1087,7 +1111,7 @@
           reloadTasks(); // Only reload tasks
         }
       } catch (err) {
-        alert('Failed: ' + (err.error || 'Unknown error'));
+        ccToast('Failed: ' + (err.error || 'Unknown error'), 'error');
       } finally {
         btn.disabled = false;
       }
@@ -1161,12 +1185,12 @@
             state.lead.Estimated_Closing_Date = newDate;
             renderInfo();
           } else {
-            alert('Save failed: ' + (res.error || 'Unknown error'));
+            ccToast('Save failed: ' + (res.error || 'Unknown error'), 'error');
             dateInput.style.display = 'none';
             dateVal.style.display = '';
           }
         } catch (err) {
-          alert('Save failed: ' + (err.error || 'Network error'));
+          ccToast('Save failed: ' + (err.error || 'Network error'), 'error');
           dateInput.style.display = 'none';
           dateVal.style.display = '';
         }
@@ -1231,7 +1255,7 @@
           if (v) data[inp.getAttribute('data-field')] = v;
         });
         if (!data.First_Name && !data.Last_Name && !data.Client_Email) {
-          alert('Please enter at least a name or email.');
+          ccToast('Please enter at least a name or email.', 'info');
           return;
         }
         // Build Client_Name from first + last
@@ -1263,12 +1287,12 @@
           if (res.success && newId) {
             window.location.href = '/crm/lead?id=' + newId;
           } else {
-            alert('Create failed: ' + (res.error || res.message || res.details || JSON.stringify(res)));
+            ccToast('Create failed: ' + (res.error || res.message || res.details || JSON.stringify(res)), 'error');
             createBtn.disabled = false;
             createBtn.textContent = 'Create Lead';
           }
         } catch (err) {
-          alert('Create failed: ' + (err.error || err.message || 'Network error'));
+          ccToast('Create failed: ' + (err.error || err.message || 'Network error'), 'error');
           createBtn.disabled = false;
           createBtn.textContent = 'Create Lead';
         }
@@ -1562,10 +1586,10 @@
             renderInfo();
             closeModal();
           } else {
-            alert('Save failed: ' + (saveRes.error || 'Unknown error'));
+            ccToast('Save failed: ' + (saveRes.error || 'Unknown error'), 'error');
           }
         } catch (err) {
-          alert('Save failed: ' + (err.error || 'Network error'));
+          ccToast('Save failed: ' + (err.error || 'Network error'), 'error');
         }
       });
     } catch (err) {
