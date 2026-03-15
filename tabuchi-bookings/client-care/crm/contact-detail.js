@@ -137,8 +137,9 @@
 
       state.tasks = (taskResult.success && taskResult.tasks) || [];
 
-      // Tags from config
-      state.availableTags = (tagResult.data || []).map(function(t) { return t.Label || t.label || ''; }).filter(Boolean);
+      // Tags from config (store full objects for category grouping)
+      state.tagConfig = (tagResult.data || []).filter(function(t) { return t.Label || t.label; });
+      state.availableTags = state.tagConfig.map(function(t) { return t.Label || t.label || ''; }).filter(Boolean);
       // Price book items for Service Package dropdown
       state.priceBookItems = (priceBookResult.items || []).filter(function(i) { return i.Is_Active !== false; });
 
@@ -410,13 +411,29 @@
     html += '</div>';
 
     html += '<div class="cc-ms-dropdown" id="' + id + '-dropdown">';
-    options.forEach(function(opt) {
-      var checked = selectedArr.indexOf(opt.key) >= 0 || selectedArr.indexOf(opt.label) >= 0;
-      html += '<label class="cc-ms-option' + (checked ? ' cc-ms-option-checked' : '') + '" data-val="' + escapeAttr(opt.key) + '" data-label="' + escapeAttr(opt.label.toLowerCase()) + '">';
-      html += '<input type="checkbox" class="cc-ms-cb" value="' + escapeAttr(opt.key) + '"' + (checked ? ' checked' : '') + '> ';
-      html += escapeHtml(opt.label);
-      html += '</label>';
-    });
+    if (opts.groups && opts.groups.length) {
+      // Render options grouped by category
+      opts.groups.forEach(function(group) {
+        html += '<div class="cc-ms-group" data-group="' + escapeAttr(group.label.toLowerCase()) + '">';
+        html += '<div class="cc-ms-group-label">' + escapeHtml(group.label) + '</div>';
+        group.options.forEach(function(opt) {
+          var checked = selectedArr.indexOf(opt.key) >= 0 || selectedArr.indexOf(opt.label) >= 0;
+          html += '<label class="cc-ms-option' + (checked ? ' cc-ms-option-checked' : '') + '" data-val="' + escapeAttr(opt.key) + '" data-label="' + escapeAttr(opt.label.toLowerCase()) + '" data-group="' + escapeAttr(group.label.toLowerCase()) + '">';
+          html += '<input type="checkbox" class="cc-ms-cb" value="' + escapeAttr(opt.key) + '"' + (checked ? ' checked' : '') + '> ';
+          html += escapeHtml(opt.label);
+          html += '</label>';
+        });
+        html += '</div>';
+      });
+    } else {
+      options.forEach(function(opt) {
+        var checked = selectedArr.indexOf(opt.key) >= 0 || selectedArr.indexOf(opt.label) >= 0;
+        html += '<label class="cc-ms-option' + (checked ? ' cc-ms-option-checked' : '') + '" data-val="' + escapeAttr(opt.key) + '" data-label="' + escapeAttr(opt.label.toLowerCase()) + '">';
+        html += '<input type="checkbox" class="cc-ms-cb" value="' + escapeAttr(opt.key) + '"' + (checked ? ' checked' : '') + '> ';
+        html += escapeHtml(opt.label);
+        html += '</label>';
+      });
+    }
     if (opts.allowCreate) {
       html += '<div class="cc-ms-create-row" id="' + id + '-create" style="display:none"><button class="cc-ms-create-btn">+ Create "<span class="cc-ms-create-val"></span>"</button></div>';
     }
@@ -482,6 +499,11 @@
         var match = !q || opt.dataset.label.indexOf(q) >= 0;
         opt.style.display = match ? '' : 'none';
         if (match) anyVisible = true;
+      });
+      // Show/hide group headers based on visible children
+      dropdown.querySelectorAll('.cc-ms-group').forEach(function(grp) {
+        var hasVisible = grp.querySelector('.cc-ms-option:not([style*="display: none"])');
+        grp.style.display = hasVisible ? '' : 'none';
       });
       // Show create row if allowCreate and no exact match
       if (opts.allowCreate && q) {
@@ -728,19 +750,51 @@
     var tags = c.Tags || [];
     var html = '<div class="cc-section"><h3 class="cc-section-title">Tags</h3>';
 
-    // Build tag options from available managed tags + any current tags not in the list
+    // Build tag options grouped by category
     var tagOptions = [];
     var addedKeys = {};
-    (state.availableTags || []).forEach(function(t) {
-      if (!addedKeys[t]) { tagOptions.push({ key: t, label: t }); addedKeys[t] = true; }
+    var categoryMap = {}; // { categoryName: [{ key, label }] }
+
+    (state.tagConfig || []).forEach(function(t) {
+      var label = t.Label || t.label || '';
+      if (!label || addedKeys[label]) return;
+      addedKeys[label] = true;
+      var meta = {};
+      try { meta = JSON.parse(t.Meta || '{}'); } catch(e) {}
+      var cat = meta.category || 'Other';
+      if (!categoryMap[cat]) categoryMap[cat] = [];
+      categoryMap[cat].push({ key: label, label: label });
+      tagOptions.push({ key: label, label: label });
     });
+
     // Add any current tags that aren't in the managed list
     tags.forEach(function(t) {
-      if (!addedKeys[t]) { tagOptions.push({ key: t, label: t }); addedKeys[t] = true; }
+      if (!addedKeys[t]) {
+        tagOptions.push({ key: t, label: t });
+        addedKeys[t] = true;
+        if (!categoryMap['Other']) categoryMap['Other'] = [];
+        categoryMap['Other'].push({ key: t, label: t });
+      }
     });
-    tagOptions.sort(function(a, b) { return a.label.localeCompare(b.label); });
 
-    html += buildMultiSelect('cc-ms-tags', '', tagOptions, tags, { placeholder: 'Select or create tags...', allowCreate: true });
+    // Build groups sorted by category name, with each group's options sorted alphabetically
+    var categoryOrder = ['Client Type', 'Marketing', 'Case Status', 'Practice Area', 'Internal', 'Other'];
+    var groups = [];
+    categoryOrder.forEach(function(cat) {
+      if (categoryMap[cat] && categoryMap[cat].length) {
+        categoryMap[cat].sort(function(a, b) { return a.label.localeCompare(b.label); });
+        groups.push({ label: cat, options: categoryMap[cat] });
+      }
+    });
+    // Any categories not in the predefined order
+    Object.keys(categoryMap).forEach(function(cat) {
+      if (categoryOrder.indexOf(cat) === -1 && categoryMap[cat].length) {
+        categoryMap[cat].sort(function(a, b) { return a.label.localeCompare(b.label); });
+        groups.push({ label: cat, options: categoryMap[cat] });
+      }
+    });
+
+    html += buildMultiSelect('cc-ms-tags', '', tagOptions, tags, { placeholder: 'Select or create tags...', allowCreate: true, groups: groups });
     html += '<button class="cc-btn cc-btn-sm cc-btn-primary" id="cc-tag-save-btn" style="margin-top:8px;">Save Tags</button>';
     html += '</div>';
     return html;

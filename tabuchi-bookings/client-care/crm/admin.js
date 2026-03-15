@@ -72,6 +72,7 @@
     'activity_type': [],
     'entity_type': [],
     'tag': [
+      { key: 'category', label: 'Category', type: 'select', choices: ['Client Type', 'Marketing', 'Case Status', 'Practice Area', 'Internal'] },
       { key: 'color', label: 'Color', type: 'color' }
     ]
   };
@@ -1853,10 +1854,20 @@
     var content = $el('cc-admin-content');
     if (!content) return;
 
+    var metaFields = CONFIG_META[configKey] || [];
+    var hideOrder = configKey === 'tag';
     var items = (state.configItems[configKey] || []).slice().sort(function(a, b) {
+      if (hideOrder) {
+        // Tags: sort by category then label
+        var mA = {}; try { mA = JSON.parse(a.Meta || '{}'); } catch(e) {}
+        var mB = {}; try { mB = JSON.parse(b.Meta || '{}'); } catch(e) {}
+        var catA = (mA.category || 'Uncategorized').toLowerCase();
+        var catB = (mB.category || 'Uncategorized').toLowerCase();
+        if (catA !== catB) return catA < catB ? -1 : 1;
+        return (a.Label || '').localeCompare(b.Label || '');
+      }
       return (a.Sort_Order || 0) - (b.Sort_Order || 0);
     });
-    var metaFields = CONFIG_META[configKey] || [];
 
     var html = '<div class="cc-admin-config">';
     html += '<div class="cc-admin-section-header">';
@@ -1875,7 +1886,7 @@
     html += '<table class="cc-table">';
     html += '<thead><tr>';
     html += '<th class="cc-th">Label</th>';
-    html += '<th class="cc-th" style="width:80px;">Order</th>';
+    if (!hideOrder) html += '<th class="cc-th" style="width:80px;">Order</th>';
     metaFields.forEach(function(mf) {
       html += '<th class="cc-th">' + escapeHtml(mf.label) + '</th>';
     });
@@ -1891,7 +1902,7 @@
 
       html += '<tr>';
       html += '<td>' + escapeHtml(item.Label || '') + '</td>';
-      html += '<td>' + (item.Sort_Order || 0) + '</td>';
+      if (!hideOrder) html += '<td>' + (item.Sort_Order || 0) + '</td>';
       metaFields.forEach(function(mf) {
         var val = meta[mf.key] || '';
         if (mf.type === 'color' && val) {
@@ -1978,10 +1989,12 @@
     html += '<input type="text" id="cc-modal-config-label" class="cc-input" value="' + escapeAttr(existing ? existing.Label : '') + '" placeholder="Display label" />';
     html += '</div>';
 
-    html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Sort Order</label>';
-    html += '<input type="number" id="cc-modal-config-sort" class="cc-input" value="' + (existing ? (existing.Sort_Order || 0) : 0) + '" />';
-    html += '</div>';
+    if (configKey !== 'tag') {
+      html += '<div class="cc-form-group">';
+      html += '<label class="cc-label">Sort Order</label>';
+      html += '<input type="number" id="cc-modal-config-sort" class="cc-input" value="' + (existing ? (existing.Sort_Order || 0) : 0) + '" />';
+      html += '</div>';
+    }
 
     metaFields.forEach(function(mf) {
       html += '<div class="cc-form-group">';
@@ -1990,6 +2003,14 @@
         html += '<input type="color" id="cc-modal-config-meta-' + mf.key + '" class="cc-input" value="' + escapeAttr(meta[mf.key] || '#3B82F6') + '" style="height:38px;padding:2px;" />';
       } else if (mf.type === 'number') {
         html += '<input type="number" id="cc-modal-config-meta-' + mf.key + '" class="cc-input" value="' + escapeAttr(meta[mf.key] || '') + '" />';
+      } else if (mf.type === 'select' && mf.choices) {
+        html += '<select id="cc-modal-config-meta-' + mf.key + '" class="cc-input">';
+        html += '<option value="">— Select —</option>';
+        mf.choices.forEach(function(ch) {
+          var sel = (meta[mf.key] || '') === ch ? ' selected' : '';
+          html += '<option value="' + escapeAttr(ch) + '"' + sel + '>' + escapeHtml(ch) + '</option>';
+        });
+        html += '</select>';
       } else {
         html += '<input type="text" id="cc-modal-config-meta-' + mf.key + '" class="cc-input" value="' + escapeAttr(meta[mf.key] || '') + '" />';
       }
@@ -2003,7 +2024,8 @@
       var labelVal = form.querySelector('#cc-modal-config-label').value.trim();
       if (!labelVal) { showToast('Label is required.', 'error'); return false; }
 
-      var sortOrder = parseInt(form.querySelector('#cc-modal-config-sort').value) || 0;
+      var sortEl = form.querySelector('#cc-modal-config-sort');
+      var sortOrder = sortEl ? (parseInt(sortEl.value) || 0) : (existing ? (existing.Sort_Order || 0) : 0);
 
       var metaObj = {};
       metaFields.forEach(function(mf) {
