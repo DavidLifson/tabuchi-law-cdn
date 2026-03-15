@@ -28,6 +28,30 @@
 (function RecordingsList() {
   'use strict';
 
+  function ccToast(msg, type) {
+    type = type || 'info';
+    if (!document.getElementById('cc-toast-style')) {
+      var s = document.createElement('style');
+      s.id = 'cc-toast-style';
+      s.textContent = '@keyframes ccToastIn{from{opacity:0;transform:translateX(1rem)}to{opacity:1;transform:translateX(0)}}';
+      document.head.appendChild(s);
+    }
+    var colors = { success: '#059669', error: '#DC2626', info: '#2563EB' };
+    var dur = type === 'error' ? 6000 : 4000;
+    var container = document.getElementById('cc-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'cc-toast-container';
+      container.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:10000;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;';
+      document.body.appendChild(container);
+    }
+    var el = document.createElement('div');
+    el.style.cssText = 'pointer-events:auto;padding:0.75rem 1rem;border-radius:8px;color:white;font-size:0.9rem;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:flex-start;gap:0.5rem;animation:ccToastIn 0.3s ease;background:' + (colors[type] || colors.info) + ';';
+    el.innerHTML = '<span style="flex:1;">' + msg.replace(/</g, '&lt;') + '</span><button style="background:none;border:none;color:white;font-size:1.1rem;cursor:pointer;padding:0;line-height:1;" onclick="this.parentElement.remove()">&times;</button>';
+    container.appendChild(el);
+    setTimeout(function() { if (el.parentElement) el.remove(); }, dur);
+  }
+
   if (!ClientCareAPI.auth.requireAuth()) return;
 
   var _u = ClientCareAPI.auth.getUser();
@@ -460,7 +484,7 @@
                 API.cache.invalidate('/cc/recordings');
                 fetchRecordings();
               } else {
-                alert('Failed to link lead: ' + (r.error || 'Unknown error'));
+                ccToast('Failed to link lead: ' + (r.error || 'Unknown error'), 'error');
               }
             });
           }
