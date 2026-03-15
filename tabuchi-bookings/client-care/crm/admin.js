@@ -50,11 +50,12 @@
     { key: 'dispositions', label: 'Dispositions' },
     { key: 'activity-types', label: 'Activity Types' },
     { key: 'entity-types', label: 'Entity Types' },
+    { key: 'tags', label: 'Tags' },
     { key: 'price-book', label: 'Price Books' }
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
-  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types'];
+  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'tags'];
 
   // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
   var HIDDEN_TABS = ['drip-enrollment'];
@@ -69,11 +70,14 @@
       { key: 'color', label: 'Color', type: 'color' }
     ],
     'activity_type': [],
-    'entity_type': []
+    'entity_type': [],
+    'tag': [
+      { key: 'color', label: 'Color', type: 'color' }
+    ]
   };
 
   function tabToConfigKey(tabKey) {
-    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type' };
+    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'tags': 'tag' };
     return map[tabKey] || tabKey;
   }
 

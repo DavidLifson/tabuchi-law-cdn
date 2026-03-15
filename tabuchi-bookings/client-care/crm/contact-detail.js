@@ -89,7 +89,9 @@
     activeTab: 'overview',
     loading: true,
     user: API.auth.getUser(),
-    editMode: false
+    editMode: false,
+    availableTags: [],
+    priceBookItems: []
   };
 
   var TABS = [
@@ -108,12 +110,16 @@
       var results = await Promise.all([
         API.leads.get(contactId),
         API.contacts.getHistory(contactId),
-        API.tasks.list({ lead_id: contactId })
+        API.tasks.list({ lead_id: contactId }),
+        API.admin.config.list('tag').catch(function() { return { data: [] }; }),
+        API.priceBook.list(true).catch(function() { return { items: [] }; })
       ]);
 
       var leadResult = results[0];
       var historyResult = results[1];
       var taskResult = results[2];
+      var tagResult = results[3];
+      var priceBookResult = results[4];
 
       if (leadResult.success && leadResult.lead) {
         state.contact = leadResult.lead;
@@ -130,6 +136,11 @@
       }
 
       state.tasks = (taskResult.success && taskResult.tasks) || [];
+
+      // Tags from config
+      state.availableTags = (tagResult.data || []).map(function(t) { return t.Value || t.value || ''; }).filter(Boolean);
+      // Price book items for Service Package dropdown
+      state.priceBookItems = (priceBookResult.items || []).filter(function(i) { return i.Is_Active !== false; });
 
       render();
     } catch (err) {
@@ -371,6 +382,197 @@
     return html;
   }
 
+  // ─── Multi-Select Dropdown Builder ──────────────────────────
+  // Renders a searchable multi-select dropdown with pills display
+  // options: [{ key: 'KEY', label: 'Label' }]
+  // selected: ['KEY1', 'KEY2']
+  // id: unique id prefix
+  // opts: { placeholder, allowCreate }
+  function buildMultiSelect(id, label, options, selected, opts) {
+    opts = opts || {};
+    var placeholder = opts.placeholder || 'Select...';
+    var selectedArr = Array.isArray(selected) ? selected : (selected ? [selected] : []);
+
+    var html = '<div class="cc-edit-field cc-multiselect-wrap" data-ms-id="' + id + '">';
+    html += '<label>' + escapeHtml(label) + '</label>';
+    html += '<div class="cc-ms-control cc-input" id="' + id + '-control" tabindex="0">';
+    html += '<div class="cc-ms-pills" id="' + id + '-pills">';
+
+    selectedArr.forEach(function(key) {
+      var opt = options.find(function(o) { return o.key === key || o.label === key; });
+      var display = opt ? opt.label : key;
+      html += '<span class="cc-ms-pill">' + escapeHtml(display) + '<button class="cc-ms-pill-x" data-val="' + escapeAttr(key) + '">&times;</button></span>';
+    });
+
+    html += '<input class="cc-ms-search" id="' + id + '-search" placeholder="' + (selectedArr.length ? '' : escapeAttr(placeholder)) + '" autocomplete="off" />';
+    html += '</div>';
+    html += '<span class="cc-ms-arrow">&#9662;</span>';
+    html += '</div>';
+
+    html += '<div class="cc-ms-dropdown" id="' + id + '-dropdown">';
+    options.forEach(function(opt) {
+      var checked = selectedArr.indexOf(opt.key) >= 0 || selectedArr.indexOf(opt.label) >= 0;
+      html += '<label class="cc-ms-option' + (checked ? ' cc-ms-option-checked' : '') + '" data-val="' + escapeAttr(opt.key) + '" data-label="' + escapeAttr(opt.label.toLowerCase()) + '">';
+      html += '<input type="checkbox" class="cc-ms-cb" value="' + escapeAttr(opt.key) + '"' + (checked ? ' checked' : '') + '> ';
+      html += escapeHtml(opt.label);
+      html += '</label>';
+    });
+    if (opts.allowCreate) {
+      html += '<div class="cc-ms-create-row" id="' + id + '-create" style="display:none"><button class="cc-ms-create-btn">+ Create "<span class="cc-ms-create-val"></span>"</button></div>';
+    }
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Binds events for a multi-select dropdown
+  function bindMultiSelect(id, opts) {
+    opts = opts || {};
+    var wrap = document.querySelector('[data-ms-id="' + id + '"]');
+    if (!wrap) return;
+    var control = document.getElementById(id + '-control');
+    var dropdown = document.getElementById(id + '-dropdown');
+    var searchInput = document.getElementById(id + '-search');
+    var pillsContainer = document.getElementById(id + '-pills');
+    var isOpen = false;
+
+    function toggleDropdown(open) {
+      isOpen = typeof open === 'boolean' ? open : !isOpen;
+      dropdown.style.display = isOpen ? 'block' : 'none';
+      if (isOpen) {
+        searchInput.focus();
+        searchInput.placeholder = '';
+      } else {
+        searchInput.value = '';
+        filterOptions('');
+        updatePlaceholder();
+      }
+    }
+
+    function updatePlaceholder() {
+      var pills = pillsContainer.querySelectorAll('.cc-ms-pill');
+      searchInput.placeholder = pills.length ? '' : (opts.placeholder || 'Select...');
+    }
+
+    function getSelectedValues() {
+      var vals = [];
+      dropdown.querySelectorAll('.cc-ms-cb:checked').forEach(function(cb) { vals.push(cb.value); });
+      return vals;
+    }
+
+    function refreshPills() {
+      // Remove existing pills
+      pillsContainer.querySelectorAll('.cc-ms-pill').forEach(function(p) { p.remove(); });
+      // Re-add from checked boxes
+      dropdown.querySelectorAll('.cc-ms-cb:checked').forEach(function(cb) {
+        var optLabel = cb.parentElement;
+        var display = optLabel ? optLabel.textContent.trim() : cb.value;
+        var pill = document.createElement('span');
+        pill.className = 'cc-ms-pill';
+        pill.innerHTML = escapeHtml(display) + '<button class="cc-ms-pill-x" data-val="' + escapeAttr(cb.value) + '">&times;</button>';
+        pillsContainer.insertBefore(pill, searchInput);
+      });
+      updatePlaceholder();
+    }
+
+    function filterOptions(query) {
+      var q = query.toLowerCase().trim();
+      var anyVisible = false;
+      dropdown.querySelectorAll('.cc-ms-option').forEach(function(opt) {
+        var match = !q || opt.dataset.label.indexOf(q) >= 0;
+        opt.style.display = match ? '' : 'none';
+        if (match) anyVisible = true;
+      });
+      // Show create row if allowCreate and no exact match
+      if (opts.allowCreate && q) {
+        var createRow = document.getElementById(id + '-create');
+        if (createRow) {
+          var exactMatch = false;
+          dropdown.querySelectorAll('.cc-ms-option').forEach(function(opt) {
+            if (opt.dataset.label === q) exactMatch = true;
+          });
+          if (!exactMatch) {
+            createRow.style.display = 'block';
+            createRow.querySelector('.cc-ms-create-val').textContent = query;
+          } else {
+            createRow.style.display = 'none';
+          }
+        }
+      }
+    }
+
+    // Toggle on control click
+    control.addEventListener('click', function(e) {
+      if (e.target.classList.contains('cc-ms-pill-x')) return;
+      toggleDropdown();
+    });
+
+    // Search input
+    searchInput.addEventListener('input', function() {
+      filterOptions(searchInput.value);
+      if (!isOpen) toggleDropdown(true);
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') toggleDropdown(false);
+    });
+
+    // Checkbox changes
+    dropdown.addEventListener('change', function(e) {
+      if (e.target.classList.contains('cc-ms-cb')) {
+        e.target.parentElement.classList.toggle('cc-ms-option-checked', e.target.checked);
+        refreshPills();
+      }
+    });
+
+    // Pill remove
+    pillsContainer.addEventListener('click', function(e) {
+      if (e.target.classList.contains('cc-ms-pill-x')) {
+        e.preventDefault();
+        e.stopPropagation();
+        var val = e.target.dataset.val;
+        var cb = dropdown.querySelector('.cc-ms-cb[value="' + val + '"]');
+        if (cb) {
+          cb.checked = false;
+          cb.parentElement.classList.remove('cc-ms-option-checked');
+        }
+        e.target.parentElement.remove();
+        updatePlaceholder();
+      }
+    });
+
+    // Create new tag
+    if (opts.allowCreate) {
+      var createRow = document.getElementById(id + '-create');
+      if (createRow) {
+        createRow.addEventListener('click', function() {
+          var newVal = searchInput.value.trim();
+          if (!newVal) return;
+          // Add option to dropdown
+          var newOpt = document.createElement('label');
+          newOpt.className = 'cc-ms-option cc-ms-option-checked';
+          newOpt.dataset.val = newVal;
+          newOpt.dataset.label = newVal.toLowerCase();
+          newOpt.innerHTML = '<input type="checkbox" class="cc-ms-cb" value="' + escapeAttr(newVal) + '" checked> ' + escapeHtml(newVal);
+          dropdown.insertBefore(newOpt, createRow);
+          refreshPills();
+          searchInput.value = '';
+          filterOptions('');
+          createRow.style.display = 'none';
+        });
+      }
+    }
+
+    // Close on click outside
+    document.addEventListener('click', function(e) {
+      if (!wrap.contains(e.target)) toggleDropdown(false);
+    });
+
+    // Return helper to get values
+    wrap._getValues = getSelectedValues;
+    return { getValues: getSelectedValues };
+  }
+
   function buildEditForm(c) {
     var html = '<div class="cc-section cc-edit-section">';
     html += '<h3 class="cc-section-title">Edit Contact</h3>';
@@ -446,32 +648,27 @@
       { key: 'FAMILY_LAW', label: 'Family Law' }
     ];
     var currentPAs = Array.isArray(c.Practice_Area) ? c.Practice_Area : (c.Practice_Area ? [c.Practice_Area] : []);
-    html += '<div class="cc-edit-field"><label>Practice Area</label>';
-    html += '<div class="cc-checkbox-group">';
-    practiceAreas.forEach(function(pa) {
-      var checked = currentPAs.indexOf(pa.key) >= 0 || currentPAs.indexOf(pa.label) >= 0 ? ' checked' : '';
-      html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-edit-pa-check" value="' + pa.key + '"' + checked + '> ' + escapeHtml(pa.label) + '</label>';
-    });
-    html += '</div></div>';
+    html += buildMultiSelect('cc-ms-pa', 'Practice Area', practiceAreas, currentPAs, { placeholder: 'Select practice areas...' });
 
-    var servicePackages = [
-      { key: 'SIMPLE_WILL_POA', label: 'Simple Will & POA' },
-      { key: 'COUPLES_WILLS_POA', label: 'Couples Wills & POA' },
-      { key: 'BLENDED_FAMILY_PLAN', label: 'Blended Family Plan' },
-      { key: 'MINORS_GUARDIANSHIP_PLAN', label: 'Minors Guardianship Plan' },
-      { key: 'HENSON_TRUST_PLAN', label: 'Henson Trust Plan' },
-      { key: 'SPOUSAL_TRUST_PLAN', label: 'Spousal Trust Plan' },
-      { key: 'PROBATE_APPLICATION', label: 'Probate Application' },
-      { key: 'PROBATE_FULL_ADMIN', label: 'Probate Full Admin' }
-    ];
-    var currentSPs = Array.isArray(c.Service_Package) ? c.Service_Package : (c.Service_Package ? [c.Service_Package] : []);
-    html += '<div class="cc-edit-field"><label>Service Package</label>';
-    html += '<div class="cc-checkbox-group">';
-    servicePackages.forEach(function(sp) {
-      var checked = currentSPs.indexOf(sp.key) >= 0 || currentSPs.indexOf(sp.label) >= 0 ? ' checked' : '';
-      html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-edit-sp-check" value="' + sp.key + '"' + checked + '> ' + escapeHtml(sp.label) + '</label>';
+    // Service Packages from Price Book data
+    var spOptions = (state.priceBookItems || []).map(function(item) {
+      return { key: item.Service_Code || item.id, label: item.Service_Name || item.Name || item.Service_Code || '' };
     });
-    html += '</div></div>';
+    // Fallback if no price book items loaded
+    if (!spOptions.length) {
+      spOptions = [
+        { key: 'SIMPLE_WILL_POA', label: 'Simple Will & POA' },
+        { key: 'COUPLES_WILLS_POA', label: 'Couples Wills & POA' },
+        { key: 'BLENDED_FAMILY_PLAN', label: 'Blended Family Plan' },
+        { key: 'MINORS_GUARDIANSHIP_PLAN', label: 'Minors Guardianship Plan' },
+        { key: 'HENSON_TRUST_PLAN', label: 'Henson Trust Plan' },
+        { key: 'SPOUSAL_TRUST_PLAN', label: 'Spousal Trust Plan' },
+        { key: 'PROBATE_APPLICATION', label: 'Probate Application' },
+        { key: 'PROBATE_FULL_ADMIN', label: 'Probate Full Admin' }
+      ];
+    }
+    var currentSPs = Array.isArray(c.Service_Package) ? c.Service_Package : (c.Service_Package ? [c.Service_Package] : []);
+    html += buildMultiSelect('cc-ms-sp', 'Service Package', spOptions, currentSPs, { placeholder: 'Select service packages...' });
 
     html += '<div class="cc-edit-field"><label>Lead Source</label>' +
       '<input class="cc-input" id="cc-edit-source" value="' + escapeAttr(c.Source || '') + '" /></div>';
@@ -530,24 +727,22 @@
   function buildTagsSection(c) {
     var tags = c.Tags || [];
     var html = '<div class="cc-section"><h3 class="cc-section-title">Tags</h3>';
-    html += '<div class="cc-tags-manage">';
 
-    if (tags.length === 0) {
-      html += '<span class="cc-text-muted">No tags assigned.</span>';
-    } else {
-      tags.forEach(function(tag) {
-        html += '<span class="cc-tag-pill cc-tag-removable">' +
-          escapeHtml(tag) +
-          ' <button class="cc-tag-remove" data-tag="' + escapeAttr(tag) + '" title="Remove tag">&times;</button>' +
-        '</span>';
-      });
-    }
+    // Build tag options from available managed tags + any current tags not in the list
+    var tagOptions = [];
+    var addedKeys = {};
+    (state.availableTags || []).forEach(function(t) {
+      if (!addedKeys[t]) { tagOptions.push({ key: t, label: t }); addedKeys[t] = true; }
+    });
+    // Add any current tags that aren't in the managed list
+    tags.forEach(function(t) {
+      if (!addedKeys[t]) { tagOptions.push({ key: t, label: t }); addedKeys[t] = true; }
+    });
+    tagOptions.sort(function(a, b) { return a.label.localeCompare(b.label); });
 
+    html += buildMultiSelect('cc-ms-tags', '', tagOptions, tags, { placeholder: 'Select or create tags...', allowCreate: true });
+    html += '<button class="cc-btn cc-btn-sm cc-btn-primary" id="cc-tag-save-btn" style="margin-top:8px;">Save Tags</button>';
     html += '</div>';
-    html += '<div class="cc-tag-add-row">' +
-      '<input class="cc-input cc-input-sm" id="cc-tag-input" placeholder="Add tags (comma-separated)" />' +
-      '<button class="cc-btn cc-btn-sm cc-btn-primary" id="cc-tag-add-btn">Add</button>' +
-    '</div></div>';
     return html;
   }
 
@@ -790,6 +985,11 @@
     var saveBtn = document.getElementById('cc-edit-save');
     if (!saveBtn) return;
 
+    // Initialize multi-select dropdowns
+    bindMultiSelect('cc-ms-pa', { placeholder: 'Select practice areas...' });
+    bindMultiSelect('cc-ms-sp', { placeholder: 'Select service packages...' });
+    bindMultiSelect('cc-ms-tags', { placeholder: 'Select or create tags...', allowCreate: true });
+
     // Cancel button
     var cancelBtn = document.getElementById('cc-edit-cancel-btn');
     if (cancelBtn) {
@@ -822,8 +1022,8 @@
           Marital_Status: document.getElementById('cc-edit-marital').value,
           Preferred_Language: document.getElementById('cc-edit-language').value,
           Referral_Source: document.getElementById('cc-edit-referral').value.trim(),
-          Practice_Area: Array.from(document.querySelectorAll('.cc-edit-pa-check:checked')).map(function(cb) { return cb.value; }),
-          Service_Package: Array.from(document.querySelectorAll('.cc-edit-sp-check:checked')).map(function(cb) { return cb.value; }),
+          Practice_Area: (function() { var w = document.querySelector('[data-ms-id="cc-ms-pa"]'); return w && w._getValues ? w._getValues() : []; })(),
+          Service_Package: (function() { var w = document.querySelector('[data-ms-id="cc-ms-sp"]'); return w && w._getValues ? w._getValues() : []; })(),
           Source: document.getElementById('cc-edit-source').value.trim(),
           Lead_Stage: document.getElementById('cc-edit-stage').value,
           Disposition: document.getElementById('cc-edit-disposition').value,
@@ -851,53 +1051,34 @@
 
   // ─── Tag Controls ───────────────────────────────────────────
   function bindTagControls() {
-    // Remove tag buttons
-    document.querySelectorAll('.cc-tag-remove').forEach(function(btn) {
-      btn.addEventListener('click', async function(e) {
-        e.preventDefault();
-        var tagToRemove = btn.dataset.tag;
-        var currentTags = (state.contact.Tags || []).filter(function(t) { return t !== tagToRemove; });
+    // Bind the tags multi-select
+    var msTagsHandle = bindMultiSelect('cc-ms-tags', { placeholder: 'Select or create tags...', allowCreate: true });
+
+    // Save Tags button
+    var saveBtn = document.getElementById('cc-tag-save-btn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async function() {
+        var wrap = document.querySelector('[data-ms-id="cc-ms-tags"]');
+        var selectedTags = wrap && wrap._getValues ? wrap._getValues() : [];
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
 
         try {
-          var result = await API.leads.update(contactId, { Tags: currentTags });
-          if (result.success) reloadContact();
+          var result = await API.leads.update(contactId, { Tags: selectedTags });
+          if (result.success) {
+            ccToast('Tags saved', 'success');
+            reloadContact();
+          } else {
+            ccToast(result.error || 'Failed to save tags', 'error');
+          }
         } catch (err) {
-          ccToast('Failed to remove tag: ' + (err.error || 'Unknown error'), 'error');
+          ccToast('Failed to save tags: ' + (err.error || 'Unknown error'), 'error');
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save Tags';
         }
       });
-    });
-
-    // Add tags
-    var addBtn = document.getElementById('cc-tag-add-btn');
-    var input = document.getElementById('cc-tag-input');
-    if (addBtn && input) {
-      addBtn.addEventListener('click', function() { addTagsFromInput(input); });
-
-      // Enter key to add
-      input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          addTagsFromInput(input);
-        }
-      });
-    }
-  }
-
-  async function addTagsFromInput(input) {
-    var newTags = input.value.split(',').map(function(t) { return t.trim(); }).filter(Boolean);
-    if (!newTags.length) return;
-
-    var currentTags = (state.contact.Tags || []).slice();
-    // Merge without duplicates
-    newTags.forEach(function(t) {
-      if (currentTags.indexOf(t) === -1) currentTags.push(t);
-    });
-
-    try {
-      var result = await API.leads.update(contactId, { Tags: currentTags });
-      if (result.success) reloadContact();
-    } catch (err) {
-      ccToast('Failed to add tags: ' + (err.error || 'Unknown error'), 'error');
     }
   }
 
@@ -1119,7 +1300,25 @@
       '.cc-checkbox-label{display:flex;align-items:center;gap:.3rem;font-size:.85rem;color:#374151;cursor:pointer;padding:.15rem 0}' +
       '.cc-edit-actions{margin-top:1.25rem;padding-top:1rem;border-top:1px solid #E5E7EB;display:flex;justify-content:flex-end;gap:.75rem}' +
       '.cc-edit-group-label{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#3B82F6;margin:1.25rem 0 .5rem;padding-bottom:.25rem;border-bottom:1px solid #EFF6FF}' +
-      '.cc-edit-group-label:first-child{margin-top:0}';
+      '.cc-edit-group-label:first-child{margin-top:0}' +
+      '.cc-multiselect-wrap{position:relative}' +
+      '.cc-ms-control{display:flex;align-items:center;min-height:38px;padding:4px 8px 4px 6px;cursor:pointer;position:relative;flex-wrap:wrap;gap:3px}' +
+      '.cc-ms-pills{display:flex;flex-wrap:wrap;gap:3px;flex:1;align-items:center;min-width:0}' +
+      '.cc-ms-pill{display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:4px;font-size:.78rem;font-weight:500;background:#EDE9FE;color:#5B21B6;white-space:nowrap}' +
+      '.cc-ms-pill-x{background:none;border:none;cursor:pointer;font-size:.85rem;color:#7C3AED;padding:0 1px;line-height:1;opacity:.7}' +
+      '.cc-ms-pill-x:hover{opacity:1;color:#DC2626}' +
+      '.cc-ms-search{border:none;outline:none;font-size:.85rem;flex:1;min-width:60px;padding:2px 0;background:transparent;color:#1F2937}' +
+      '.cc-ms-search::placeholder{color:#9CA3AF}' +
+      '.cc-ms-arrow{color:#9CA3AF;font-size:.7rem;flex-shrink:0;margin-left:4px}' +
+      '.cc-ms-dropdown{display:none;position:absolute;left:0;right:0;top:100%;z-index:50;background:white;border:1px solid #D1D5DB;border-top:none;border-radius:0 0 6px 6px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-height:240px;overflow-y:auto}' +
+      '.cc-ms-option{display:flex;align-items:center;gap:6px;padding:6px 10px;cursor:pointer;font-size:.85rem;color:#374151;transition:background .1s}' +
+      '.cc-ms-option:hover{background:#F3F4F6}' +
+      '.cc-ms-option-checked{background:#EFF6FF}' +
+      '.cc-ms-option-checked:hover{background:#DBEAFE}' +
+      '.cc-ms-cb{accent-color:#3B82F6;margin:0;cursor:pointer}' +
+      '.cc-ms-create-row{border-top:1px solid #E5E7EB;padding:6px 10px}' +
+      '.cc-ms-create-btn{background:none;border:none;color:#2563EB;font-size:.85rem;cursor:pointer;font-weight:500;padding:0}' +
+      '.cc-ms-create-btn:hover{text-decoration:underline}';
     document.head.appendChild(s);
   }
 
