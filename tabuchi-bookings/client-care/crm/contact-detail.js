@@ -300,13 +300,12 @@
     var c = state.contact;
     var html = '';
 
-    // Edit form (when in edit mode)
+    // Edit form replaces info grid in edit mode (no redundant display)
     if (state.editMode) {
       html += buildEditForm(c);
+    } else {
+      html += buildInfoGrid(c);
     }
-
-    // Info grid
-    html += buildInfoGrid(c);
 
     // Tags section
     html += buildTagsSection(c);
@@ -372,50 +371,46 @@
   function buildEditForm(c) {
     var html = '<div class="cc-section cc-edit-section">';
     html += '<h3 class="cc-section-title">Edit Contact</h3>';
-    html += '<div class="cc-edit-grid">';
 
     // ── Identity ──
+    html += '<div class="cc-edit-group-label">Identity</div>';
+    html += '<div class="cc-edit-grid">';
     html += '<div class="cc-edit-field"><label>Name</label>' +
       '<input class="cc-input" id="cc-edit-name" value="' + escapeAttr(c.Client_Name || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Email</label>' +
       '<input type="email" class="cc-input" id="cc-edit-email" value="' + escapeAttr(c.Client_Email || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Phone</label>' +
       '<input class="cc-input" id="cc-edit-phone" value="' + escapeAttr(c.Client_Phone || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Company</label>' +
       '<input class="cc-input" id="cc-edit-company" value="' + escapeAttr(c.Company || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Occupation</label>' +
       '<input class="cc-input" id="cc-edit-occupation" value="' + escapeAttr(c.Occupation || '') + '" /></div>';
+    html += '</div>';
 
     // ── Address ──
+    html += '<div class="cc-edit-group-label">Address</div>';
+    html += '<div class="cc-edit-grid">';
     html += '<div class="cc-edit-field"><label>Address</label>' +
       '<input class="cc-input" id="cc-edit-address" value="' + escapeAttr(c.Client_Address || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Address 2</label>' +
       '<input class="cc-input" id="cc-edit-address2" value="' + escapeAttr(c.Address_2 || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>City</label>' +
       '<input class="cc-input" id="cc-edit-city" value="' + escapeAttr(c.City || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Province</label>' +
       '<input class="cc-input" id="cc-edit-province" value="' + escapeAttr(c.Province || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Postal Code</label>' +
       '<input class="cc-input" id="cc-edit-postalcode" value="' + escapeAttr(c.Postal_Code || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Country</label>' +
       '<input class="cc-input" id="cc-edit-country" value="' + escapeAttr(c.Country || 'Canada') + '" /></div>';
+    html += '</div>';
 
     // ── Personal ──
+    html += '<div class="cc-edit-group-label">Personal</div>';
+    html += '<div class="cc-edit-grid">';
     html += '<div class="cc-edit-field"><label>Date of Birth</label>' +
       '<input type="date" class="cc-input" id="cc-edit-dob" value="' + escapeAttr(c.Date_of_Birth || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Spouse Name</label>' +
       '<input class="cc-input" id="cc-edit-spouse" value="' + escapeAttr(c.Spouse_Name || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Marital Status</label>' +
       '<select class="cc-input" id="cc-edit-marital">' +
       '<option value="">— Select —</option>';
@@ -423,7 +418,6 @@
       html += '<option value="' + s + '"' + (c.Marital_Status === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
     });
     html += '</select></div>';
-
     html += '<div class="cc-edit-field"><label>Preferred Language</label>' +
       '<select class="cc-input" id="cc-edit-language">' +
       '<option value="">— Select —</option>';
@@ -431,8 +425,13 @@
       html += '<option value="' + s + '"' + (c.Preferred_Language === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
     });
     html += '</select></div>';
+    html += '<div class="cc-edit-field"><label>Referral Source</label>' +
+      '<input class="cc-input" id="cc-edit-referral" value="' + escapeAttr(c.Referral_Source || '') + '" /></div>';
+    html += '</div>';
 
     // ── CRM Pipeline ──
+    html += '<div class="cc-edit-group-label">Pipeline</div>';
+    html += '<div class="cc-edit-grid">';
     var practiceAreas = [
       { key: 'ESTATE_PLANNING_WILL_POA', label: 'Estate Planning (Will & POA)' },
       { key: 'TRUSTS_HENSON_SPOUSAL', label: 'Trusts (Henson/Spousal)' },
@@ -473,7 +472,6 @@
 
     html += '<div class="cc-edit-field"><label>Lead Source</label>' +
       '<input class="cc-input" id="cc-edit-source" value="' + escapeAttr(c.Source || '') + '" /></div>';
-
     html += '<div class="cc-edit-field"><label>Lead Stage</label>' +
       '<select class="cc-input" id="cc-edit-stage">' +
       '<option value="">— Select —</option>';
@@ -482,7 +480,6 @@
       html += '<option value="' + key + '"' + (c.Lead_Stage === key ? ' selected' : '') + '>' + escapeHtml(stageLabels[key]) + '</option>';
     });
     html += '</select></div>';
-
     html += '<div class="cc-edit-field"><label>Disposition</label>' +
       '<select class="cc-input" id="cc-edit-disposition">' +
       '<option value="">— Select —</option>';
@@ -490,7 +487,6 @@
       html += '<option value="' + s + '"' + ((c.Disposition || 'OPEN') === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
     });
     html += '</select></div>';
-
     html += '<div class="cc-edit-field"><label>Priority</label>' +
       '<select class="cc-input" id="cc-edit-priority">' +
       '<option value="">— Select —</option>';
@@ -498,11 +494,11 @@
       html += '<option value="' + s + '"' + (c.Priority === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
     });
     html += '</select></div>';
-
-    html += '<div class="cc-edit-field"><label>Referral Source</label>' +
-      '<input class="cc-input" id="cc-edit-referral" value="' + escapeAttr(c.Referral_Source || '') + '" /></div>';
+    html += '</div>';
 
     // ── Status ──
+    html += '<div class="cc-edit-group-label">Status</div>';
+    html += '<div class="cc-edit-grid">';
     html += '<div class="cc-edit-field"><label>Contact Status</label>' +
       '<select class="cc-input" id="cc-edit-status">' +
       '<option value=""' + (!c.Contact_Status ? ' selected' : '') + '>— Select —</option>';
@@ -510,20 +506,18 @@
       html += '<option value="' + s + '"' + (c.Contact_Status === s ? ' selected' : '') + '>' + escapeHtml(API.util.contactStatusLabel(s)) + '</option>';
     });
     html += '</select></div>';
-
     html += '<div class="cc-edit-field"><label>Subscribed</label>' +
       '<select class="cc-input" id="cc-edit-consent">';
     ['UNKNOWN', 'SUBSCRIBED', 'UNSUBSCRIBED'].forEach(function(s) {
       html += '<option value="' + s + '"' + (c.Consent_Status === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
     });
     html += '</select></div>';
-
-    // ── Dates ──
     html += '<div class="cc-edit-field"><label>Next Action Date</label>' +
       '<input type="date" class="cc-input" id="cc-edit-nextaction" value="' + escapeAttr(c.Next_Action_Date || '') + '" /></div>';
+    html += '</div>';
 
-    html += '</div>'; // close edit-grid
     html += '<div class="cc-edit-actions">' +
+      '<button class="cc-btn cc-btn-secondary" id="cc-edit-cancel-btn">Cancel</button>' +
       '<button class="cc-btn cc-btn-primary" id="cc-edit-save">Save Changes</button>' +
     '</div>';
     html += '</div>'; // close section
@@ -757,6 +751,15 @@
   function bindEditForm() {
     var saveBtn = document.getElementById('cc-edit-save');
     if (!saveBtn) return;
+
+    // Cancel button
+    var cancelBtn = document.getElementById('cc-edit-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        state.editMode = false;
+        renderTabs();
+      });
+    }
 
     saveBtn.addEventListener('click', async function() {
       if (saveBtn.disabled) return;
