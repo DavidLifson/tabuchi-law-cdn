@@ -76,7 +76,7 @@
   let staffData = null;
   let meetingTypes = [];
   let currentCategory = '';
-  let currentSort = localStorage.getItem('tb-mt-sort') || 'name-asc';
+  let currentSort = localStorage.getItem('tb-mt-sort') || 'category-asc';
 
   TabuchiAPI.util.showLoading('tb-loading');
 
@@ -160,7 +160,8 @@
     var sortSel = document.createElement('select');
     sortSel.id = 'tb-mt-sort-select';
     sortSel.style.cssText = 'padding:0.4rem;border:1px solid #374151;border-radius:4px;background:#1F2937;color:#D1D5DB;font-size:0.85rem;';
-    sortSel.innerHTML = '<option value="name-asc">Name A\u2192Z</option>'
+    sortSel.innerHTML = '<option value="category-asc">Service Type</option>'
+      + '<option value="name-asc">Name A\u2192Z</option>'
       + '<option value="name-desc">Name Z\u2192A</option>'
       + '<option value="newest">Newest First</option>'
       + '<option value="oldest">Oldest First</option>';
@@ -177,6 +178,14 @@
   function sortMeetingTypes(arr) {
     var sorted = arr.slice();
     switch (currentSort) {
+      case 'category-asc':
+        sorted.sort(function(a, b) {
+          var catA = (a.category || '').trim() || '\uffff';
+          var catB = (b.category || '').trim() || '\uffff';
+          var c = catA.localeCompare(catB);
+          return c !== 0 ? c : (a.name || '').localeCompare(b.name || '');
+        });
+        break;
       case 'name-asc':
         sorted.sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
         break;
@@ -206,7 +215,7 @@
       }
     }
 
-    // Apply sort
+    // Apply sort within each group
     filtered = sortMeetingTypes(filtered);
 
     if (filtered.length === 0) {
@@ -216,47 +225,76 @@
       return;
     }
 
+    // Group by Service Type (category), sorted alphabetically; uncategorized last
+    var groups = {};
+    var groupOrder = [];
+    for (var gi = 0; gi < filtered.length; gi++) {
+      var cat = (filtered[gi].category || '').trim() || '__uncategorized__';
+      if (!groups[cat]) { groups[cat] = []; groupOrder.push(cat); }
+      groups[cat].push(filtered[gi]);
+    }
+    groupOrder.sort(function(a, b) {
+      if (a === '__uncategorized__') return 1;
+      if (b === '__uncategorized__') return -1;
+      return a.localeCompare(b);
+    });
+
     // Expand / Collapse All toggle
     let html = '<div style="margin-bottom:0.5rem;text-align:right;">'
       + '<a href="#" id="tb-mt-toggle-all" style="font-size:0.8rem;color:#60A5FA;text-decoration:none;">Expand All</a></div>';
 
-    for (const mt of filtered) {
-      const colorBorder = mt.color && /^#[0-9A-Fa-f]{3,8}$/.test(mt.color) ? 'border-left: 4px solid ' + mt.color : '';
-      const statusBadge = mt.active !== false
-        ? '<span class="tb-status-badge tb-status-confirmed">Active</span>'
-        : '<span class="tb-status-badge tb-status-cancelled">Inactive</span>';
-      const bookingUrl = staffData ? window.location.origin + '/book?staff=' + staffData.slug + '&type=' + mt.slug : '';
+    for (var gk = 0; gk < groupOrder.length; gk++) {
+      var groupName = groupOrder[gk];
+      var groupLabel = groupName === '__uncategorized__' ? 'Uncategorized' : groupName;
+      var groupItems = groups[groupName];
 
-      const catBadge = mt.category
-        ? '<span style="display:inline-block;font-size:0.75rem;padding:0.15rem 0.5rem;background:#EEF2FF;color:#4338CA;border-radius:9999px;margin-left:0.5rem;">' + esc(mt.category) + '</span>'
-        : '';
+      // Service Type section header (collapsible)
+      html += '<div class="tb-mt-service-group" data-group="' + esc(groupName) + '">';
+      html += '<div class="tb-mt-group-header" style="cursor:pointer;display:flex;align-items:center;gap:0.5rem;padding:0.6rem 0.8rem;background:#1E293B;border:1px solid #334155;border-radius:6px;margin-bottom:0.5rem;margin-top:' + (gk > 0 ? '1rem' : '0') + ';">';
+      html += '<span class="tb-mt-group-chevron" style="font-size:0.8rem;color:#94A3B8;transition:transform 0.2s;">\u25BE</span>';
+      html += '<span style="font-weight:600;font-size:0.95rem;color:#E2E8F0;flex:1;">' + esc(groupLabel) + '</span>';
+      html += '<span style="font-size:0.8rem;color:#94A3B8;">' + groupItems.length + ' type' + (groupItems.length !== 1 ? 's' : '') + '</span>';
+      html += '</div>';
+      html += '<div class="tb-mt-group-body">';
 
-      html += '<div class="tb-dash-card" style="' + colorBorder + '">'
-        // ── Header row (always visible, clickable to toggle) ──
-        + '<div class="tb-meeting-card-header tb-mt-card-toggle" style="cursor:pointer;" data-mt-id="' + esc(mt.id) + '">'
-        + '<div style="display:flex;align-items:center;gap:0.4rem;flex:1;min-width:0;">'
-        + '<span class="tb-mt-chevron" style="font-size:0.75rem;color:#9CA3AF;flex-shrink:0;">\u25B8</span>'
-        + '<h3 class="tb-meeting-card-name" style="margin:0;">' + esc(mt.name) + '</h3>'
-        + '<span class="tb-meeting-card-duration">' + esc(String(mt.duration)) + ' min</span> ' + statusBadge + catBadge + '</div>'
-        + '<div style="display:flex;gap:0.5rem;flex-shrink:0;" onclick="event.stopPropagation();">'
-        + '<button class="tb-btn tb-btn-secondary tb-mt-edit-btn" data-id="' + esc(mt.id) + '" style="padding:0.4rem 0.8rem;font-size:0.85rem;">Edit</button>'
-        + '<button class="tb-btn tb-btn-danger tb-mt-delete-btn" data-id="' + esc(mt.id) + '" data-name="' + esc(mt.name) + '" style="padding:0.4rem 0.8rem;font-size:0.85rem;">Delete</button>'
-        + '</div></div>'
-        // ── Body (collapsed by default) ──
-        + '<div class="tb-mt-card-body" style="display:none;margin-top:0.5rem;">'
-        + '<p class="tb-meeting-card-desc">' + esc(mt.description || 'No description') + '</p>'
-        + '<div style="font-size:0.8rem;color:var(--tb-text-light);margin-top:0.5rem;">'
-        + '<span>' + esc(mt.location || 'Teams Video Call') + '</span>'
-        + '</div>'
-        + (bookingUrl ? '<div style="background:#F0F7FF;border:1px solid #DBEAFE;border-radius:6px;padding:0.6rem 0.8rem;margin-top:0.75rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">'
-        + '<span style="font-size:0.8rem;font-weight:600;color:#1E40AF;">Client Booking Link:</span>'
-        + '<code style="font-size:0.75rem;color:#374151;word-break:break-all;flex:1;">' + esc(bookingUrl) + '</code>'
-        + '<button class="tb-btn tb-btn-secondary tb-copy-link-btn" data-url="' + esc(bookingUrl) + '" style="padding:0.25rem 0.6rem;font-size:0.75rem;white-space:nowrap;">Copy Link</button>'
-        + '<button class="tb-btn tb-btn-secondary tb-preview-link-btn" data-url="' + esc(bookingUrl) + '" style="padding:0.25rem 0.6rem;font-size:0.75rem;white-space:nowrap;">Preview</button>'
-        + '</div>' : '')
-        + '</div>'
-        + '</div>';
+      for (var mi = 0; mi < groupItems.length; mi++) {
+        var mt = groupItems[mi];
+        var colorBorder = mt.color && /^#[0-9A-Fa-f]{3,8}$/.test(mt.color) ? 'border-left: 4px solid ' + mt.color : '';
+        var statusBadge = mt.active !== false
+          ? '<span class="tb-status-badge tb-status-confirmed">Active</span>'
+          : '<span class="tb-status-badge tb-status-cancelled">Inactive</span>';
+        var bookingUrl = staffData ? window.location.origin + '/book?staff=' + staffData.slug + '&type=' + mt.slug : '';
+
+        html += '<div class="tb-dash-card" style="' + colorBorder + '">'
+          // ── Header row (always visible, clickable to toggle) ──
+          + '<div class="tb-meeting-card-header tb-mt-card-toggle" style="cursor:pointer;" data-mt-id="' + esc(mt.id) + '">'
+          + '<div style="display:flex;align-items:center;gap:0.4rem;flex:1;min-width:0;">'
+          + '<span class="tb-mt-chevron" style="font-size:0.75rem;color:#9CA3AF;flex-shrink:0;">\u25B8</span>'
+          + '<h3 class="tb-meeting-card-name" style="margin:0;">' + esc(mt.name) + '</h3>'
+          + '<span class="tb-meeting-card-duration">' + esc(String(mt.duration)) + ' min</span> ' + statusBadge + '</div>'
+          + '<div style="display:flex;gap:0.5rem;flex-shrink:0;" onclick="event.stopPropagation();">'
+          + '<button class="tb-btn tb-btn-secondary tb-mt-edit-btn" data-id="' + esc(mt.id) + '" style="padding:0.4rem 0.8rem;font-size:0.85rem;">Edit</button>'
+          + '<button class="tb-btn tb-btn-danger tb-mt-delete-btn" data-id="' + esc(mt.id) + '" data-name="' + esc(mt.name) + '" style="padding:0.4rem 0.8rem;font-size:0.85rem;">Delete</button>'
+          + '</div></div>'
+          // ── Body (collapsed by default) ──
+          + '<div class="tb-mt-card-body" style="display:none;margin-top:0.5rem;">'
+          + '<p class="tb-meeting-card-desc">' + esc(mt.description || 'No description') + '</p>'
+          + '<div style="font-size:0.8rem;color:var(--tb-text-light);margin-top:0.5rem;">'
+          + '<span>' + esc(mt.location || 'Teams Video Call') + '</span>'
+          + '</div>'
+          + (bookingUrl ? '<div style="background:#F0F7FF;border:1px solid #DBEAFE;border-radius:6px;padding:0.6rem 0.8rem;margin-top:0.75rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">'
+          + '<span style="font-size:0.8rem;font-weight:600;color:#1E40AF;">Client Booking Link:</span>'
+          + '<code style="font-size:0.75rem;color:#374151;word-break:break-all;flex:1;">' + esc(bookingUrl) + '</code>'
+          + '<button class="tb-btn tb-btn-secondary tb-copy-link-btn" data-url="' + esc(bookingUrl) + '" style="padding:0.25rem 0.6rem;font-size:0.75rem;white-space:nowrap;">Copy Link</button>'
+          + '<button class="tb-btn tb-btn-secondary tb-preview-link-btn" data-url="' + esc(bookingUrl) + '" style="padding:0.25rem 0.6rem;font-size:0.75rem;white-space:nowrap;">Preview</button>'
+          + '</div>' : '')
+          + '</div>'
+          + '</div>';
+      }
+
+      html += '</div></div>'; // close group body + group wrapper
     }
+
     container.innerHTML = html;
 
     // Wire edit buttons
@@ -302,7 +340,7 @@
       btn.addEventListener('click', function() { window.open(btn.dataset.url, '_blank'); });
     });
 
-    // Wire collapsible card toggles
+    // Wire collapsible card toggles (individual meeting types)
     container.querySelectorAll('.tb-mt-card-toggle').forEach(function(hdr) {
       hdr.addEventListener('click', function() {
         var card = hdr.closest('.tb-dash-card');
@@ -318,12 +356,36 @@
       });
     });
 
+    // Wire collapsible Service Type group headers
+    container.querySelectorAll('.tb-mt-group-header').forEach(function(hdr) {
+      hdr.addEventListener('click', function() {
+        var group = hdr.closest('.tb-mt-service-group');
+        var body = group.querySelector('.tb-mt-group-body');
+        var chevron = hdr.querySelector('.tb-mt-group-chevron');
+        if (body.style.display === 'none') {
+          body.style.display = '';
+          if (chevron) chevron.style.transform = 'rotate(0deg)';
+        } else {
+          body.style.display = 'none';
+          if (chevron) chevron.style.transform = 'rotate(-90deg)';
+        }
+      });
+    });
+
     // Wire Expand All / Collapse All
     var toggleAllLink = container.querySelector('#tb-mt-toggle-all');
     if (toggleAllLink) {
       toggleAllLink.addEventListener('click', function(e) {
         e.preventDefault();
         var expanding = toggleAllLink.textContent === 'Expand All';
+        // Toggle group bodies
+        container.querySelectorAll('.tb-mt-group-body').forEach(function(body) {
+          body.style.display = expanding ? '' : 'none';
+        });
+        container.querySelectorAll('.tb-mt-group-chevron').forEach(function(chev) {
+          chev.style.transform = expanding ? 'rotate(0deg)' : 'rotate(-90deg)';
+        });
+        // Toggle individual card bodies
         container.querySelectorAll('.tb-mt-card-body').forEach(function(body) {
           body.style.display = expanding ? '' : 'none';
         });

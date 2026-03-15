@@ -8,7 +8,7 @@
  * - Role-based dashboard (Sales vs Admin/Manager)
  * - Pipeline overview with mini funnel
  * - Task summary with overdue/today/upcoming
- * - SLA compliance gauge
+ * - Service level gauge
  * - Weighted revenue projection
  * - Recent activity feed
  * - Admin: Rep comparison table, revenue timeline, workload
@@ -326,7 +326,7 @@
       statCard('Open Pipeline', fmtNum(pipe.total_open), 'leads in funnel', 'blue') +
       statCard('Weighted Revenue', fmtCurrency(rev.weighted_total), fmtNum(rev.eligible_leads) + ' eligible leads', 'purple') +
       statCard('Today\'s Meetings', fmtNum(todayMeetings), fmtNum(totalUpcoming) + ' total upcoming', meetingColor) +
-      statCard('SLA Compliance', fmtPct(slaPct), fmtNum(sla.within_sla) + '/' + fmtNum(sla.total) + ' within SLA', slaClass) +
+      statCard('Service Level', fmtPct(slaPct), fmtNum(sla.within_sla) + '/' + fmtNum(sla.total) + ' within SLA', slaClass) +
       statCard('Overdue Tasks', fmtNum(tasks.overdue), fmtNum(tasks.total_open) + ' total open', overdueClass) +
     '</div>';
   }
@@ -476,7 +476,7 @@
   // ─── SLA Detail ──────────────────────────────────────────────
 
   function renderSLADetail(sla) {
-    if (!sla) return '<div class="cc-dash-card"><h3 class="cc-dash-card-title">SLA Compliance</h3><p class="cc-muted">No data</p></div>';
+    if (!sla) return '<div class="cc-dash-card"><h3 class="cc-dash-card-title">Service Level</h3><p class="cc-muted">No data</p></div>';
 
     var pct = sla.compliance_pct != null ? sla.compliance_pct : 0;
     var color = pct >= 90 ? '#10B981' : pct >= 75 ? '#F59E0B' : '#EF4444';
@@ -484,7 +484,7 @@
     var offset = circumference * (1 - pct / 100);
 
     return '<div class="cc-dash-card">' +
-      '<h3 class="cc-dash-card-title">SLA Compliance</h3>' +
+      '<h3 class="cc-dash-card-title">Service Level</h3>' +
       '<div class="cc-dash-sla-gauge">' +
         '<svg viewBox="0 0 100 100" class="cc-dash-sla-ring">' +
           '<circle cx="50" cy="50" r="45" fill="none" stroke="#374151" stroke-width="8"/>' +
@@ -608,7 +608,7 @@
       '<div class="cc-table-wrap">' +
       '<table class="cc-table">' +
       '<thead><tr>' +
-        '<th>Rep</th><th>Open Leads</th><th>Won (30d)</th><th>Weighted Revenue</th><th>SLA %</th>' +
+        '<th>Rep</th><th>Open Leads</th><th>Won (30d)</th><th>Weighted Revenue</th><th>Service Level %</th>' +
       '</tr></thead><tbody>';
 
     for (var i = 0; i < reps.length; i++) {
