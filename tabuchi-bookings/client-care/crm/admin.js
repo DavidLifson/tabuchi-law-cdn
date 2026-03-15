@@ -961,17 +961,17 @@
     try {
       if (state.permissionsConfigId) {
         await API.admin.config.update(state.permissionsConfigId, {
-          Label: 'role_permissions',
-          Config_Key: 'permissions',
-          Meta: meta
+          label: 'role_permissions',
+          config_key: 'permissions',
+          meta: meta
         });
       } else {
         var res = await API.admin.config.create({
-          Label: 'role_permissions',
-          Config_Key: 'permissions',
-          Sort_Order: 1,
-          Is_Active: true,
-          Meta: meta
+          label: 'role_permissions',
+          config_key: 'permissions',
+          sort_order: 1,
+          is_active: true,
+          meta: meta
         });
         if (res && res.id) state.permissionsConfigId = res.id;
       }

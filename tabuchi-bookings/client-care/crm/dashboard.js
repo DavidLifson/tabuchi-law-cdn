@@ -327,12 +327,14 @@
       statCard('Weighted Revenue', fmtCurrency(rev.weighted_total), fmtNum(rev.eligible_leads) + ' eligible leads', 'purple') +
       statCard('Today\'s Meetings', fmtNum(todayMeetings), fmtNum(totalUpcoming) + ' total upcoming', meetingColor) +
       statCard('Service Level', fmtPct(slaPct), fmtNum(sla.within_sla) + '/' + fmtNum(sla.total) + ' within SLA', slaClass) +
-      statCard('Overdue Tasks', fmtNum(tasks.overdue), fmtNum(tasks.total_open) + ' total open', overdueClass) +
+      statCard('Overdue Tasks', fmtNum(tasks.overdue), fmtNum(tasks.total_open) + ' total open', overdueClass, { id: 'cc-dash-overdue-tile', clickable: true }) +
     '</div>';
   }
 
-  function statCard(label, value, sub, color) {
-    return '<div class="cc-rpt-stat cc-dash-stat">' +
+  function statCard(label, value, sub, color, opts) {
+    var id = (opts && opts.id) ? ' id="' + opts.id + '"' : '';
+    var clickClass = (opts && opts.clickable) ? ' cc-dash-stat-clickable' : '';
+    return '<div class="cc-rpt-stat cc-dash-stat' + clickClass + '"' + id + '>' +
       '<div class="cc-rpt-stat-label">' + escapeHtml(label) + '</div>' +
       '<div class="cc-rpt-stat-value cc-text-' + color + '">' + escapeHtml(value) + '</div>' +
       '<div class="cc-rpt-stat-sub">' + escapeHtml(sub) + '</div>' +
@@ -344,7 +346,7 @@
   function renderTasks(t) {
     if (!t) return '<div class="cc-dash-card"><h3 class="cc-dash-card-title">Tasks</h3><p class="cc-muted">No task data</p></div>';
 
-    var html = '<div class="cc-dash-card">' +
+    var html = '<div class="cc-dash-card" id="cc-dash-tasks-widget">' +
       '<h3 class="cc-dash-card-title">Tasks</h3>' +
       '<div class="cc-dash-task-summary">' +
         taskBadge(t.overdue, 'Overdue', 'red') +
@@ -708,6 +710,20 @@
       refreshBtn.addEventListener('click', function() {
         API.cache.invalidate();
         loadDashboard(false);
+      });
+    }
+
+    // Overdue Tasks tile → scroll to tasks widget and highlight
+    var overdueTile = document.getElementById('cc-dash-overdue-tile');
+    if (overdueTile) {
+      overdueTile.addEventListener('click', function() {
+        var tasksWidget = document.getElementById('cc-dash-tasks-widget');
+        if (tasksWidget) {
+          tasksWidget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          tasksWidget.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.3)';
+          tasksWidget.style.transition = 'box-shadow 0.3s ease';
+          setTimeout(function() { tasksWidget.style.boxShadow = ''; }, 2000);
+        }
       });
     }
   }
