@@ -569,6 +569,10 @@
 .cc-dash-greeting-text { font-size:1.4rem;font-weight:700;margin:0; }
 .cc-dash-greeting-date { font-size:0.85rem;color:#9CA3AF; }
 .cc-dash-actions { display:flex;gap:0.5rem;flex-wrap:wrap; }
+.cc-dash-actions .cc-btn-outline { background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.4);color:white; }
+.cc-dash-actions .cc-btn-outline:hover { background:rgba(255,255,255,0.2); }
+.cc-dash-actions .cc-btn-sm:not(.cc-btn-outline):not(.cc-btn-primary) { background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3); }
+.cc-dash-actions .cc-btn-sm:not(.cc-btn-outline):not(.cc-btn-primary):hover { background:rgba(255,255,255,0.25); }
 .cc-dash-stats { display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin-bottom:1.5rem; }
 .cc-dash-stat { transition:transform 0.15s; }
 .cc-dash-stat:hover { transform:translateY(-2px); }
