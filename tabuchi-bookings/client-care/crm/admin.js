@@ -730,7 +730,7 @@
     var subTabs = [
       { key: 'manage-users', label: 'Manage Users' },
       { key: 'permissions', label: 'Permissions' },
-      { key: 'booking-priority', label: 'Booking Priority' },
+      { key: 'booking-priority', label: 'Role / Priority' },
       { key: 'cost', label: 'Cost' }
     ];
 
@@ -1107,26 +1107,103 @@
 
     var html = '<div class="cc-admin-booking-priority">';
     html += '<div class="cc-admin-section-header">';
-    html += '<h3 class="cc-admin-section-title">Booking Priority</h3>';
+    html += '<h3 class="cc-admin-section-title">Role / Priority</h3>';
+    html += '<button id="cc-add-role-priority-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ Add New</button>';
     html += '</div>';
-    html += '<p class="cc-admin-hint">Set the booking priority for each role. Lower numbers are shown first in the booking calendar.</p>';
+    html += '<p class="cc-admin-hint">Manage roles and set booking priority. Lower numbers are shown first in the booking calendar.</p>';
 
-    html += '<table class="cc-table" style="margin-top:12px;max-width:500px;">';
+    html += '<table class="cc-table" style="margin-top:12px;max-width:700px;">';
     html += '<thead><tr>';
     html += '<th class="cc-th" style="min-width:140px;">Role</th>';
     html += '<th class="cc-th" style="width:120px;">Priority</th>';
+    html += '<th class="cc-th" style="width:160px;text-align:center;">Actions</th>';
     html += '</tr></thead><tbody>';
 
     roles.forEach(function(role) {
       var val = getRoleConfigValue(role, 'booking_priority');
       var roleCls = ROLE_COLORS[role] || 'gray';
-      html += '<tr>';
+      html += '<tr data-role-row="' + escapeAttr(role) + '">';
       html += '<td><span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(role) + '</span></td>';
       html += '<td><input type="number" class="cc-input cc-role-priority-input" data-role="' + escapeAttr(role) + '" value="' + escapeAttr(String(val)) + '" style="width:80px;padding:4px 8px;" min="0" /></td>';
+      html += '<td style="text-align:center;">';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-role-btn" data-role="' + escapeAttr(role) + '" style="margin-right:6px;">Edit</button>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-delete-role-priority-btn" data-role="' + escapeAttr(role) + '">Delete</button>';
+      html += '</td>';
       html += '</tr>';
     });
 
     html += '</tbody></table>';
+
+    // ── Edit Role Modal (hidden) ──
+    html += '<div id="cc-edit-role-modal" class="cc-modal-overlay" style="display:none;">';
+    html += '<div class="cc-modal" style="max-width:420px;">';
+    html += '<h3 class="cc-modal-title">Edit Role</h3>';
+    html += '<div style="margin-bottom:12px;">';
+    html += '<label class="cc-label">Role Name</label>';
+    html += '<input id="cc-edit-role-name" class="cc-input" style="width:100%;" />';
+    html += '</div>';
+    html += '<div style="margin-bottom:12px;">';
+    html += '<label class="cc-label">Priority</label>';
+    html += '<input id="cc-edit-role-priority" type="number" class="cc-input" min="0" style="width:100px;" />';
+    html += '</div>';
+    html += '<div style="margin-bottom:12px;">';
+    html += '<label class="cc-label">Badge Color</label>';
+    html += '<select id="cc-edit-role-color" class="cc-input" style="width:100%;">';
+    ['red','blue','teal','green','purple','gray','orange','yellow'].forEach(function(c) {
+      html += '<option value="' + c + '">' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
+    html += '<input id="cc-edit-role-original" type="hidden" />';
+    html += '<div style="display:flex;gap:8px;justify-content:flex-end;">';
+    html += '<button id="cc-edit-role-cancel" class="cc-btn cc-btn-sm cc-btn-outline">Cancel</button>';
+    html += '<button id="cc-edit-role-save" class="cc-btn cc-btn-sm cc-btn-primary">Save</button>';
+    html += '</div>';
+    html += '</div></div>';
+
+    // ── Delete Role Modal (hidden) ──
+    html += '<div id="cc-delete-role-modal" class="cc-modal-overlay" style="display:none;">';
+    html += '<div class="cc-modal" style="max-width:480px;">';
+    html += '<h3 class="cc-modal-title" style="color:#DC2626;">Delete Role</h3>';
+    html += '<p id="cc-delete-role-msg" style="margin-bottom:12px;"></p>';
+    html += '<div id="cc-delete-role-reassign" style="margin-bottom:16px;">';
+    html += '<label class="cc-label">Reassign all users with this role to:</label>';
+    html += '<select id="cc-delete-role-target" class="cc-input" style="width:100%;"></select>';
+    html += '</div>';
+    html += '<input id="cc-delete-role-name" type="hidden" />';
+    html += '<div style="display:flex;gap:8px;justify-content:flex-end;">';
+    html += '<button id="cc-delete-role-cancel" class="cc-btn cc-btn-sm cc-btn-outline">Cancel</button>';
+    html += '<button id="cc-delete-role-confirm" class="cc-btn cc-btn-sm cc-btn-danger">Delete &amp; Reassign</button>';
+    html += '</div>';
+    html += '</div></div>';
+
+    // ── Add Role Modal (hidden) ──
+    html += '<div id="cc-add-role-priority-modal" class="cc-modal-overlay" style="display:none;">';
+    html += '<div class="cc-modal" style="max-width:420px;">';
+    html += '<h3 class="cc-modal-title">Add New Role</h3>';
+    html += '<div style="margin-bottom:12px;">';
+    html += '<label class="cc-label">Role Name</label>';
+    html += '<input id="cc-new-role-name" class="cc-input" style="width:100%;" placeholder="e.g. PARALEGAL" />';
+    html += '<p class="cc-admin-hint" style="margin-top:4px;">Use UPPER_CASE with underscores.</p>';
+    html += '</div>';
+    html += '<div style="margin-bottom:12px;">';
+    html += '<label class="cc-label">Priority</label>';
+    html += '<input id="cc-new-role-priority" type="number" class="cc-input" min="0" value="5" style="width:100px;" />';
+    html += '</div>';
+    html += '<div style="margin-bottom:12px;">';
+    html += '<label class="cc-label">Badge Color</label>';
+    html += '<select id="cc-new-role-color" class="cc-input" style="width:100%;">';
+    ['gray','red','blue','teal','green','purple','orange','yellow'].forEach(function(c) {
+      html += '<option value="' + c + '">' + c.charAt(0).toUpperCase() + c.slice(1) + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:8px;justify-content:flex-end;">';
+    html += '<button id="cc-new-role-cancel" class="cc-btn cc-btn-sm cc-btn-outline">Cancel</button>';
+    html += '<button id="cc-new-role-save" class="cc-btn cc-btn-sm cc-btn-primary">Add Role</button>';
+    html += '</div>';
+    html += '</div></div>';
+
     html += '</div>';
     return html;
   }
@@ -1134,12 +1211,198 @@
   function bindBookingPriorityEvents() {
     var content = $el('cc-admin-content');
     if (!content) return;
+
+    // ── Priority inputs ──
     content.querySelectorAll('.cc-role-priority-input').forEach(function(inp) {
       inp.addEventListener('change', function() {
         var role = inp.dataset.role;
         var val = inp.value.trim() === '' ? '' : parseInt(inp.value, 10);
         saveRoleConfigValue(role, 'booking_priority', val);
       });
+    });
+
+    // ── Add New ──
+    var addBtn = document.getElementById('cc-add-role-priority-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', function() {
+        var modal = document.getElementById('cc-add-role-priority-modal');
+        if (modal) modal.style.display = 'flex';
+      });
+    }
+
+    var newCancel = document.getElementById('cc-new-role-cancel');
+    if (newCancel) newCancel.addEventListener('click', function() {
+      document.getElementById('cc-add-role-priority-modal').style.display = 'none';
+    });
+
+    var newSave = document.getElementById('cc-new-role-save');
+    if (newSave) {
+      newSave.addEventListener('click', async function() {
+        var nameInput = document.getElementById('cc-new-role-name');
+        var priInput = document.getElementById('cc-new-role-priority');
+        var colorInput = document.getElementById('cc-new-role-color');
+        var roleName = (nameInput.value || '').trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+        if (!roleName) { showToast('Role name is required.', 'error'); return; }
+
+        var permsData = getPermissionsData();
+        if (permsData[roleName]) { showToast('Role "' + roleName + '" already exists.', 'error'); return; }
+
+        // Add to permissions with minimal defaults
+        permsData[roleName] = ['leads', 'contacts'];
+        state.permissionsData = permsData;
+        ROLE_COLORS[roleName] = colorInput.value || 'gray';
+        await savePermissionsConfig();
+
+        // Save priority
+        var pri = priInput.value.trim() === '' ? '' : parseInt(priInput.value, 10);
+        if (pri !== '') await saveRoleConfigValue(roleName, 'booking_priority', pri);
+
+        document.getElementById('cc-add-role-priority-modal').style.display = 'none';
+        showToast('Role "' + roleName + '" created.', 'success');
+        renderStaffUsersTab();
+      });
+    }
+
+    // ── Edit Role ──
+    content.querySelectorAll('.cc-edit-role-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var role = btn.dataset.role;
+        var modal = document.getElementById('cc-edit-role-modal');
+        document.getElementById('cc-edit-role-name').value = role;
+        document.getElementById('cc-edit-role-priority').value = getRoleConfigValue(role, 'booking_priority') || '';
+        document.getElementById('cc-edit-role-color').value = ROLE_COLORS[role] || 'gray';
+        document.getElementById('cc-edit-role-original').value = role;
+        if (modal) modal.style.display = 'flex';
+      });
+    });
+
+    var editCancel = document.getElementById('cc-edit-role-cancel');
+    if (editCancel) editCancel.addEventListener('click', function() {
+      document.getElementById('cc-edit-role-modal').style.display = 'none';
+    });
+
+    var editSave = document.getElementById('cc-edit-role-save');
+    if (editSave) {
+      editSave.addEventListener('click', async function() {
+        var origRole = document.getElementById('cc-edit-role-original').value;
+        var newName = (document.getElementById('cc-edit-role-name').value || '').trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+        var newPri = document.getElementById('cc-edit-role-priority').value;
+        var newColor = document.getElementById('cc-edit-role-color').value;
+
+        if (!newName) { showToast('Role name is required.', 'error'); return; }
+
+        var permsData = getPermissionsData();
+        if (newName !== origRole && permsData[newName]) { showToast('Role "' + newName + '" already exists.', 'error'); return; }
+
+        // Rename if needed
+        if (newName !== origRole) {
+          permsData[newName] = permsData[origRole];
+          delete permsData[origRole];
+          // Move config values
+          var oldCfg = state.roleConfigItems.find(function(it) { return it.Label === origRole; });
+          if (oldCfg) oldCfg.Label = newName;
+        }
+
+        state.permissionsData = permsData;
+        ROLE_COLORS[newName] = newColor;
+        await savePermissionsConfig();
+
+        var pri = newPri.trim && newPri.trim() === '' ? '' : parseInt(newPri, 10);
+        if (!isNaN(pri)) await saveRoleConfigValue(newName, 'booking_priority', pri);
+
+        document.getElementById('cc-edit-role-modal').style.display = 'none';
+        showToast('Role updated.', 'success');
+        renderStaffUsersTab();
+      });
+    }
+
+    // ── Delete Role ──
+    content.querySelectorAll('.cc-delete-role-priority-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var role = btn.dataset.role;
+        var permsData = getPermissionsData();
+        var otherRoles = Object.keys(permsData).filter(function(r) { return r !== role; });
+
+        if (otherRoles.length === 0) {
+          showToast('Cannot delete the last role.', 'error');
+          return;
+        }
+
+        var modal = document.getElementById('cc-delete-role-modal');
+        document.getElementById('cc-delete-role-name').value = role;
+        document.getElementById('cc-delete-role-msg').innerHTML =
+          'Are you sure you want to delete the <strong>' + escapeHtml(role) + '</strong> role? ' +
+          'All users currently assigned this role will be reassigned to the role you select below.';
+
+        var select = document.getElementById('cc-delete-role-target');
+        select.innerHTML = '';
+        otherRoles.forEach(function(r) {
+          var opt = document.createElement('option');
+          opt.value = r;
+          opt.textContent = r;
+          select.appendChild(opt);
+        });
+
+        if (modal) modal.style.display = 'flex';
+      });
+    });
+
+    var delCancel = document.getElementById('cc-delete-role-cancel');
+    if (delCancel) delCancel.addEventListener('click', function() {
+      document.getElementById('cc-delete-role-modal').style.display = 'none';
+    });
+
+    var delConfirm = document.getElementById('cc-delete-role-confirm');
+    if (delConfirm) {
+      delConfirm.addEventListener('click', async function() {
+        var role = document.getElementById('cc-delete-role-name').value;
+        var target = document.getElementById('cc-delete-role-target').value;
+
+        if (!target) { showToast('Please select a role to reassign to.', 'error'); return; }
+
+        try {
+          // 1. Update permissions: remove role
+          var permsData = getPermissionsData();
+          delete permsData[role];
+          state.permissionsData = permsData;
+          await savePermissionsConfig();
+
+          // 2. Delete the role config record (priority/cost)
+          var cfg = state.roleConfigItems.find(function(it) { return it.Label === role; });
+          if (cfg) {
+            await API.admin.config.delete(cfg.id);
+            state.roleConfigItems = state.roleConfigItems.filter(function(it) { return it.Label !== role; });
+          }
+
+          // 3. Reassign users with this role to the target role
+          if (state.users && state.users.length) {
+            var usersToReassign = state.users.filter(function(u) { return u.Role === role; });
+            for (var i = 0; i < usersToReassign.length; i++) {
+              await API.admin.updateUser(usersToReassign[i].id, { Role: target });
+              usersToReassign[i].Role = target;
+            }
+            if (usersToReassign.length > 0) {
+              showToast(usersToReassign.length + ' user(s) reassigned to ' + target + '.', 'success');
+            }
+          }
+
+          document.getElementById('cc-delete-role-modal').style.display = 'none';
+          showToast('Role "' + role + '" deleted.', 'success');
+          renderStaffUsersTab();
+        } catch (e) {
+          showToast('Failed to delete role: ' + (e.error || e.message || 'Unknown error'), 'error');
+        }
+      });
+    }
+
+    // ── Close modals on overlay click ──
+    ['cc-edit-role-modal', 'cc-delete-role-modal', 'cc-add-role-priority-modal'].forEach(function(id) {
+      var modal = document.getElementById(id);
+      if (modal) {
+        modal.addEventListener('click', function(e) {
+          if (e.target === modal) modal.style.display = 'none';
+        });
+      }
     });
   }
 
