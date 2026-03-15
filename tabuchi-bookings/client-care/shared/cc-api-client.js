@@ -939,6 +939,22 @@ const ClientCareAPI = (() => {
     }
   }
 
+  // Inject Kanban link if missing (after Contacts, before Recordings)
+  if (!has.kanban) {
+    var k = document.createElement('a');
+    k.href = '/crm/kanban'; k.setAttribute('data-nav', 'kanban');
+    k.setAttribute('style', style); k.textContent = 'Kanban';
+    var contactsLink = has.contacts || nav.querySelector('a[data-nav="contacts"]');
+    var recordingsLink = has.recordings;
+    if (recordingsLink) {
+      nav.insertBefore(k, recordingsLink);
+    } else if (contactsLink && contactsLink.nextSibling) {
+      nav.insertBefore(k, contactsLink.nextSibling);
+    } else {
+      nav.appendChild(k);
+    }
+  }
+
   // Convert Campaigns single link → dropdown (Campaigns, Templates, Drip Enrollment)
   if (has.campaigns && !document.getElementById('app-camp-btn')) {
     var cl = has.campaigns;
