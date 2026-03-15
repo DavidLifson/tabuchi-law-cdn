@@ -1062,8 +1062,32 @@
     }
   }
 
+  // ─── Inject Edit Form Styles ──────────────────────────────────
+  function injectEditStyles() {
+    if (document.getElementById('cc-edit-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'cc-edit-styles';
+    s.textContent =
+      '.cc-section{background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:1.25rem;margin-bottom:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.05)}' +
+      '.cc-section-title{font-size:.95rem;font-weight:600;color:#1F2937;margin:0 0 1rem;padding-bottom:.5rem;border-bottom:1px solid #F3F4F6}' +
+      '.cc-edit-section{background:#FAFBFC;border:1px solid #E5E7EB}' +
+      '.cc-edit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem}' +
+      '.cc-edit-field{display:flex;flex-direction:column}' +
+      '.cc-edit-field label{display:block;font-size:.75rem;font-weight:600;color:#6B7280;text-transform:uppercase;letter-spacing:.03em;margin-bottom:.3rem}' +
+      '.cc-edit-field .cc-input{width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:6px;font-size:.9rem;color:#1F2937;background:#fff;box-sizing:border-box;transition:border-color .15s,box-shadow .15s}' +
+      '.cc-edit-field .cc-input:focus{outline:none;border-color:#3B82F6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}' +
+      '.cc-edit-field .cc-input::placeholder{color:#9CA3AF}' +
+      '.cc-checkbox-group{display:flex;flex-wrap:wrap;gap:.5rem}' +
+      '.cc-checkbox-label{display:flex;align-items:center;gap:.3rem;font-size:.85rem;color:#374151;cursor:pointer;padding:.15rem 0}' +
+      '.cc-edit-actions{margin-top:1.25rem;padding-top:1rem;border-top:1px solid #E5E7EB;display:flex;justify-content:flex-end;gap:.75rem}' +
+      '.cc-edit-group-label{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#3B82F6;margin:1.25rem 0 .5rem;padding-bottom:.25rem;border-bottom:1px solid #EFF6FF}' +
+      '.cc-edit-group-label:first-child{margin-top:0}';
+    document.head.appendChild(s);
+  }
+
   // ─── Initialize ──────────────────────────────────────────────
   function init() {
+    injectEditStyles();
     var user = API.auth.getUser();
     var userNameEl = $el('cc-user-name');
     if (user && userNameEl) userNameEl.textContent = user.name || user.email;
