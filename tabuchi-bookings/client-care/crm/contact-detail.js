@@ -138,7 +138,7 @@
       state.tasks = (taskResult.success && taskResult.tasks) || [];
 
       // Tags from config
-      state.availableTags = (tagResult.data || []).map(function(t) { return t.Value || t.value || ''; }).filter(Boolean);
+      state.availableTags = (tagResult.data || []).map(function(t) { return t.Label || t.label || ''; }).filter(Boolean);
       // Price book items for Service Package dropdown
       state.priceBookItems = (priceBookResult.items || []).filter(function(i) { return i.Is_Active !== false; });
 
@@ -865,7 +865,7 @@
       // Purchase outstanding amount
       } else if (item.kind === 'purchase') {
         if (item.outcome) {
-          var pColors = { paid: '#059669', partially_paid: '#D97706', awaiting_payment: '#3B82F6', overdue: '#DC2626', void: '#9CA3AF', draft: '#9CA3AF' };
+          var pColors = { paid: '#059669', partial: '#D97706', partially_paid: '#D97706', awaiting_payment: '#3B82F6', overdue: '#DC2626', void: '#9CA3AF', draft: '#9CA3AF' };
           var pColor = pColors[item.outcome.toLowerCase()] || '#6B7280';
           html += '<div class="cc-timeline-meta"><span style="display:inline-block;padding:1px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;color:white;background:' + pColor + ';">' + escapeHtml(item.outcome) + '</span></div>';
         }
