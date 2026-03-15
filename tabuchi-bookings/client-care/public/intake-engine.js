@@ -27,7 +27,7 @@
 (function IntakeEngine() {
   'use strict';
 
-  var API = window.ClientCareAPI;
+  var API = window.ClientCareAPI || (typeof ClientCareAPI !== 'undefined' ? ClientCareAPI : null);
   if (!API) return;
 
   var $el = function(id) { return document.getElementById(id); };
