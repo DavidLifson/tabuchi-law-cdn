@@ -637,6 +637,33 @@ const ClientCareAPI = (() => {
     });
   }
 
+  /**
+   * Upload a file for an intake form (ID documents, etc.)
+   * Uses Azure Function endpoint with multipart/form-data
+   * @param {string} sessionId - Form session UUID
+   * @param {string} fieldId - Field identifier (e.g. 'id_doc1_front')
+   * @param {File} file - File object from input
+   * @returns {{ success, blob_path, preview_url }}
+   */
+  async function uploadIntakeFile(sessionId, fieldId, file) {
+    var formData = new FormData();
+    formData.append('session_id', sessionId);
+    formData.append('field_id', fieldId);
+    formData.append('file', file);
+
+    var resp = await fetch(WH.replace('/webhook', '') + '/api/upload-intake-doc', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!resp.ok) {
+      var errText = await resp.text().catch(function() { return 'Upload failed'; });
+      throw new Error(errText);
+    }
+
+    return resp.json();
+  }
+
   // ─── Contacts ──────────────────────────────────────────────
 
   /**
@@ -886,7 +913,7 @@ const ClientCareAPI = (() => {
     // Subscriptions
     subscriptions: { unsubscribe },
     // Intake (public)
-    intake: { save: saveIntakeForm, resume: resumeIntakeForm, submit: submitIntakeForm },
+    intake: { save: saveIntakeForm, resume: resumeIntakeForm, submit: submitIntakeForm, uploadFile: uploadIntakeFile },
     // Cache management
     cache: { invalidate: invalidateCache },
     // Utilities
