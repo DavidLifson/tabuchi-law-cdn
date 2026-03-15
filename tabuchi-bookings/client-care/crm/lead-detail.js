@@ -58,6 +58,18 @@
   if (_u && _u.role === 'BOOKINGS') { window.location.href = '/dashboard'; return; }
 
   var API = ClientCareAPI;
+
+  // Fix nav bar width on narrow container pages (960px)
+  (function fixNav() {
+    var nav = document.getElementById('app-nav-bar');
+    if (nav) {
+      nav.style.width = '100vw';
+      nav.style.marginLeft = 'calc(-50vw + 50%)';
+      nav.style.marginRight = '0';
+      nav.style.boxSizing = 'border-box';
+    }
+  })();
+
   // Pick visible element, avoiding hidden .w-embed duplicate
   var $el = function(id) {
     var all = document.querySelectorAll('#' + id);
