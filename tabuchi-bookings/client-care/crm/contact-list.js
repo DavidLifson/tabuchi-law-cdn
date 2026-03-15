@@ -107,8 +107,9 @@
     { key: 'Practice_Area',    label: 'Practice Area',   sortable: true,  width: '12%' },
     { key: 'Source',           label: 'Lead Source',      sortable: true,  width: '8%' },
     { key: 'Consent_Status',   label: 'Subscribed',      sortable: true,  width: '8%' },
-    { key: 'Last_Contacted_At', label: 'Last Contact',   sortable: true,  width: '10%' },
-    { key: 'Created_At',      label: 'Created',          sortable: true,  width: '10%' }
+    { key: 'Last_Contacted_At', label: 'Last Contact',   sortable: true,  width: '9%' },
+    { key: 'Created_At',      label: 'Date Created',     sortable: true,  width: '9%' },
+    { key: 'Updated_At',      label: 'Last Updated',     sortable: true,  width: '9%' }
   ];
 
   var PRACTICE_LABELS = {
@@ -271,8 +272,11 @@
       // Last Contact
       html += '<td>' + (contact.Last_Contacted_At ? escapeHtml(API.util.formatRelativeTime(contact.Last_Contacted_At)) : '') + '</td>';
 
-      // Created
+      // Date Created
       html += '<td>' + escapeHtml(API.util.formatDate(contact.Created_At)) + '</td>';
+
+      // Last Updated
+      html += '<td>' + (contact.Updated_At ? escapeHtml(API.util.formatRelativeTime(contact.Updated_At)) : '') + '</td>';
 
       html += '</tr>';
     });

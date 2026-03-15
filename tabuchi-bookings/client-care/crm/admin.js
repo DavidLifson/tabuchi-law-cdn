@@ -1891,9 +1891,10 @@
       return;
     }
 
+    html += '<div style="background:white;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;">';
     html += '<table class="cc-table">';
     html += '<thead><tr>';
-    html += '<th class="cc-th">Label</th>';
+    html += '<th class="cc-th" style="width:auto;">Label</th>';
     if (!hideOrder) html += '<th class="cc-th" style="width:80px;">Order</th>';
     metaFields.forEach(function(mf) {
       html += '<th class="cc-th">' + escapeHtml(mf.label) + '</th>';
@@ -1908,19 +1909,19 @@
       var activeCls = item.Is_Active ? 'green' : 'gray';
       var activeText = item.Is_Active ? 'Yes' : 'No';
 
-      html += '<tr>';
-      html += '<td>' + escapeHtml(item.Label || '') + '</td>';
-      if (!hideOrder) html += '<td>' + (item.Sort_Order || 0) + '</td>';
+      html += '<tr style="border-bottom:1px solid #F3F4F6;transition:background 0.1s;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'\'">';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;font-weight:500;">' + escapeHtml(item.Label || '') + '</td>';
+      if (!hideOrder) html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + (item.Sort_Order || 0) + '</td>';
       metaFields.forEach(function(mf) {
         var val = meta[mf.key] || '';
         if (mf.type === 'color' && val) {
-          html += '<td><span style="display:inline-block;width:18px;height:18px;border-radius:3px;background:' + escapeAttr(val) + ';vertical-align:middle;margin-right:4px;border:1px solid #D1D5DB;"></span> ' + escapeHtml(val) + '</td>';
+          html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><span class="cc-color-swatch" style="background:' + escapeAttr(val) + '"></span> ' + escapeHtml(val) + '</td>';
         } else {
-          html += '<td>' + escapeHtml(String(val)) + '</td>';
+          html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + escapeHtml(String(val)) + '</td>';
         }
       });
-      html += '<td><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
-      html += '<td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">';
       html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-config-edit-btn" data-item-id="' + escapeAttr(item.id) + '">Edit</button> ';
       if (item.Is_Active) {
         html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-config-deactivate-btn" data-item-id="' + escapeAttr(item.id) + '">Deactivate</button>';
@@ -1931,7 +1932,7 @@
       html += '</tr>';
     });
 
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     html += '</div>';
     content.innerHTML = html;
 

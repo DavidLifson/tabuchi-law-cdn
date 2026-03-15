@@ -103,7 +103,8 @@
     user: API.auth.getUser(),
     editMode: false,
     availableTags: [],
-    priceBookItems: []
+    priceBookItems: [],
+    crmUsers: []
   };
 
   var TABS = [
@@ -124,7 +125,8 @@
         API.contacts.getHistory(contactId),
         API.tasks.list({ lead_id: contactId }),
         API.admin.config.list('tag').catch(function() { return { data: [] }; }),
-        API.priceBook.list(true).catch(function() { return { items: [] }; })
+        API.priceBook.list(true).catch(function() { return { items: [] }; }),
+        API.admin.listUsers().catch(function() { return { users: [] }; })
       ]);
 
       var leadResult = results[0];
@@ -132,6 +134,7 @@
       var taskResult = results[2];
       var tagResult = results[3];
       var priceBookResult = results[4];
+      var usersResult = results[5];
 
       if (leadResult.success && leadResult.lead) {
         state.contact = leadResult.lead;
@@ -154,6 +157,7 @@
       state.availableTags = state.tagConfig.map(function(t) { return t.Label || t.label || ''; }).filter(Boolean);
       // Price book items for Service Package dropdown
       state.priceBookItems = (priceBookResult.items || []).filter(function(i) { return i.Is_Active !== false; });
+      state.crmUsers = (usersResult.users || []).filter(function(u) { return u.is_active; });
 
       render();
     } catch (err) {
@@ -374,8 +378,8 @@
       { label: 'Owner', value: c.Lead_Owner_Name },
       { label: 'Responsible Lawyer', value: c.Responsible_Lawyer_Name },
       { label: 'Subscribed', value: c.Consent_Status || 'UNKNOWN' },
-      { label: 'Lead ID', value: c.Lead_ID || c.id },
-      { label: 'Created', value: API.util.formatDateTime(c.Created_At) },
+      { label: 'Date Created', value: API.util.formatDateTime(c.Created_At) },
+      { label: 'Last Updated', value: c.Updated_At ? API.util.formatDateTime(c.Updated_At) : '—' },
       { label: 'Last Contact', value: API.util.formatRelativeTime(c.Last_Contacted_At) },
       { label: 'Next Action', value: API.util.formatDateTime(c.Next_Action_At) }
     ];
@@ -973,6 +977,7 @@
       html += '<div class="cc-task-meta">';
       if (t.Due_At) html += '<span class="' + (isOverdue ? 'cc-text-red' : '') + '">Due: ' + escapeHtml(API.util.formatDate(t.Due_At)) + '</span>';
       if (t.Task_Type) html += ' &middot; ' + escapeHtml(t.Task_Type);
+      if (t.Owner_Name) html += ' &middot; <span style="color:#6B7280;">Assigned: ' + escapeHtml(t.Owner_Name) + '</span>';
       html += '</div>';
       html += '</div></div>';
     });
@@ -1256,20 +1261,60 @@
     if (!form || form.dataset.bound) return;
     form.dataset.bound = 'true';
 
+    // Build assign-to options
+    var ROLES = [
+      { value: 'ADMIN', label: 'Admin' },
+      { value: 'MANAGER', label: 'Manager' },
+      { value: 'SALES_INTAKE', label: 'Sales / Intake' },
+      { value: 'LAWYER', label: 'Lawyer' },
+      { value: 'MARKETING', label: 'Marketing' }
+    ];
+
+    var assignTypeHtml = '<select id="cc-task-assign-type" class="cc-input" style="min-width:90px;">' +
+      '<option value="user">User</option>' +
+      '<option value="role">Role</option>' +
+      '</select>';
+
+    var userOpts = '<option value="">— Me (default) —</option>';
+    (state.crmUsers || []).forEach(function(u) {
+      userOpts += '<option value="' + escapeAttr(u.id) + '">' + escapeHtml(u.name) + ' (' + escapeHtml(u.role) + ')</option>';
+    });
+
+    var roleOpts = '';
+    ROLES.forEach(function(r) {
+      roleOpts += '<option value="' + escapeAttr(r.value) + '">' + escapeHtml(r.label) + '</option>';
+    });
+
     form.innerHTML =
       '<h3 class="cc-form-title">Add Task</h3>' +
-      '<div class="cc-form-row">' +
-        '<input id="cc-task-title" class="cc-input" placeholder="Task title" />' +
-        '<input id="cc-task-due" class="cc-input" type="date" />' +
-        '<select id="cc-task-type" class="cc-input">' +
+      '<div class="cc-form-row" style="flex-wrap:wrap;gap:0.5rem;">' +
+        '<input id="cc-task-title" class="cc-input" placeholder="Task title" style="flex:2;min-width:150px;" />' +
+        '<input id="cc-task-due" class="cc-input" type="date" style="min-width:130px;" />' +
+        '<select id="cc-task-type" class="cc-input" style="min-width:110px;">' +
           '<option value="CUSTOM">Custom</option>' +
           '<option value="FOLLOW_UP">Follow-up</option>' +
           '<option value="SLA_CONTACT">Service Level Contact</option>' +
           '<option value="MEETING2_SCHEDULE">Schedule Meeting #2</option>' +
           '<option value="DRAFTING">Drafting</option>' +
+          '<option value="ASSIGNMENT">Assignment</option>' +
         '</select>' +
+      '</div>' +
+      '<div class="cc-form-row" style="margin-top:0.5rem;gap:0.5rem;align-items:flex-end;">' +
+        '<div style="display:flex;gap:0.5rem;align-items:center;">' +
+          '<label style="font-size:0.8rem;font-weight:600;color:#6B7280;white-space:nowrap;">Assign to:</label>' +
+          assignTypeHtml +
+          '<select id="cc-task-assign-user" class="cc-input" style="min-width:160px;">' + userOpts + '</select>' +
+          '<select id="cc-task-assign-role" class="cc-input" style="min-width:130px;display:none;">' + roleOpts + '</select>' +
+        '</div>' +
         '<button id="cc-task-submit" class="cc-btn cc-btn-primary">Add</button>' +
       '</div>';
+
+    // Toggle assign type
+    document.getElementById('cc-task-assign-type').addEventListener('change', function() {
+      var isRole = this.value === 'role';
+      document.getElementById('cc-task-assign-user').style.display = isRole ? 'none' : '';
+      document.getElementById('cc-task-assign-role').style.display = isRole ? '' : 'none';
+    });
 
     document.getElementById('cc-task-submit').addEventListener('click', async function() {
       var btn = document.getElementById('cc-task-submit');
@@ -1277,14 +1322,27 @@
       var title = document.getElementById('cc-task-title').value.trim();
       if (!title) { ccToast('Task title is required.', 'info'); return; }
 
+      // Resolve assignment
+      var assignType = document.getElementById('cc-task-assign-type').value;
+      var ownerId = '';
+      if (assignType === 'user') {
+        ownerId = document.getElementById('cc-task-assign-user').value;
+      } else if (assignType === 'role') {
+        var role = document.getElementById('cc-task-assign-role').value;
+        var roleUser = (state.crmUsers || []).find(function(u) { return u.role === role; });
+        ownerId = roleUser ? roleUser.id : '';
+      }
+
       btn.disabled = true;
       try {
-        var result = await API.tasks.create({
+        var taskData = {
           lead_id: contactId,
           title: title,
           due_at: document.getElementById('cc-task-due').value || '',
           task_type: document.getElementById('cc-task-type').value
-        });
+        };
+        if (ownerId) taskData.owner = ownerId;
+        var result = await API.tasks.create(taskData);
         if (result.success) {
           document.getElementById('cc-task-title').value = '';
           document.getElementById('cc-task-due').value = '';

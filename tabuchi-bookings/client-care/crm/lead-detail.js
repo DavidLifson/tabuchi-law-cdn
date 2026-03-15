@@ -97,7 +97,8 @@
     activeTab: params.tab || 'activity',
     loading: true,
     infoDirty: false,
-    user: API.auth.getUser()
+    user: API.auth.getUser(),
+    crmUsers: []
   };
 
   var LEAD_TABS = [
@@ -131,10 +132,11 @@
     if (container) container.classList.add('cc-loading-state');
 
     try {
-      var [leadResult, actResult, taskResult] = await Promise.all([
+      var [leadResult, actResult, taskResult, usersResult] = await Promise.all([
         API.leads.get(leadId),
         API.activities.list(leadId),
-        API.tasks.list({ lead_id: leadId })
+        API.tasks.list({ lead_id: leadId }),
+        API.admin.listUsers().catch(function() { return { users: [] }; })
       ]);
 
       if (leadResult.success && leadResult.lead) {
@@ -146,6 +148,7 @@
 
       state.activities = (actResult.success && actResult.activities) || [];
       state.tasks = (taskResult.success && taskResult.tasks) || [];
+      state.crmUsers = (usersResult.users || []).filter(function(u) { return u.is_active; });
 
       render();
     } catch (err) {
@@ -1004,6 +1007,7 @@
       html += '<div class="cc-task-meta">';
       if (t.Due_At) html += '<span class="' + (isOverdue ? 'cc-text-red' : '') + '">Due: ' + escapeHtml(API.util.formatDate(t.Due_At)) + '</span>';
       if (t.Task_Type) html += ' &middot; ' + escapeHtml(t.Task_Type);
+      if (t.Owner_Name) html += ' &middot; <span style="color:#6B7280;">Assigned: ' + escapeHtml(t.Owner_Name) + '</span>';
       html += '</div>';
       html += '</div></div>';
     });
@@ -1098,20 +1102,60 @@
     if (form.dataset.bound) return;
     form.dataset.bound = 'true';
 
+    // Build assign-to options
+    var ROLES = [
+      { value: 'ADMIN', label: 'Admin' },
+      { value: 'MANAGER', label: 'Manager' },
+      { value: 'SALES_INTAKE', label: 'Sales / Intake' },
+      { value: 'LAWYER', label: 'Lawyer' },
+      { value: 'MARKETING', label: 'Marketing' }
+    ];
+
+    var assignTypeHtml = '<select id="cc-task-assign-type" class="cc-input" style="min-width:90px;">' +
+      '<option value="user">User</option>' +
+      '<option value="role">Role</option>' +
+      '</select>';
+
+    var userOpts = '<option value="">— Me (default) —</option>';
+    (state.crmUsers || []).forEach(function(u) {
+      userOpts += '<option value="' + escapeAttr(u.id) + '">' + escapeHtml(u.name) + ' (' + escapeHtml(u.role) + ')</option>';
+    });
+
+    var roleOpts = '';
+    ROLES.forEach(function(r) {
+      roleOpts += '<option value="' + escapeAttr(r.value) + '">' + escapeHtml(r.label) + '</option>';
+    });
+
     form.innerHTML =
       '<h3 class="cc-form-title">Add Task</h3>' +
-      '<div class="cc-form-row">' +
-        '<input id="cc-task-title" class="cc-input" placeholder="Task title" />' +
-        '<input id="cc-task-due" class="cc-input" type="date" />' +
-        '<select id="cc-task-type" class="cc-input">' +
+      '<div class="cc-form-row" style="flex-wrap:wrap;gap:0.5rem;">' +
+        '<input id="cc-task-title" class="cc-input" placeholder="Task title" style="flex:2;min-width:150px;" />' +
+        '<input id="cc-task-due" class="cc-input" type="date" style="min-width:130px;" />' +
+        '<select id="cc-task-type" class="cc-input" style="min-width:110px;">' +
           '<option value="CUSTOM">Custom</option>' +
           '<option value="FOLLOW_UP">Follow-up</option>' +
           '<option value="SLA_CONTACT">Service Level Contact</option>' +
           '<option value="MEETING2_SCHEDULE">Schedule Meeting #2</option>' +
           '<option value="DRAFTING">Drafting</option>' +
+          '<option value="ASSIGNMENT">Assignment</option>' +
         '</select>' +
+      '</div>' +
+      '<div class="cc-form-row" style="margin-top:0.5rem;gap:0.5rem;align-items:flex-end;">' +
+        '<div style="display:flex;gap:0.5rem;align-items:center;">' +
+          '<label style="font-size:0.8rem;font-weight:600;color:#6B7280;white-space:nowrap;">Assign to:</label>' +
+          assignTypeHtml +
+          '<select id="cc-task-assign-user" class="cc-input" style="min-width:160px;">' + userOpts + '</select>' +
+          '<select id="cc-task-assign-role" class="cc-input" style="min-width:130px;display:none;">' + roleOpts + '</select>' +
+        '</div>' +
         '<button id="cc-task-submit" class="cc-btn cc-btn-primary">Add</button>' +
       '</div>';
+
+    // Toggle assign type
+    $el('cc-task-assign-type').addEventListener('change', function() {
+      var isRole = this.value === 'role';
+      $el('cc-task-assign-user').style.display = isRole ? 'none' : '';
+      $el('cc-task-assign-role').style.display = isRole ? '' : 'none';
+    });
 
     $el('cc-task-submit').addEventListener('click', async function() {
       var btn = $el('cc-task-submit');
@@ -1119,18 +1163,31 @@
       var title = $el('cc-task-title').value.trim();
       if (!title) { ccToast('Task title is required.', 'info'); return; }
 
+      // Resolve assignment
+      var assignType = $el('cc-task-assign-type').value;
+      var ownerId = '';
+      if (assignType === 'user') {
+        ownerId = $el('cc-task-assign-user').value;
+      } else if (assignType === 'role') {
+        var role = $el('cc-task-assign-role').value;
+        var roleUser = (state.crmUsers || []).find(function(u) { return u.role === role; });
+        ownerId = roleUser ? roleUser.id : '';
+      }
+
       btn.disabled = true;
       try {
-        var result = await API.tasks.create({
+        var taskData = {
           lead_id: leadId,
           title: title,
           due_at: $el('cc-task-due').value || '',
           task_type: $el('cc-task-type').value
-        });
+        };
+        if (ownerId) taskData.owner = ownerId;
+        var result = await API.tasks.create(taskData);
         if (result.success) {
           $el('cc-task-title').value = '';
           $el('cc-task-due').value = '';
-          reloadTasks(); // Only reload tasks
+          reloadTasks();
         }
       } catch (err) {
         ccToast('Failed: ' + (err.error || 'Unknown error'), 'error');
