@@ -289,9 +289,9 @@
         '<span class="cc-dash-greeting-date">' + escapeHtml(dayOfWeek + ', ' + API.util.formatDate(localDate)) + '</span>' +
       '</div>' +
       '<div class="cc-dash-actions">' +
-        '<a href="/crm/kanban" class="cc-btn cc-btn-sm cc-btn-outline">Kanban</a> ' +
-        '<a href="/crm/reports" class="cc-btn cc-btn-sm cc-btn-outline">Reports</a> ' +
-        '<button class="cc-btn cc-btn-sm" id="cc-dash-refresh" title="Refresh">&#8635; Refresh</button>' +
+        '<a href="/crm/kanban" class="cc-btn cc-btn-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.35);text-decoration:none;">Kanban</a> ' +
+        '<a href="/crm/reports" class="cc-btn cc-btn-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.35);text-decoration:none;">Reports</a> ' +
+        '<button class="cc-btn cc-btn-sm" id="cc-dash-refresh" title="Refresh" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.35);">&#8635; Refresh</button>' +
       '</div>' +
     '</div>';
   }
