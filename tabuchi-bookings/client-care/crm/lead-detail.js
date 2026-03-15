@@ -84,6 +84,7 @@
     willTemplates: null,
     activeTab: params.tab || 'activity',
     loading: true,
+    infoDirty: false,
     user: API.auth.getUser()
   };
 
@@ -811,6 +812,15 @@
     });
     html += '</div>';
 
+    // Save bar for existing leads (hidden until fields are edited)
+    if (!isNewLead) {
+      html += '<div id="cc-info-save-bar" class="cc-info-save-bar" style="display:none">' +
+        '<span class="cc-info-save-hint">You have unsaved changes</span>' +
+        '<button id="cc-info-discard-btn" class="cc-btn cc-btn-secondary cc-btn-sm">Discard</button>' +
+        '<button id="cc-info-save-btn" class="cc-btn cc-btn-primary cc-btn-sm">Save Changes</button>' +
+        '</div>';
+    }
+
     // For new leads, show contact fields + lead details + Create button
     if (isNewLead) {
       html += '<div class="cc-info-divider"></div>';
@@ -1122,6 +1132,9 @@
     var btn = $el('cc-back-btn');
     if (btn) {
       btn.addEventListener('click', function() {
+        if (state.infoDirty) {
+          if (!confirm('You have unsaved changes. Discard and go back?')) return;
+        }
         window.location.href = '/crm';
       });
     }
@@ -1177,22 +1190,26 @@
         dateInput.style.display = 'inline-block';
         dateInput.focus();
       });
-      dateInput.addEventListener('change', async function() {
+      dateInput.addEventListener('change', function() {
+        // Show the date value inline, mark dirty (actual save via Save button)
+        dateInput.style.display = 'none';
+        dateVal.style.display = '';
         var newDate = dateInput.value || null;
-        try {
-          var res = await API.leads.update(leadId, { Estimated_Closing_Date: newDate });
-          if (res.success) {
-            state.lead.Estimated_Closing_Date = newDate;
-            renderInfo();
-          } else {
-            ccToast('Save failed: ' + (res.error || 'Unknown error'), 'error');
-            dateInput.style.display = 'none';
-            dateVal.style.display = '';
-          }
-        } catch (err) {
-          ccToast('Save failed: ' + (err.error || 'Network error'), 'error');
-          dateInput.style.display = 'none';
-          dateVal.style.display = '';
+        dateVal.textContent = newDate ? API.util.formatDate(newDate) : 'Set date';
+        if (newDate !== (state.lead.Estimated_Closing_Date || '')) {
+          dateInput.classList.add('cc-field-dirty');
+        } else {
+          dateInput.classList.remove('cc-field-dirty');
+        }
+        // Trigger dirty check for save bar
+        var saveBar = document.getElementById('cc-info-save-bar');
+        if (saveBar) {
+          var dirty = false;
+          document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+            if (inp.value.trim() !== (inp.getAttribute('data-original') || '')) dirty = true;
+          });
+          saveBar.style.display = dirty ? 'flex' : 'none';
+          state.infoDirty = dirty;
         }
       });
       dateInput.addEventListener('blur', function() {
@@ -1214,35 +1231,87 @@
       });
     }
 
-    // Editable contact inputs: save on blur (skip for new leads — no record yet)
+    // Editable contact inputs: track changes + explicit Save button (skip for new leads)
     if (!isNewLead) {
-      document.querySelectorAll('.cc-info-input').forEach(function(inp) {
-        inp.addEventListener('blur', async function() {
-          var field = inp.getAttribute('data-field');
+      var saveBar = document.getElementById('cc-info-save-bar');
+      var saveBtn = document.getElementById('cc-info-save-btn');
+      var discardBtn = document.getElementById('cc-info-discard-btn');
+
+      function checkDirty() {
+        var dirty = false;
+        document.querySelectorAll('.cc-info-input').forEach(function(inp) {
           var original = inp.getAttribute('data-original');
-          var newVal = inp.value.trim();
-          if (newVal === original) return;
-          try {
-            var update = {};
-            update[field] = newVal;
-            var res = await API.leads.update(leadId, update);
-            if (res.success) {
-              inp.setAttribute('data-original', newVal);
-              state.lead[field] = newVal;
-              inp.classList.add('cc-save-ok');
-              setTimeout(function() { inp.classList.remove('cc-save-ok'); }, 1200);
-            } else {
-              inp.value = original;
-              inp.classList.add('cc-save-err');
-              setTimeout(function() { inp.classList.remove('cc-save-err'); }, 1500);
-            }
-          } catch (err) {
-            inp.value = original;
-            inp.classList.add('cc-save-err');
-            setTimeout(function() { inp.classList.remove('cc-save-err'); }, 1500);
+          var current = inp.value.trim();
+          if (current !== (original || '')) {
+            dirty = true;
+            inp.classList.add('cc-field-dirty');
+          } else {
+            inp.classList.remove('cc-field-dirty');
           }
         });
+        if (saveBar) saveBar.style.display = dirty ? 'flex' : 'none';
+        state.infoDirty = dirty;
+        return dirty;
+      }
+
+      document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+        inp.addEventListener('input', checkDirty);
+        inp.addEventListener('change', checkDirty);
       });
+
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async function() {
+          if (saveBtn.disabled) return;
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Saving...';
+          var updates = {};
+          document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+            var field = inp.getAttribute('data-field');
+            var original = inp.getAttribute('data-original');
+            var current = inp.value.trim();
+            if (current !== (original || '')) {
+              updates[field] = current;
+            }
+          });
+          if (Object.keys(updates).length === 0) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Changes';
+            return;
+          }
+          try {
+            var res = await API.leads.update(leadId, updates);
+            if (res.success) {
+              // Update originals so dirty check resets
+              document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+                inp.setAttribute('data-original', inp.value.trim());
+                inp.classList.remove('cc-field-dirty');
+              });
+              Object.keys(updates).forEach(function(k) { state.lead[k] = updates[k]; });
+              if (saveBar) saveBar.style.display = 'none';
+              state.infoDirty = false;
+              ccToast('Changes saved', 'success');
+            } else {
+              ccToast('Save failed: ' + (res.error || 'Unknown error'), 'error');
+            }
+          } catch (err) {
+            ccToast('Save failed: ' + (err.error || 'Network error'), 'error');
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Changes';
+          }
+        });
+      }
+
+      if (discardBtn) {
+        discardBtn.addEventListener('click', function() {
+          document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+            inp.value = inp.getAttribute('data-original') || '';
+            inp.classList.remove('cc-field-dirty');
+          });
+          if (saveBar) saveBar.style.display = 'none';
+          state.infoDirty = false;
+        });
+      }
     }
 
     // Create Lead button (new lead mode)
@@ -1641,6 +1710,12 @@
       '.cc-info-input::placeholder{color:#9ca3af}' +
       '.cc-info-input.cc-save-ok{border-color:#22c55e;background:#f0fdf4}' +
       '.cc-info-input.cc-save-err{border-color:#ef4444;background:#fef2f2}' +
+      '.cc-info-input.cc-field-dirty{border-color:#f59e0b;background:#fffbeb}' +
+      '.cc-info-save-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;margin:12px 0;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px}' +
+      '.cc-info-save-hint{flex:1;font-size:0.85rem;color:#92400e;font-weight:500}' +
+      '.cc-btn-sm{padding:5px 14px;font-size:0.8rem}' +
+      '.cc-btn-secondary{background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer}' +
+      '.cc-btn-secondary:hover{background:#f9fafb}' +
       '.cc-info-section-label{font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:8px;padding-bottom:4px}' +
       '.cc-info-divider{border:none;border-top:1px solid #e2e8f0;margin:16px 0}';
     document.head.appendChild(s);
