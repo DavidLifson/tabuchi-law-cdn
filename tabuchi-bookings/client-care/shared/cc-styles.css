@@ -39,6 +39,17 @@
  */
 
 /* ═══════════════════════════════════════════
+   0. Page Root & Nav Bar
+   ═══════════════════════════════════════════ */
+/* Prevent horizontal scrollbar from full-viewport-width nav bar */
+#cc-page-root { overflow-x:hidden; }
+
+/* Nav bar hover states for links */
+#app-nav-bar a[data-nav]:hover,
+#app-nav-bar button[data-nav]:hover { color:white !important;background:rgba(255,255,255,0.1); }
+#app-nav-bar [id$="-dropdown"] a:hover { background:#F3F4F6 !important;color:#1F2937 !important; }
+
+/* ═══════════════════════════════════════════
    1. Layout & States
    ═══════════════════════════════════════════ */
 .cc-loading { text-align:center;padding:2rem;color:#6B7280; }
