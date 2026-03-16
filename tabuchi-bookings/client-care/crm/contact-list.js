@@ -95,7 +95,8 @@
     limit: 50,
     loading: false,
     selectedIds: [],
-    bulkMode: false
+    bulkMode: false,
+    tagConfig: []  // populated from admin config
   };
 
   // ─── Column Definitions ──────────────────────────────────────
@@ -436,36 +437,150 @@
       '<button class="cc-bulk-btn cc-bulk-clear" id="cc-bulk-clear">Clear</button>';
 
     document.getElementById('cc-bulk-add-tags').addEventListener('click', function() {
-      var input = prompt('Enter tags to add (comma-separated):');
-      if (!input) return;
-      var tags = input.split(',').map(function(t) { return t.trim(); }).filter(Boolean);
-      if (!tags.length) return;
-      handleBulkTags('add', tags);
+      showBulkTagModal('add');
     });
 
     document.getElementById('cc-bulk-remove-tags').addEventListener('click', function() {
-      var input = prompt('Enter tags to remove (comma-separated):');
-      if (!input) return;
-      var tags = input.split(',').map(function(t) { return t.trim(); }).filter(Boolean);
-      if (!tags.length) return;
-      handleBulkTags('remove', tags);
+      showBulkTagModal('remove');
     });
 
     document.getElementById('cc-bulk-status').addEventListener('click', function() {
-      var status = prompt('Enter new status (PROSPECT, ACTIVE_CLIENT, FORMER_CLIENT, OTHER):');
-      if (!status) return;
-      status = status.toUpperCase().trim();
-      if (!['PROSPECT', 'ACTIVE_CLIENT', 'FORMER_CLIENT', 'OTHER'].includes(status)) {
-        ccToast('Invalid status. Use: PROSPECT, ACTIVE_CLIENT, FORMER_CLIENT, or OTHER', 'info');
-        return;
-      }
-      handleBulkStatus(status);
+      showBulkStatusModal();
     });
 
     document.getElementById('cc-bulk-clear').addEventListener('click', function() {
       state.selectedIds = [];
       renderTable();
       updateBulkBar();
+    });
+  }
+
+  // ─── Bulk Tag Modal ──────────────────────────────────────
+  function showBulkTagModal(action) {
+    var isAdd = action === 'add';
+    var title = isAdd ? 'Add Tags' : 'Remove Tags';
+
+    // Build grouped tag options from config
+    var categoryOrder = ['Client Type', 'Marketing', 'Case Status', 'Practice Area', 'Internal', 'Other'];
+    var categoryMap = {};
+    var addedKeys = {};
+
+    (state.tagConfig || []).forEach(function(t) {
+      var label = t.Label || t.label || '';
+      if (!label || addedKeys[label]) return;
+      addedKeys[label] = true;
+      var meta = {};
+      try { meta = JSON.parse(t.Meta || '{}'); } catch(e) {}
+      var cat = meta.category || 'Other';
+      if (!categoryMap[cat]) categoryMap[cat] = [];
+      categoryMap[cat].push(label);
+    });
+
+    // Build modal HTML
+    var html = '<div class="cc-modal-overlay" id="cc-bulk-tag-modal">' +
+      '<div class="cc-modal" style="max-width:480px;">' +
+      '<div class="cc-modal-header"><h3>' + title + '</h3>' +
+      '<button class="cc-modal-close" id="cc-bulk-tag-close">&times;</button></div>' +
+      '<div class="cc-modal-body" style="max-height:400px;overflow-y:auto;">';
+
+    var hasTags = false;
+    categoryOrder.forEach(function(cat) {
+      if (!categoryMap[cat] || !categoryMap[cat].length) return;
+      hasTags = true;
+      html += '<div style="margin-bottom:0.75rem;"><div style="font-weight:600;font-size:0.8rem;color:#6B7280;text-transform:uppercase;margin-bottom:0.375rem;">' + escapeHtml(cat) + '</div>';
+      categoryMap[cat].sort().forEach(function(tag) {
+        html += '<label style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;cursor:pointer;">' +
+          '<input type="checkbox" class="cc-bulk-tag-cb" value="' + escapeHtml(tag) + '"> ' +
+          escapeHtml(tag) + '</label>';
+      });
+      html += '</div>';
+    });
+    // Add remaining categories not in predefined order
+    Object.keys(categoryMap).forEach(function(cat) {
+      if (categoryOrder.indexOf(cat) >= 0) return;
+      if (!categoryMap[cat] || !categoryMap[cat].length) return;
+      hasTags = true;
+      html += '<div style="margin-bottom:0.75rem;"><div style="font-weight:600;font-size:0.8rem;color:#6B7280;text-transform:uppercase;margin-bottom:0.375rem;">' + escapeHtml(cat) + '</div>';
+      categoryMap[cat].sort().forEach(function(tag) {
+        html += '<label style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;cursor:pointer;">' +
+          '<input type="checkbox" class="cc-bulk-tag-cb" value="' + escapeHtml(tag) + '"> ' +
+          escapeHtml(tag) + '</label>';
+      });
+      html += '</div>';
+    });
+
+    if (!hasTags) {
+      html += '<p style="color:#6B7280;text-align:center;">No tags configured. Add tags under Admin &rarr; Options Lists &rarr; Tags.</p>';
+    }
+
+    html += '</div><div class="cc-modal-footer">' +
+      '<button class="cc-btn cc-btn-secondary" id="cc-bulk-tag-cancel">Cancel</button>' +
+      '<button class="cc-btn cc-btn-primary" id="cc-bulk-tag-apply">' + title + '</button>' +
+      '</div></div></div>';
+
+    // Remove any existing modal
+    var existing = document.getElementById('cc-bulk-tag-modal');
+    if (existing) existing.remove();
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    var modal = document.getElementById('cc-bulk-tag-modal');
+    function closeModal() { modal.remove(); }
+    document.getElementById('cc-bulk-tag-close').addEventListener('click', closeModal);
+    document.getElementById('cc-bulk-tag-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+
+    document.getElementById('cc-bulk-tag-apply').addEventListener('click', function() {
+      var selected = [];
+      modal.querySelectorAll('.cc-bulk-tag-cb:checked').forEach(function(cb) { selected.push(cb.value); });
+      if (!selected.length) { ccToast('Please select at least one tag.', 'info'); return; }
+      closeModal();
+      handleBulkTags(action, selected);
+    });
+  }
+
+  // ─── Bulk Status Modal ──────────────────────────────────
+  function showBulkStatusModal() {
+    var statuses = [
+      { value: 'PROSPECT', label: 'Prospect' },
+      { value: 'ACTIVE_CLIENT', label: 'Active Client' },
+      { value: 'FORMER_CLIENT', label: 'Former Client' },
+      { value: 'OTHER', label: 'Other' }
+    ];
+
+    var html = '<div class="cc-modal-overlay" id="cc-bulk-status-modal">' +
+      '<div class="cc-modal" style="max-width:360px;">' +
+      '<div class="cc-modal-header"><h3>Change Status</h3>' +
+      '<button class="cc-modal-close" id="cc-bulk-status-close">&times;</button></div>' +
+      '<div class="cc-modal-body">';
+
+    statuses.forEach(function(s) {
+      html += '<label style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0;cursor:pointer;">' +
+        '<input type="radio" name="cc-bulk-status-val" value="' + s.value + '"> ' +
+        s.label + '</label>';
+    });
+
+    html += '</div><div class="cc-modal-footer">' +
+      '<button class="cc-btn cc-btn-secondary" id="cc-bulk-status-cancel">Cancel</button>' +
+      '<button class="cc-btn cc-btn-primary" id="cc-bulk-status-apply">Apply</button>' +
+      '</div></div></div>';
+
+    var existing = document.getElementById('cc-bulk-status-modal');
+    if (existing) existing.remove();
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    var modal = document.getElementById('cc-bulk-status-modal');
+    function closeModal() { modal.remove(); }
+    document.getElementById('cc-bulk-status-close').addEventListener('click', closeModal);
+    document.getElementById('cc-bulk-status-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+
+    document.getElementById('cc-bulk-status-apply').addEventListener('click', function() {
+      var checked = modal.querySelector('input[name="cc-bulk-status-val"]:checked');
+      if (!checked) { ccToast('Please select a status.', 'info'); return; }
+      closeModal();
+      handleBulkStatus(checked.value);
     });
   }
 
@@ -621,6 +736,18 @@
     }
   }
 
+  // ─── Fetch Tag Config ────────────────────────────────────
+  async function fetchTagConfig() {
+    try {
+      var res = await API.admin.config.list('tag');
+      state.tagConfig = (res.configs || res.items || res || []).filter(function(c) {
+        return c.Is_Active !== false && c.is_active !== false;
+      });
+    } catch(e) {
+      state.tagConfig = [];
+    }
+  }
+
   // ─── Initialize ───────────────────────────────────────────
   function init() {
     var user = API.auth.getUser();
@@ -634,6 +761,7 @@
     bindFilters();
     updateBulkBar();
     fetchContacts();
+    fetchTagConfig(); // load tag options for bulk modal
   }
 
   // Wait for DOM
