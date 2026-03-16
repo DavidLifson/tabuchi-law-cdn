@@ -1136,15 +1136,15 @@
 
     // ── Edit Role Modal (hidden) ──
     html += '<div id="cc-edit-role-modal" class="cc-modal-overlay" style="display:none;">';
-    html += '<div class="cc-modal" style="max-width:420px;">';
+    html += '<div class="cc-modal" style="max-width:440px;">';
     html += '<div class="cc-modal-header">Edit Role<button id="cc-edit-role-close" class="cc-modal-close">&times;</button></div>';
-    html += '<div class="cc-modal-body">';
-    html += '<div style="margin-bottom:16px;">';
+    html += '<div class="cc-modal-body" style="padding:1.75rem;">';
+    html += '<div style="margin-bottom:20px;">';
     html += '<label class="cc-label">Role Name</label>';
     html += '<input id="cc-edit-role-name" class="cc-input" />';
     html += '</div>';
-    html += '<div style="margin-bottom:16px;">';
-    html += '<label class="cc-label">Priority</label>';
+    html += '<div style="margin-bottom:20px;">';
+    html += '<label class="cc-label">Booking Priority</label>';
     html += '<input id="cc-edit-role-priority" type="number" class="cc-input" min="0" style="max-width:120px;" />';
     html += '</div>';
     html += '<div style="margin-bottom:0;">';
@@ -1157,7 +1157,7 @@
     html += '</div>';
     html += '<input id="cc-edit-role-original" type="hidden" />';
     html += '</div>';
-    html += '<div class="cc-modal-footer">';
+    html += '<div class="cc-modal-footer" style="gap:0.75rem;">';
     html += '<button id="cc-edit-role-cancel" class="cc-btn cc-btn-sm cc-btn-outline">Cancel</button>';
     html += '<button id="cc-edit-role-save" class="cc-btn cc-btn-sm cc-btn-primary">Save</button>';
     html += '</div>';
@@ -1183,16 +1183,16 @@
 
     // ── Add Role Modal (hidden) ──
     html += '<div id="cc-add-role-priority-modal" class="cc-modal-overlay" style="display:none;">';
-    html += '<div class="cc-modal" style="max-width:420px;">';
+    html += '<div class="cc-modal" style="max-width:440px;">';
     html += '<div class="cc-modal-header">Add New Role<button id="cc-add-role-close" class="cc-modal-close">&times;</button></div>';
-    html += '<div class="cc-modal-body">';
-    html += '<div style="margin-bottom:16px;">';
+    html += '<div class="cc-modal-body" style="padding:1.75rem;">';
+    html += '<div style="margin-bottom:20px;">';
     html += '<label class="cc-label">Role Name</label>';
     html += '<input id="cc-new-role-name" class="cc-input" placeholder="e.g. PARALEGAL" />';
     html += '<p class="cc-admin-hint" style="margin-top:4px;">Use UPPER_CASE with underscores.</p>';
     html += '</div>';
-    html += '<div style="margin-bottom:16px;">';
-    html += '<label class="cc-label">Priority</label>';
+    html += '<div style="margin-bottom:20px;">';
+    html += '<label class="cc-label">Booking Priority</label>';
     html += '<input id="cc-new-role-priority" type="number" class="cc-input" min="0" value="5" style="max-width:120px;" />';
     html += '</div>';
     html += '<div style="margin-bottom:0;">';
