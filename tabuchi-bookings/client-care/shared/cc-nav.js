@@ -85,19 +85,30 @@
   bar.style.cssText = 'background:#1F2937;position:relative;margin-top:-2rem;margin-bottom:2rem;padding:0;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;';
   // Inner container constrains content to consistent width
   var innerNav = document.createElement('div');
-  innerNav.style.cssText = 'max-width:100%;margin:0 auto;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
+  innerNav.style.cssText = 'width:100%;max-width:100%;box-sizing:border-box;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
   innerNav.innerHTML = html;
   bar.innerHTML = '';
   bar.appendChild(innerNav);
 
   // Pixel-perfect full-width positioning via JS — works regardless of parent container
+  // Must fully reset cssText before measuring to avoid corrupted getBoundingClientRect
   function positionNav() {
-    bar.style.left = '0';
-    bar.style.width = 'auto';
+    bar.style.cssText = '';
+    bar.style.display = 'block';
+    bar.style.position = 'relative';
+    bar.style.background = '#1F2937';
+    bar.style.marginTop = '-2rem';
+    bar.style.marginBottom = '2rem';
+    bar.style.padding = '0';
+    bar.style.borderBottom = '1px solid #374151';
+    bar.style.boxSizing = 'border-box';
+    bar.style.fontFamily = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
     var rect = bar.getBoundingClientRect();
     var vw = document.documentElement.clientWidth;
     bar.style.left = (-rect.left) + 'px';
     bar.style.width = vw + 'px';
+    var c = bar.firstElementChild;
+    if (c) { c.style.width = '100%'; c.style.maxWidth = '100%'; c.style.boxSizing = 'border-box'; }
   }
   positionNav();
   window.addEventListener('resize', positionNav);
