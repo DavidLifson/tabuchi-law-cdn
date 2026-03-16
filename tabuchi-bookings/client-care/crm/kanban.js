@@ -278,8 +278,9 @@
 
     // Check if backward move (only admins/managers)
     if (stageIdx < currentIdx) {
-      var role = state.user ? state.user.role : '';
-      if (role !== 'ADMIN' && role !== 'MANAGER') {
+      var role = state.user ? (state.user.role || '').toUpperCase() : '';
+      var isAdmin = state.user && state.user.is_admin;
+      if (!isAdmin && role !== 'ADMIN' && role !== 'MANAGER') {
         showToast('Only admins and managers can move leads backward.', 'error');
         return;
       }

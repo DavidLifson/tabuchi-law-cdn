@@ -647,7 +647,7 @@
       return;
     }
 
-    var canDelete = _u && ((_u.role || '').toUpperCase() === 'ADMIN' || (_u.role || '').toUpperCase() === 'MANAGER');
+    var canDelete = _u && ((_u.role || '').toUpperCase() === 'ADMIN' || (_u.role || '').toUpperCase() === 'MANAGER' || _u.is_admin);
 
     el.innerHTML =
       '<div class="cc-lead-header-main">' +

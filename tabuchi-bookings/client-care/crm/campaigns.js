@@ -122,7 +122,8 @@
   // ─── Role Gate ─────────────────────────────────────────────
   function checkRole() {
     var role = state.user ? (state.user.role || '').toUpperCase() : '';
-    if (!['ADMIN', 'MARKETING', 'MANAGER'].includes(role)) {
+    var isAdmin = state.user && state.user.is_admin;
+    if (!isAdmin && !['ADMIN', 'MARKETING', 'MANAGER'].includes(role)) {
       var container = $el('cc-campaigns-container');
       if (container) container.innerHTML =
         '<div class="cc-error"><p>Access denied. Campaign management requires ADMIN, MARKETING, or MANAGER role.</p></div>';
