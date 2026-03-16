@@ -730,7 +730,7 @@
     var subTabs = [
       { key: 'manage-users', label: 'Manage Users' },
       { key: 'permissions', label: 'Permissions' },
-      { key: 'booking-priority', label: 'Role / Priority' },
+      { key: 'booking-priority', label: 'Role / Booking Priority' },
       { key: 'cost', label: 'Cost' }
     ];
 
@@ -1107,7 +1107,7 @@
 
     var html = '<div class="cc-admin-booking-priority">';
     html += '<div class="cc-admin-section-header">';
-    html += '<h3 class="cc-admin-section-title">Role / Priority</h3>';
+    html += '<h3 class="cc-admin-section-title">Role / Booking Priority</h3>';
     html += '<button id="cc-add-role-priority-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ Add New</button>';
     html += '</div>';
     html += '<p class="cc-admin-hint">Manage roles and set booking priority. Lower numbers are shown first in the booking calendar.</p>';
@@ -1115,7 +1115,7 @@
     html += '<table class="cc-table" style="margin-top:12px;max-width:700px;">';
     html += '<thead><tr>';
     html += '<th class="cc-th" style="min-width:140px;">Role</th>';
-    html += '<th class="cc-th" style="width:120px;">Priority</th>';
+    html += '<th class="cc-th" style="width:120px;">Booking Priority</th>';
     html += '<th class="cc-th" style="width:160px;text-align:center;">Actions</th>';
     html += '</tr></thead><tbody>';
 
