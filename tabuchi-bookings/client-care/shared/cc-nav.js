@@ -84,10 +84,10 @@
   bar.style.cssText = 'background:#1F2937;margin-top:-2rem;margin-bottom:2rem;padding:0.75rem 1.5rem;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
   bar.innerHTML = html;
 
-  // Enforce 1100px max-width on parent cc-page-root
-  var pageRoot = bar.parentElement;
-  if (pageRoot && pageRoot.id === 'cc-page-root') {
-    pageRoot.style.maxWidth = '1100px';
+  // Enforce 1100px max-width on ALL cc-page-root elements (some pages have duplicates)
+  var allRoots = document.querySelectorAll('[id="cc-page-root"]');
+  for (var r = 0; r < allRoots.length; r++) {
+    allRoots[r].style.maxWidth = '1100px';
   }
 
   /* ── user info from localStorage ── */
