@@ -85,7 +85,7 @@
   bar.style.cssText = 'background:#1F2937;position:relative;margin-top:-2rem;margin-bottom:2rem;padding:0;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;';
   // Inner container constrains content to consistent width
   var innerNav = document.createElement('div');
-  innerNav.style.cssText = 'max-width:1100px;margin:0 auto;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
+  innerNav.style.cssText = 'max-width:100%;margin:0 auto;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
   innerNav.innerHTML = html;
   bar.innerHTML = '';
   bar.appendChild(innerNav);
