@@ -81,8 +81,32 @@
   html += '</nav>';
 
   /* ── inject into bar ── */
-  bar.style.cssText = 'background:#1F2937;margin-top:-2rem;margin-bottom:2rem;padding:0.75rem 1.5rem;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
-  bar.innerHTML = html;
+  // Use negative margins to break out of the parent container to full viewport width.
+  // This avoids position:relative + left which clips the logo on the left side.
+  bar.style.cssText = 'background:#1F2937;margin-top:-2rem;margin-bottom:2rem;padding:0;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;overflow:visible;';
+
+  // Inner flex container for the nav content
+  var innerNav = document.createElement('div');
+  innerNav.style.cssText = 'max-width:1100px;margin:0 auto;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
+  innerNav.innerHTML = html;
+  bar.innerHTML = '';
+  bar.appendChild(innerNav);
+
+  // Break bar out to full viewport width using negative margins (no clipping)
+  function positionNav() {
+    // Reset so getBoundingClientRect measures the natural position
+    bar.style.marginLeft = '';
+    bar.style.marginRight = '';
+    bar.style.width = '';
+
+    var rect = bar.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth;
+
+    bar.style.marginLeft = (-rect.left) + 'px';
+    bar.style.marginRight = (-(vw - rect.right)) + 'px';
+  }
+  positionNav();
+  window.addEventListener('resize', positionNav);
 
   // Enforce 1100px max-width on ALL cc-page-root elements (some pages have duplicates)
   var allRoots = document.querySelectorAll('[id="cc-page-root"]');
