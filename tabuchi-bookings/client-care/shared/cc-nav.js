@@ -92,7 +92,10 @@
 
   // Pixel-perfect full-width positioning via JS — works regardless of parent container
   // Must fully reset cssText before measuring to avoid corrupted getBoundingClientRect
+  // Parent container (cc-page-root) overflow must be visible to prevent clipping
   function positionNav() {
+    var pr = bar.parentElement;
+    if (pr && pr.id === 'cc-page-root') pr.style.overflow = 'visible';
     bar.style.cssText = '';
     bar.style.display = 'block';
     bar.style.position = 'relative';
