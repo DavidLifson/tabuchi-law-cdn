@@ -429,7 +429,6 @@
         time: booking.time,
         endTime: booking.endTime,
         duration: booking.duration,
-        clientName: booking.clientName,
         rescheduleUrl: booking.rescheduleUrl,
         cancelUrl: booking.cancelUrl,
         location: booking.location || meetingTypeData.location || '',
