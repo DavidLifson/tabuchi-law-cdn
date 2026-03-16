@@ -81,14 +81,26 @@
   html += '</nav>';
 
   /* ── inject into bar ── */
-  // Full viewport width so the nav looks identical on every page regardless of container max-width
-  bar.style.cssText = 'background:#1F2937;width:100vw;position:relative;left:50%;transform:translateX(-50%);margin-top:-2rem;margin-bottom:2rem;padding:0;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;';
+  // Base styles — JS will set position/width after first paint
+  bar.style.cssText = 'background:#1F2937;position:relative;margin-top:-2rem;margin-bottom:2rem;padding:0;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;';
   // Inner container constrains content to consistent width
   var innerNav = document.createElement('div');
   innerNav.style.cssText = 'max-width:1100px;margin:0 auto;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
   innerNav.innerHTML = html;
   bar.innerHTML = '';
   bar.appendChild(innerNav);
+
+  // Pixel-perfect full-width positioning via JS — works regardless of parent container
+  function positionNav() {
+    bar.style.left = '0';
+    bar.style.width = 'auto';
+    var rect = bar.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth;
+    bar.style.left = (-rect.left) + 'px';
+    bar.style.width = vw + 'px';
+  }
+  positionNav();
+  window.addEventListener('resize', positionNav);
 
   /* ── user info from localStorage ── */
   function getInitials(name) {
