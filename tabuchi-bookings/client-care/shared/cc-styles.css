@@ -741,6 +741,56 @@
 .cc-unsub-note { font-size:0.8rem;color:#9CA3AF;margin-top:1rem; }
 
 /* ═══════════════════════════════════════════
+   33. Communication Action Buttons & Modals
+   ═══════════════════════════════════════════ */
+.cc-action-btns { display:inline-flex;gap:6px;margin-left:12px;vertical-align:middle; }
+.cc-action-btns .cc-btn { font-size:0.78rem;padding:3px 10px;gap:4px;display:inline-flex;align-items:center; }
+.cc-action-btns .cc-btn svg { width:14px;height:14px;flex-shrink:0; }
+
+/* SMS conversation thread */
+.cc-sms-thread { max-height:400px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#FAFAFA; }
+.cc-sms-thread-empty { text-align:center;color:#9CA3AF;padding:2rem;font-size:0.9rem; }
+.cc-sms-bubble { max-width:75%;padding:8px 12px;border-radius:12px;font-size:0.9rem;line-height:1.4;word-break:break-word; }
+.cc-sms-bubble-out { align-self:flex-end;background:#2563EB;color:white;border-bottom-right-radius:4px; }
+.cc-sms-bubble-in { align-self:flex-start;background:#F3F4F6;color:#1F2937;border-bottom-left-radius:4px; }
+.cc-sms-time { font-size:0.7rem;color:#9CA3AF;margin-top:2px; }
+.cc-sms-time-out { text-align:right; }
+.cc-sms-compose { display:flex;gap:8px;padding:12px;border-top:1px solid #E5E7EB;align-items:flex-end; }
+.cc-sms-compose textarea { flex:1;resize:none;min-height:40px;max-height:100px; }
+.cc-sms-load-more { text-align:center;padding:8px; }
+.cc-sms-load-more button { font-size:0.8rem;color:#2563EB;background:none;border:none;cursor:pointer;text-decoration:underline; }
+
+/* Email modal */
+.cc-email-choice { display:flex;gap:12px;margin-bottom:16px; }
+.cc-email-choice-btn { flex:1;padding:16px;border:2px solid #E5E7EB;border-radius:8px;cursor:pointer;text-align:center;background:white;transition:border-color 0.15s,background 0.15s; }
+.cc-email-choice-btn:hover { border-color:#2563EB;background:#EFF6FF; }
+.cc-email-choice-btn.active { border-color:#2563EB;background:#EFF6FF; }
+.cc-email-choice-btn h4 { margin:0 0 4px;font-size:0.95rem; }
+.cc-email-choice-btn p { margin:0;font-size:0.8rem;color:#6B7280; }
+.cc-email-template-list { max-height:300px;overflow-y:auto; }
+.cc-email-template-card { padding:12px;border:1px solid #E5E7EB;border-radius:6px;cursor:pointer;margin-bottom:8px;transition:border-color 0.15s; }
+.cc-email-template-card:hover { border-color:#2563EB; }
+.cc-email-template-card.selected { border-color:#2563EB;background:#EFF6FF; }
+.cc-email-template-card h5 { margin:0 0 4px;font-size:0.9rem; }
+.cc-email-template-card p { margin:0;font-size:0.8rem;color:#6B7280; }
+.cc-email-preview { border:1px solid #E5E7EB;border-radius:6px;padding:12px;background:#FAFAFA;max-height:250px;overflow-y:auto;margin-top:12px;font-size:0.85rem;line-height:1.5; }
+.cc-email-subject-row { display:flex;gap:8px;align-items:center;margin-bottom:8px; }
+.cc-email-subject-row label { font-weight:600;font-size:0.85rem;white-space:nowrap; }
+.cc-email-subject-row input { flex:1; }
+
+/* Call log modal */
+.cc-call-log-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.cc-call-log-grid .cc-edit-field { margin-bottom:0; }
+
+/* My Settings modal */
+.cc-settings-section { margin-bottom:20px; }
+.cc-settings-section h4 { margin:0 0 8px;font-size:0.95rem;font-weight:600;color:#374151; }
+.cc-settings-section .cc-input { margin-bottom:8px; }
+.cc-sig-preview { border:1px solid #E5E7EB;border-radius:6px;padding:12px;background:#FAFAFA;min-height:60px;font-size:0.85rem;margin-top:4px; }
+.cc-settings-checks label { display:flex;align-items:center;gap:8px;padding:6px 0;font-size:0.9rem;cursor:pointer; }
+.cc-settings-checks input[type="checkbox"] { width:16px;height:16px; }
+
+/* ═══════════════════════════════════════════
    32. Responsive Breakpoints
    ═══════════════════════════════════════════ */
 @media (max-width:1024px) {

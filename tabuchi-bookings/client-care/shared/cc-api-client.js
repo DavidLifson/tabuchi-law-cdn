@@ -31,7 +31,8 @@ const ClientCareAPI = (() => {
   // Actions that are read-only (safe to cache)
   var READ_ACTIONS = ['list', 'get', 'get_history', 'list_users', 'list_templates',
     'system_stats', 'list_recipients', 'report', 'preview_audience', 'list_steps',
-    'approve_review', 'link_lead', 'recent_messages'];
+    'approve_review', 'link_lead', 'recent_messages',
+    'get_sms_thread', 'get_user_settings'];
 
   // Actions that mutate data (invalidate cache)
   var WRITE_ACTIONS = ['create', 'update', 'delete', 'bulk_update_tags',
@@ -39,7 +40,8 @@ const ClientCareAPI = (() => {
     'schedule', 'send_now', 'cancel', 'duplicate', 'test_send',
     'resend_non_openers', 'create_template', 'update_template',
     'create_task', 'update_task', 'delete_task',
-    'generate_will', 'upload_to_clio', 'retry_processing'];
+    'generate_will', 'upload_to_clio', 'retry_processing',
+    'send_email', 'send_sms', 'log_call', 'update_user_settings'];
 
   function _cacheKey(path, body) {
     return path + '|' + JSON.stringify(body || {});
@@ -855,6 +857,33 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/recordings', { body: { action: 'link_lead', transcription_id: transcriptionId, lead_id: leadId } });
   }
 
+  // ─── Communications ─────────────────────────────────────────
+  async function sendEmail(data) {
+    return request('POST', '/cc/comms', { body: { action: 'send_email', lead_id: data.lead_id, subject: data.subject, body_html: data.body_html, template_id: data.template_id } });
+  }
+
+  async function sendSms(data) {
+    return request('POST', '/cc/comms', { body: { action: 'send_sms', lead_id: data.lead_id, body: data.body } });
+  }
+
+  async function getSmsThread(leadId, opts) {
+    opts = opts || {};
+    return request('POST', '/cc/comms', { body: { action: 'get_sms_thread', lead_id: leadId, limit: opts.limit, offset: opts.offset } });
+  }
+
+  async function logCall(data) {
+    return request('POST', '/cc/comms', { body: { action: 'log_call', lead_id: data.lead_id, duration_minutes: data.duration_minutes, outcome: data.outcome, notes: data.notes, rc_call_id: data.rc_call_id } });
+  }
+
+  // ─── User Settings ────────────────────────────────────────────
+  async function getUserSettings(userId) {
+    return request('POST', '/cc/comms', { body: { action: 'get_user_settings', user_id: userId } });
+  }
+
+  async function updateUserSettings(data) {
+    return request('POST', '/cc/comms', { body: { action: 'update_user_settings', user_id: data.user_id, rc_extension: data.rc_extension, email_signature: data.email_signature, notification_prefs: data.notification_prefs } });
+  }
+
   // ─── Public API ──────────────────────────────────────────────
   return {
     // Auth
@@ -889,9 +918,12 @@ const ClientCareAPI = (() => {
       create: createCampaignTemplate, update: updateCampaignTemplate,
       delete: deleteCampaignTemplate, duplicate: duplicateCampaignTemplate
     },
+    // Communications
+    comms: { sendEmail, sendSms, getSmsThread, logCall },
     // Admin
     admin: {
       listUsers, createUser, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats, getRecentMessages,
+      getUserSettings, updateUserSettings,
       config: { list: listConfig, create: createConfig, update: updateConfig, delete: deleteConfig }
     },
     // Price Book

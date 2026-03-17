@@ -239,6 +239,11 @@
         (c.Client_Email ? '<a href="mailto:' + escapeAttr(c.Client_Email) + '">' + escapeHtml(c.Client_Email) + '</a>' : '') +
         (c.Client_Phone ? ' &middot; <a href="tel:' + escapeAttr(c.Client_Phone) + '">' + escapeHtml(c.Client_Phone) + '</a>' : '') +
         (c.Company ? ' &middot; ' + escapeHtml(c.Company) : '') +
+        '<span class="cc-action-btns">' +
+          (c.Client_Phone ? '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-call" title="Call Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg> Call</button>' : '') +
+          (c.Client_Email ? '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-email" title="Email Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</button>' : '') +
+          (c.Client_Phone ? '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-sms" title="Send SMS"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> SMS</button>' : '') +
+        '</span>' +
       '</div>' +
       (tagPills ? '<div class="cc-contact-tags-inline">' + tagPills + '</div>' : '');
 
@@ -277,6 +282,14 @@
         }
       });
     }
+
+    // Bind action buttons
+    var callBtn = document.getElementById('cc-action-call');
+    if (callBtn) callBtn.addEventListener('click', function() { showCallDialog(state.contact); });
+    var emailBtn = document.getElementById('cc-action-email');
+    if (emailBtn) emailBtn.addEventListener('click', function() { showEmailModal(state.contact); });
+    var smsBtn = document.getElementById('cc-action-sms');
+    if (smsBtn) smsBtn.addEventListener('click', function() { showSmsModal(state.contact); });
   }
 
   // ─── Tabs ───────────────────────────────────────────────────
@@ -1491,6 +1504,325 @@
       el.innerHTML = '<div class="cc-error"><p>' + escapeHtml(msg) + '</p>' +
         '<button class="cc-btn" onclick="window.location.href=\'/crm/contacts\'">Back to Contacts</button></div>';
     }
+  }
+
+  // ─── Communication Modals ───────────────────────────────────
+
+  var _icons = {
+    phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>',
+    email: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+    sms: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'
+  };
+
+  // ── RingCentral Embeddable ─────────────────────────────────
+  var _rcLoaded = false;
+  var RC_CLIENT_ID = '1ejAsAJuUryce7luguXttx';
+
+  function ensureRCWidget(cb) {
+    if (_rcLoaded && document.getElementById('rc-widget-adapter-frame')) { cb(); return; }
+    if (!RC_CLIENT_ID) {
+      ccToast('RingCentral is not configured. Please set your extension in My Settings.', 'error');
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = 'https://ringcentral.github.io/ringcentral-embeddable/adapter.js?clientId=' + encodeURIComponent(RC_CLIENT_ID) + '&appServer=https://platform.ringcentral.com';
+    s.onload = function() { _rcLoaded = true; cb(); };
+    s.onerror = function() { ccToast('Failed to load RingCentral widget.', 'error'); };
+    document.body.appendChild(s);
+  }
+
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'rc-call-end-notify') return;
+    var call = e.data;
+    if (state.contact && contactId) {
+      showCallLogModal({
+        lead_id: contactId,
+        duration_minutes: Math.round((call.duration || 0) / 60),
+        rc_call_id: call.sessionId || ''
+      });
+    }
+  });
+
+  function showCallDialog(record) {
+    if (!record.Client_Phone) { ccToast('No phone number available.', 'error'); return; }
+    ensureRCWidget(function() {
+      var frame = document.getElementById('rc-widget-adapter-frame');
+      if (frame) {
+        frame.contentWindow.postMessage({
+          type: 'rc-adapter-new-call',
+          phoneNumber: record.Client_Phone,
+          toCall: true
+        }, '*');
+        ccToast('Dialing ' + record.Client_Phone + '...', 'info');
+      } else {
+        ccToast('RingCentral widget is loading, please try again.', 'info');
+      }
+    });
+  }
+
+  function showCallLogModal(callData) {
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal" style="max-width:480px">' +
+        '<div class="cc-modal-header"><h3>' + _icons.phone + 'Log Call</h3>' +
+          '<button class="cc-modal-close" id="cc-cl-close">&times;</button></div>' +
+        '<div class="cc-modal-body">' +
+          '<div class="cc-call-log-grid">' +
+            '<div class="cc-edit-field">' +
+              '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Duration (min)</label>' +
+              '<input type="number" id="cc-cl-duration" class="cc-input" value="' + (callData.duration_minutes || 0) + '" min="0">' +
+            '</div>' +
+            '<div class="cc-edit-field">' +
+              '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Outcome</label>' +
+              '<select id="cc-cl-outcome" class="cc-input">' +
+                '<option value="COMPLETED">Completed</option>' +
+                '<option value="NO_ANSWER">No Answer</option>' +
+                '<option value="LEFT_VOICEMAIL">Left Voicemail</option>' +
+                '<option value="BUSY">Busy</option>' +
+                '<option value="WRONG_NUMBER">Wrong Number</option>' +
+              '</select>' +
+            '</div>' +
+          '</div>' +
+          '<div style="margin-top:12px;">' +
+            '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Notes</label>' +
+            '<textarea id="cc-cl-notes" class="cc-input cc-textarea" rows="3" placeholder="Call notes..."></textarea>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cc-modal-footer">' +
+          '<button class="cc-btn cc-btn-primary" id="cc-cl-save">Save Call Log</button> ' +
+          '<button class="cc-btn cc-btn-secondary" id="cc-cl-cancel">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var close = function() { overlay.remove(); };
+    document.getElementById('cc-cl-close').addEventListener('click', close);
+    document.getElementById('cc-cl-cancel').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+
+    document.getElementById('cc-cl-save').addEventListener('click', async function() {
+      var btn = this;
+      btn.disabled = true; btn.textContent = 'Saving...';
+      try {
+        await API.comms.logCall({
+          lead_id: callData.lead_id,
+          duration_minutes: parseInt(document.getElementById('cc-cl-duration').value) || 0,
+          outcome: document.getElementById('cc-cl-outcome').value,
+          notes: document.getElementById('cc-cl-notes').value.trim(),
+          rc_call_id: callData.rc_call_id || ''
+        });
+        ccToast('Call logged successfully.', 'success');
+        close();
+        reloadHistory();
+      } catch (err) {
+        ccToast('Failed to log call: ' + (err.error || 'Network error'), 'error');
+        btn.disabled = false; btn.textContent = 'Save Call Log';
+      }
+    });
+  }
+
+  // ── Email Modal ────────────────────────────────────────────
+  function showEmailModal(record) {
+    if (!record.Client_Email) { ccToast('No email address available.', 'error'); return; }
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal" style="max-width:600px">' +
+        '<div class="cc-modal-header"><h3>' + _icons.email + 'Email ' + escapeHtml(record.Client_Name || record.Client_Email) + '</h3>' +
+          '<button class="cc-modal-close" id="cc-em-close">&times;</button></div>' +
+        '<div class="cc-modal-body">' +
+          '<div class="cc-email-choice">' +
+            '<div class="cc-email-choice-btn" id="cc-em-template-btn">' +
+              '<h4>Use Template</h4>' +
+              '<p>Pick a pre-built email template</p>' +
+            '</div>' +
+            '<div class="cc-email-choice-btn" id="cc-em-custom-btn">' +
+              '<h4>Custom Email</h4>' +
+              '<p>Open Outlook to compose</p>' +
+            '</div>' +
+          '</div>' +
+          '<div id="cc-em-template-area" style="display:none;">' +
+            '<div id="cc-em-template-list" class="cc-email-template-list"><p style="color:#9CA3AF;text-align:center;">Loading templates...</p></div>' +
+            '<div id="cc-em-preview" style="display:none;">' +
+              '<div class="cc-email-subject-row">' +
+                '<label>Subject:</label>' +
+                '<input type="text" id="cc-em-subject" class="cc-input" readonly>' +
+              '</div>' +
+              '<div class="cc-email-preview" id="cc-em-preview-body"></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cc-modal-footer" id="cc-em-footer" style="display:none;">' +
+          '<button class="cc-btn cc-btn-primary" id="cc-em-send">Send Email</button> ' +
+          '<button class="cc-btn cc-btn-secondary" id="cc-em-back">Back</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var close = function() { overlay.remove(); };
+    document.getElementById('cc-em-close').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+
+    var selectedTemplateId = null;
+    var templates = [];
+
+    document.getElementById('cc-em-custom-btn').addEventListener('click', function() {
+      var mailto = 'mailto:' + encodeURIComponent(record.Client_Email) +
+        '?subject=' + encodeURIComponent('Tabuchi Law — ');
+      window.open(mailto, '_blank');
+      ccToast('Outlook opened. Remember to log the activity manually if needed.', 'info');
+      close();
+    });
+
+    document.getElementById('cc-em-template-btn').addEventListener('click', async function() {
+      var choiceBtns = overlay.querySelectorAll('.cc-email-choice-btn');
+      for (var i = 0; i < choiceBtns.length; i++) choiceBtns[i].style.display = 'none';
+      document.getElementById('cc-em-template-area').style.display = 'block';
+
+      try {
+        var result = await API.campaignTemplates.list();
+        templates = (result.templates || result.data || []);
+        var listEl = document.getElementById('cc-em-template-list');
+        if (!templates.length) {
+          listEl.innerHTML = '<p style="color:#9CA3AF;text-align:center;">No templates available.</p>';
+          return;
+        }
+        var html = '';
+        templates.forEach(function(t) {
+          html += '<div class="cc-email-template-card" data-tid="' + escapeAttr(t.id) + '">' +
+            '<h5>' + escapeHtml(t.Name || t.name || 'Untitled') + '</h5>' +
+            '<p>' + escapeHtml(t.Category || t.category || '') + (t.Subject ? ' — ' + escapeHtml(t.Subject) : '') + '</p>' +
+          '</div>';
+        });
+        listEl.innerHTML = html;
+
+        listEl.querySelectorAll('.cc-email-template-card').forEach(function(card) {
+          card.addEventListener('click', function() {
+            selectedTemplateId = this.getAttribute('data-tid');
+            listEl.querySelectorAll('.cc-email-template-card').forEach(function(c) { c.classList.remove('selected'); });
+            this.classList.add('selected');
+
+            var tpl = templates.find(function(t) { return t.id === selectedTemplateId; });
+            if (tpl) {
+              var subject = (tpl.Subject || tpl.subject || '').replace(/\{\{client_name\}\}/gi, record.Client_Name || '').replace(/\{\{client_email\}\}/gi, record.Client_Email || '');
+              var body = (tpl.Body_HTML || tpl.body_html || tpl.Body || tpl.body || '').replace(/\{\{client_name\}\}/gi, escapeHtml(record.Client_Name || '')).replace(/\{\{client_email\}\}/gi, escapeHtml(record.Client_Email || '')).replace(/\{\{practice_area\}\}/gi, escapeHtml(record.Practice_Area || '')).replace(/\{\{service_package\}\}/gi, escapeHtml(record.Service_Package || ''));
+              document.getElementById('cc-em-subject').value = subject;
+              document.getElementById('cc-em-preview-body').innerHTML = body;
+              document.getElementById('cc-em-preview').style.display = 'block';
+              document.getElementById('cc-em-footer').style.display = 'flex';
+            }
+          });
+        });
+      } catch (err) {
+        document.getElementById('cc-em-template-list').innerHTML = '<p style="color:#DC2626;">Failed to load templates.</p>';
+      }
+    });
+
+    document.getElementById('cc-em-back').addEventListener('click', function() {
+      document.getElementById('cc-em-template-area').style.display = 'none';
+      document.getElementById('cc-em-preview').style.display = 'none';
+      document.getElementById('cc-em-footer').style.display = 'none';
+      var choiceBtns = overlay.querySelectorAll('.cc-email-choice-btn');
+      for (var i = 0; i < choiceBtns.length; i++) choiceBtns[i].style.display = '';
+      selectedTemplateId = null;
+    });
+
+    document.getElementById('cc-em-send').addEventListener('click', async function() {
+      if (!selectedTemplateId) { ccToast('Please select a template.', 'info'); return; }
+      var btn = this;
+      btn.disabled = true; btn.textContent = 'Sending...';
+      try {
+        await API.comms.sendEmail({
+          lead_id: contactId,
+          template_id: selectedTemplateId,
+          subject: document.getElementById('cc-em-subject').value,
+          body_html: document.getElementById('cc-em-preview-body').innerHTML
+        });
+        ccToast('Email sent successfully.', 'success');
+        close();
+        reloadHistory();
+      } catch (err) {
+        ccToast('Failed to send email: ' + (err.error || 'Network error'), 'error');
+        btn.disabled = false; btn.textContent = 'Send Email';
+      }
+    });
+  }
+
+  // ── SMS Modal (Conversation Thread) ────────────────────────
+  function showSmsModal(record) {
+    if (!record.Client_Phone) { ccToast('No phone number available.', 'error'); return; }
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal" style="max-width:500px;display:flex;flex-direction:column;max-height:80vh;">' +
+        '<div class="cc-modal-header"><h3>' + _icons.sms + 'SMS — ' + escapeHtml(record.Client_Name || record.Client_Phone) + '</h3>' +
+          '<button class="cc-modal-close" id="cc-sms-close">&times;</button></div>' +
+        '<div id="cc-sms-thread" class="cc-sms-thread" style="flex:1;min-height:200px;">' +
+          '<p class="cc-sms-thread-empty">Loading messages...</p>' +
+        '</div>' +
+        '<div class="cc-sms-compose">' +
+          '<textarea id="cc-sms-input" class="cc-input" placeholder="Type a message..." rows="2"></textarea>' +
+          '<button class="cc-btn cc-btn-primary" id="cc-sms-send" style="align-self:flex-end;">Send</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var close = function() { overlay.remove(); };
+    document.getElementById('cc-sms-close').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+
+    var threadEl = document.getElementById('cc-sms-thread');
+
+    async function loadThread() {
+      try {
+        var result = await API.comms.getSmsThread(contactId);
+        var messages = result.messages || [];
+        if (!messages.length) {
+          threadEl.innerHTML = '<p class="cc-sms-thread-empty">No messages yet. Send the first SMS below.</p>';
+          return;
+        }
+        var html = '';
+        messages.forEach(function(m) {
+          var isOut = (m.Direction === 'OUTBOUND');
+          html += '<div>' +
+            '<div class="cc-sms-bubble ' + (isOut ? 'cc-sms-bubble-out' : 'cc-sms-bubble-in') + '">' + escapeHtml(m.Body || '') + '</div>' +
+            '<div class="cc-sms-time ' + (isOut ? 'cc-sms-time-out' : '') + '">' + (m.Sent_At ? API.util.formatRelativeTime(m.Sent_At) : '') + '</div>' +
+          '</div>';
+        });
+        threadEl.innerHTML = html;
+        threadEl.scrollTop = threadEl.scrollHeight;
+      } catch (err) {
+        threadEl.innerHTML = '<p class="cc-sms-thread-empty" style="color:#DC2626;">Failed to load messages.</p>';
+      }
+    }
+
+    loadThread();
+
+    document.getElementById('cc-sms-send').addEventListener('click', async function() {
+      var input = document.getElementById('cc-sms-input');
+      var body = input.value.trim();
+      if (!body) return;
+      var btn = this;
+      btn.disabled = true; btn.textContent = 'Sending...';
+      try {
+        await API.comms.sendSms({ lead_id: contactId, body: body });
+        input.value = '';
+        ccToast('SMS sent.', 'success');
+        await loadThread();
+        reloadHistory();
+      } catch (err) {
+        ccToast('Failed to send SMS: ' + (err.error || 'Network error'), 'error');
+      }
+      btn.disabled = false; btn.textContent = 'Send';
+    });
+
+    document.getElementById('cc-sms-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('cc-sms-send').click();
+      }
+    });
   }
 
   // ─── Inject Edit Form Styles ──────────────────────────────────

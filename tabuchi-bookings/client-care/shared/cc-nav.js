@@ -72,7 +72,8 @@
   html += '<span style="color:#9CA3AF;font-size:0.6rem;">&#9662;</span>';
   html += '</button>';
   html += '<div id="app-user-dropdown" style="display:none;position:absolute;right:0;top:100%;background:white;border:1px solid #E5E7EB;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:170px;z-index:100;margin-top:0.25rem;">';
-  html += '<a href="/dashboard-settings" data-nav="bk-settings" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">My Settings</a>';
+  html += '<a href="/dashboard-settings" data-nav="bk-settings" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Booking Settings</a>';
+  html += '<a href="#" id="app-my-settings-link" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">My Settings</a>';
   html += '<a id="app-user-admin-link" href="/crm/admin" data-nav="admin-crm" style="display:none;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Admin Settings</a>';
   html += '<div style="border-top:1px solid #E5E7EB;margin:0.25rem 0;"></div>';
   html += '<a href="/login?logout" style="display:block;padding:0.5rem 1rem;color:#DC2626;text-decoration:none;font-size:0.9rem;">Logout</a>';
@@ -204,5 +205,117 @@
   var dropdowns = bar.querySelectorAll('[id$="-dropdown"]');
   for (var m = 0; m < dropdowns.length; m++) {
     dropdowns[m].addEventListener('click', function(e) { e.stopPropagation(); });
+  }
+
+  /* ── My Settings Modal ── */
+  var settingsLink = bar.querySelector('#app-my-settings-link');
+  if (settingsLink) {
+    settingsLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      // Close dropdown
+      var allDDs = bar.querySelectorAll('[id$="-dropdown"]');
+      for (var k = 0; k < allDDs.length; k++) allDDs[k].style.display = 'none';
+      showMySettingsModal();
+    });
+  }
+
+  function escapeHtml(str) { return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function showMySettingsModal() {
+    var API = window.ClientCareAPI;
+    if (!API) return;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal" style="max-width:550px">' +
+        '<div class="cc-modal-header"><h3>My Settings</h3>' +
+          '<button class="cc-modal-close" id="cc-ms-close">&times;</button></div>' +
+        '<div class="cc-modal-body">' +
+          '<div class="cc-settings-section">' +
+            '<h4>RingCentral Extension</h4>' +
+            '<input type="text" id="cc-ms-rc-ext" class="cc-input" placeholder="e.g. 101">' +
+          '</div>' +
+          '<div class="cc-settings-section">' +
+            '<h4>Email Signature</h4>' +
+            '<textarea id="cc-ms-sig" class="cc-input cc-textarea" rows="4" placeholder="Your HTML email signature..."></textarea>' +
+            '<div class="cc-sig-preview" id="cc-ms-sig-preview">Preview will appear here</div>' +
+          '</div>' +
+          '<div class="cc-settings-section">' +
+            '<h4>Notification Preferences</h4>' +
+            '<div class="cc-settings-checks">' +
+              '<label><input type="checkbox" id="cc-ms-notif-email" checked> Email notifications</label>' +
+              '<label><input type="checkbox" id="cc-ms-notif-sms"> SMS notifications</label>' +
+              '<label><input type="checkbox" id="cc-ms-notif-call-log" checked> Auto-prompt call log after RingCentral calls</label>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cc-modal-footer">' +
+          '<button class="cc-btn cc-btn-primary" id="cc-ms-save">Save Settings</button> ' +
+          '<button class="cc-btn cc-btn-secondary" id="cc-ms-cancel">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var close = function() { overlay.remove(); };
+    document.getElementById('cc-ms-close').addEventListener('click', close);
+    document.getElementById('cc-ms-cancel').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+
+    // Live signature preview
+    var sigInput = document.getElementById('cc-ms-sig');
+    var sigPreview = document.getElementById('cc-ms-sig-preview');
+    sigInput.addEventListener('input', function() {
+      sigPreview.innerHTML = sigInput.value || '<span style="color:#9CA3AF;">Preview will appear here</span>';
+    });
+
+    // Load current settings
+    var user = API.auth.getUser();
+    if (user && user.id) {
+      API.admin.getUserSettings(user.id).then(function(result) {
+        if (result && result.settings) {
+          var s = result.settings;
+          if (s.rc_extension) document.getElementById('cc-ms-rc-ext').value = s.rc_extension;
+          if (s.email_signature) {
+            sigInput.value = s.email_signature;
+            sigPreview.innerHTML = s.email_signature;
+          }
+          if (s.notification_prefs) {
+            try {
+              var prefs = typeof s.notification_prefs === 'string' ? JSON.parse(s.notification_prefs) : s.notification_prefs;
+              if (typeof prefs.email_notify !== 'undefined') document.getElementById('cc-ms-notif-email').checked = prefs.email_notify;
+              if (typeof prefs.sms_notify !== 'undefined') document.getElementById('cc-ms-notif-sms').checked = prefs.sms_notify;
+              if (typeof prefs.call_log_auto !== 'undefined') document.getElementById('cc-ms-notif-call-log').checked = prefs.call_log_auto;
+            } catch (e) { /* ignore parse errors */ }
+          }
+        }
+      }).catch(function() { /* silently fail — settings may not exist yet */ });
+    }
+
+    // Save
+    document.getElementById('cc-ms-save').addEventListener('click', async function() {
+      var btn = this;
+      btn.disabled = true; btn.textContent = 'Saving...';
+      try {
+        var prefs = {
+          email_notify: document.getElementById('cc-ms-notif-email').checked,
+          sms_notify: document.getElementById('cc-ms-notif-sms').checked,
+          call_log_auto: document.getElementById('cc-ms-notif-call-log').checked
+        };
+        await API.admin.updateUserSettings({
+          user_id: user.id,
+          rc_extension: document.getElementById('cc-ms-rc-ext').value.trim(),
+          email_signature: sigInput.value,
+          notification_prefs: JSON.stringify(prefs)
+        });
+        // Show success inline
+        btn.textContent = 'Saved!';
+        btn.style.background = '#059669';
+        setTimeout(close, 800);
+      } catch (err) {
+        btn.disabled = false; btn.textContent = 'Save Settings';
+        alert('Failed to save settings: ' + (err.error || 'Network error'));
+      }
+    });
   }
 })();
