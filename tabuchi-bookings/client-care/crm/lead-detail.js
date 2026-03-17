@@ -1909,13 +1909,16 @@
   // ── Call via tel: link (opens RingCentral desktop app) ─────
   function showCallDialog(record) {
     if (!record.Client_Phone) { ccToast('No phone number available.', 'error'); return; }
-    // Open tel: link — RingCentral desktop app handles the call
-    window.open('tel:' + encodeURIComponent(record.Client_Phone), '_self');
+    // Create temporary <a> to trigger tel: link without navigating the page
+    var a = document.createElement('a');
+    a.href = 'tel:' + encodeURIComponent(record.Client_Phone);
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     ccToast('Opening phone app for ' + escapeHtml(record.Client_Phone) + '...', 'info');
-    // Show call log modal after a short delay so user can log the call
-    setTimeout(function() {
-      showCallLogModal({ lead_id: state.lead.id });
-    }, 1500);
+    // Show call log modal immediately so user can log after their call
+    showCallLogModal({ lead_id: state.lead.id });
   }
 
   function showCallLogModal(callData) {
