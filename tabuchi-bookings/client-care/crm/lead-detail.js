@@ -783,6 +783,49 @@
     return html;
   }
 
+  var LANGUAGE_OPTIONS = ['', 'English', 'French', 'Mandarin', 'Cantonese', 'Hindi', 'Italian', 'Other'];
+
+  function renderLanguageField(l) {
+    var val = l.Preferred_Language || '';
+    var isOther = val && LANGUAGE_OPTIONS.indexOf(val) === -1;
+    var selectVal = isOther ? 'Other' : val;
+    var html = '<div class="cc-lang-wrap">';
+    html += '<select class="cc-info-input cc-select" data-field="Preferred_Language" data-original="' + escapeAttr(val) + '" id="cc-lang-select" autocomplete="off">';
+    LANGUAGE_OPTIONS.forEach(function(opt) {
+      var label = opt || '— Select —';
+      html += '<option value="' + escapeAttr(opt) + '"' + (opt === selectVal ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+    });
+    html += '</select>';
+    html += '<input type="text" class="cc-info-input" id="cc-lang-other" data-field="Preferred_Language" ' +
+      'placeholder="Enter language" value="' + escapeAttr(isOther ? val : '') + '" ' +
+      'autocomplete="off" style="margin-top:6px;display:' + (isOther ? 'block' : 'none') + '">';
+    html += '</div>';
+    return html;
+  }
+
+  function bindLanguageField() {
+    var sel = document.getElementById('cc-lang-select');
+    var other = document.getElementById('cc-lang-other');
+    if (!sel || !other) return;
+    sel.addEventListener('change', function() {
+      if (sel.value === 'Other') {
+        other.style.display = 'block';
+        other.focus();
+        other.value = '';
+      } else {
+        other.style.display = 'none';
+        other.value = '';
+      }
+    });
+    // When "Other" text changes, update the data-field value so save picks it up
+    other.addEventListener('input', function() {
+      // Mark dirty
+      other.classList.add('cc-field-dirty');
+      var saveBar = document.getElementById('cc-info-save-bar');
+      if (saveBar) saveBar.style.display = '';
+    });
+  }
+
   function renderInfo() {
     var el = $el('cc-lead-info');
     if (!el || !state.lead) return;
@@ -805,7 +848,7 @@
       { label: 'Date of Birth', html: editableInput('Date_of_Birth', l.Date_of_Birth, 'date', '') },
       { label: 'Spouse Name', html: editableInput('Spouse_Name', l.Spouse_Name, 'text', 'Enter spouse name') },
       { label: 'Marital Status', html: renderSelectField('Marital_Status', l.Marital_Status, ['', 'Single', 'Married', 'Common-Law', 'Divorced', 'Widowed', 'Separated']) },
-      { label: 'Preferred Language', html: renderSelectField('Preferred_Language', l.Preferred_Language, ['', 'English', 'French', 'Mandarin', 'Cantonese', 'Other']) },
+      { label: 'Preferred Language', html: renderLanguageField(l) },
       { label: 'Referral Source', html: editableInput('Referral_Source', l.Referral_Source, 'text', 'Who referred them?') }
     ];
 
@@ -882,6 +925,7 @@
         '<button id="cc-create-lead-btn" class="cc-btn cc-btn-primary">Create Lead</button></div>';
       el.innerHTML = html;
       bindInfoEdits();
+    bindLanguageField();
       // Bind services selector button
       var svcBtn = document.getElementById('cc-new-lead-svc-btn');
       if (svcBtn) svcBtn.addEventListener('click', function() { showNewLeadServicesModal(); });
@@ -924,6 +968,7 @@
 
     el.innerHTML = html;
     bindInfoEdits();
+    bindLanguageField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────
@@ -1325,7 +1370,13 @@
           saveBtn.disabled = true;
           saveBtn.textContent = 'Saving...';
           var updates = {};
+          var langSelect = document.getElementById('cc-lang-select');
+          var langOther = document.getElementById('cc-lang-other');
           document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+            // Skip hidden language "Other" text input when a standard language is selected
+            if (inp.id === 'cc-lang-other' && langSelect && langSelect.value !== 'Other') return;
+            // Skip language select when "Other" is chosen (use text input value instead)
+            if (inp.id === 'cc-lang-select' && langSelect && langSelect.value === 'Other') return;
             var field = inp.getAttribute('data-field');
             var original = inp.getAttribute('data-original');
             var current = inp.value.trim();
@@ -1379,7 +1430,11 @@
     if (createBtn) {
       createBtn.addEventListener('click', async function() {
         var data = {};
+        var langSel = document.getElementById('cc-lang-select');
+        var langOth = document.getElementById('cc-lang-other');
         document.querySelectorAll('.cc-info-input').forEach(function(inp) {
+          if (inp.id === 'cc-lang-other' && langSel && langSel.value !== 'Other') return;
+          if (inp.id === 'cc-lang-select' && langSel && langSel.value === 'Other') return;
           var v = inp.value.trim();
           if (v) data[inp.getAttribute('data-field')] = v;
         });
