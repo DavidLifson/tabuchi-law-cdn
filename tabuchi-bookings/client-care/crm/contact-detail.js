@@ -995,7 +995,19 @@
       html += '<h2 class="cc-conversion-title">Prospect</h2>';
       html += '<p class="cc-conversion-subtitle">Not yet converted to client</p>';
     }
-    html += '</div></div>';
+    html += '</div>';
+
+    // Action buttons (only for non-converted, open disposition contacts)
+    if (!conv.converted && (c.Disposition || 'OPEN') === 'OPEN') {
+      html += '<div style="display:flex;gap:12px;justify-content:center;margin-top:16px;">';
+      html += '<button class="cc-btn cc-btn-primary" id="cc-convert-now-btn" style="font-size:1rem;padding:10px 24px;">Convert Now</button>';
+      html += '<button class="cc-btn cc-btn-danger" id="cc-contact-deal-lost-btn" style="font-size:1rem;padding:10px 24px;">Deal Lost</button>';
+      html += '</div>';
+    } else if (c.Disposition === 'LOST') {
+      html += '<div style="text-align:center;margin-top:12px;"><span class="cc-badge cc-badge-red" style="font-size:0.95rem;padding:6px 16px;">LOST</span></div>';
+    }
+
+    html += '</div>';
 
     // Key dates timeline
     html += '<div class="cc-section"><h3 class="cc-section-title">Key Dates</h3>';
@@ -1034,6 +1046,93 @@
     html += '</div></div>';
 
     container.innerHTML = html;
+
+    // Bind Convert Now button (placeholder — will connect later)
+    var convertBtn = document.getElementById('cc-convert-now-btn');
+    if (convertBtn) {
+      convertBtn.addEventListener('click', function() {
+        ccToast('Convert Now — coming soon.', 'info');
+      });
+    }
+
+    // Bind Deal Lost button
+    var dealLostBtn = document.getElementById('cc-contact-deal-lost-btn');
+    if (dealLostBtn) {
+      dealLostBtn.addEventListener('click', function() {
+        showContactDealLostModal();
+      });
+    }
+  }
+
+  // ─── Contact Deal Lost Modal ────────────────────────────────
+  function showContactDealLostModal() {
+    var c = state.contact;
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal" style="max-width:480px">' +
+        '<div class="cc-modal-header"><h3>Deal Lost</h3>' +
+          '<button class="cc-modal-close" id="cc-cdl-close">&times;</button></div>' +
+        '<div class="cc-modal-body">' +
+          '<div style="margin-bottom:12px;">' +
+            '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.9rem;">Close Reason</label>' +
+            '<select id="cc-cdl-reason" class="cc-input" style="width:100%">' +
+              '<option value="">— Select reason —</option>' +
+              '<option value="PRICE">Price</option>' +
+              '<option value="NOT_QUALIFIED">Not Qualified</option>' +
+              '<option value="NO_RESPONSE">No Response</option>' +
+              '<option value="TIMING">Timing</option>' +
+              '<option value="COMPETITOR">Competitor</option>' +
+              '<option value="DUPLICATE">Duplicate</option>' +
+              '<option value="OTHER">Other</option>' +
+            '</select>' +
+          '</div>' +
+          '<div>' +
+            '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.9rem;">Explanation <span style="color:#DC2626;">*</span></label>' +
+            '<textarea id="cc-cdl-notes" class="cc-input cc-textarea" rows="4" placeholder="Please explain why this deal was lost (required)" style="width:100%;resize:vertical;"></textarea>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cc-modal-footer">' +
+          '<button class="cc-btn cc-btn-danger" id="cc-cdl-confirm">Mark Deal Lost</button> ' +
+          '<button class="cc-btn" id="cc-cdl-cancel">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('cc-cdl-close').addEventListener('click', function() { overlay.remove(); });
+    document.getElementById('cc-cdl-cancel').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    document.getElementById('cc-cdl-confirm').addEventListener('click', async function() {
+      var reason = document.getElementById('cc-cdl-reason').value;
+      var notes = document.getElementById('cc-cdl-notes').value.trim();
+      if (!reason) { ccToast('Please select a close reason.', 'info'); return; }
+      if (!notes) { ccToast('Explanation is required. Please explain why this deal was lost.', 'info'); return; }
+
+      var btn = document.getElementById('cc-cdl-confirm');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        // Log the explanation as an activity
+        await API.activities.create({
+          lead_id: c.id,
+          type: 'NOTE',
+          subject: 'Deal Lost — ' + reason,
+          body: notes,
+          outcome: 'DEAL_LOST'
+        });
+        // Update the lead disposition to LOST
+        await API.leads.update(c.id, { Disposition: 'LOST', Close_Reason: reason });
+        overlay.remove();
+        ccToast('Deal marked as lost.', 'success');
+        // Refresh the page data
+        loadData();
+      } catch (err) {
+        ccToast('Failed: ' + (err.error || 'Network error'), 'error');
+        btn.disabled = false;
+        btn.textContent = 'Mark Deal Lost';
+      }
+    });
   }
 
   // ═══════════════════════════════════════════════════════════

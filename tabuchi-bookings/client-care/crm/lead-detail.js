@@ -718,8 +718,14 @@
       html += '<button class="cc-btn cc-btn-primary" id="cc-advance-stage-btn">Advance to ' + nextStage.label + '</button>';
       if (currentIdx >= 3) { // After MEETING_DONE, allow close
         html += ' <button class="cc-btn cc-btn-success" id="cc-close-won-btn">Close — Won</button>';
-        html += ' <button class="cc-btn cc-btn-danger" id="cc-close-lost-btn">Close — Lost</button>';
       }
+      html += ' <button class="cc-btn cc-btn-danger" id="cc-deal-lost-btn">Deal Lost</button>';
+      html += '</div>';
+    } else if (state.lead.Disposition === 'OPEN') {
+      // At last stage but still open
+      html += '<div class="cc-stage-actions">';
+      html += ' <button class="cc-btn cc-btn-success" id="cc-close-won-btn">Close — Won</button>';
+      html += ' <button class="cc-btn cc-btn-danger" id="cc-deal-lost-btn">Deal Lost</button>';
       html += '</div>';
     }
     el.innerHTML = html;
@@ -741,13 +747,11 @@
       });
     }
 
-    // Bind close lost
-    var lostBtn = $el('cc-close-lost-btn');
-    if (lostBtn) {
-      lostBtn.addEventListener('click', function() {
-        var reason = prompt('Close reason (PRICE, NOT_QUALIFIED, NO_RESPONSE, TIMING, COMPETITOR, DUPLICATE, OTHER):');
-        if (!reason) return;
-        advanceStage('READY_TO_DRAFT', { disposition: 'LOST', close_reason: reason.toUpperCase() });
+    // Bind Deal Lost
+    var dealLostBtn = document.getElementById('cc-deal-lost-btn');
+    if (dealLostBtn) {
+      dealLostBtn.addEventListener('click', function() {
+        showDealLostModal();
       });
     }
   }
@@ -763,6 +767,74 @@
     } catch (err) {
       ccToast('Stage update failed: ' + (err.error || (err.errors ? err.errors.join('; ') : 'Network error')), 'error');
     }
+  }
+
+  // ─── Deal Lost Modal ──────────────────────────────────────────
+  function showDealLostModal() {
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal" style="max-width:480px">' +
+        '<div class="cc-modal-header"><h3>Deal Lost</h3>' +
+          '<button class="cc-modal-close" id="cc-dl-close">&times;</button></div>' +
+        '<div class="cc-modal-body">' +
+          '<div style="margin-bottom:12px;">' +
+            '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.9rem;">Close Reason</label>' +
+            '<select id="cc-dl-reason" class="cc-input" style="width:100%">' +
+              '<option value="">— Select reason —</option>' +
+              '<option value="PRICE">Price</option>' +
+              '<option value="NOT_QUALIFIED">Not Qualified</option>' +
+              '<option value="NO_RESPONSE">No Response</option>' +
+              '<option value="TIMING">Timing</option>' +
+              '<option value="COMPETITOR">Competitor</option>' +
+              '<option value="DUPLICATE">Duplicate</option>' +
+              '<option value="OTHER">Other</option>' +
+            '</select>' +
+          '</div>' +
+          '<div>' +
+            '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.9rem;">Explanation <span style="color:#DC2626;">*</span></label>' +
+            '<textarea id="cc-dl-notes" class="cc-input cc-textarea" rows="4" placeholder="Please explain why this deal was lost (required)" style="width:100%;resize:vertical;"></textarea>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cc-modal-footer">' +
+          '<button class="cc-btn cc-btn-danger" id="cc-dl-confirm">Mark Deal Lost</button> ' +
+          '<button class="cc-btn" id="cc-dl-cancel">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('cc-dl-close').addEventListener('click', function() { overlay.remove(); });
+    document.getElementById('cc-dl-cancel').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    document.getElementById('cc-dl-confirm').addEventListener('click', async function() {
+      var reason = document.getElementById('cc-dl-reason').value;
+      var notes = document.getElementById('cc-dl-notes').value.trim();
+      if (!reason) { ccToast('Please select a close reason.', 'info'); return; }
+      if (!notes) { ccToast('Explanation is required. Please explain why this deal was lost.', 'info'); return; }
+
+      var btn = document.getElementById('cc-dl-confirm');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        // Log the explanation as an activity
+        await API.activities.create({
+          lead_id: leadId,
+          type: 'NOTE',
+          subject: 'Deal Lost — ' + reason,
+          body: notes,
+          outcome: 'DEAL_LOST'
+        });
+        // Update stage to LOST
+        await advanceStage('READY_TO_DRAFT', { disposition: 'LOST', close_reason: reason });
+        overlay.remove();
+        ccToast('Deal marked as lost.', 'success');
+      } catch (err) {
+        ccToast('Failed: ' + (err.error || 'Network error'), 'error');
+        btn.disabled = false;
+        btn.textContent = 'Mark Deal Lost';
+      }
+    });
   }
 
   // ─── Lead Info Grid ─────────────────────────────────────────
@@ -1092,10 +1164,10 @@
         '</select>' +
         '<input id="cc-act-subject" class="cc-input" placeholder="Subject" />' +
       '</div>' +
-      '<textarea id="cc-act-body" class="cc-input cc-textarea" placeholder="Details (optional)"></textarea>' +
+      '<textarea id="cc-act-body" class="cc-input cc-textarea" placeholder="Details (required)" required></textarea>' +
       '<div class="cc-form-row">' +
         '<input id="cc-act-duration" class="cc-input cc-input-sm" type="number" placeholder="Duration (min)" />' +
-        '<input id="cc-act-outcome" class="cc-input" placeholder="Outcome (optional)" />' +
+        '<input id="cc-act-outcome" class="cc-input" placeholder="Outcome (required)" required />' +
         '<button id="cc-act-submit" class="cc-btn cc-btn-primary">Log</button>' +
       '</div>';
 
@@ -1105,6 +1177,10 @@
       var type = $el('cc-act-type').value;
       var subject = $el('cc-act-subject').value.trim();
       if (!subject) { ccToast('Subject is required.', 'info'); return; }
+      var body = $el('cc-act-body').value.trim();
+      if (!body) { ccToast('Details is required.', 'info'); return; }
+      var outcome = $el('cc-act-outcome').value.trim();
+      if (!outcome) { ccToast('Outcome is required.', 'info'); return; }
 
       btn.disabled = true;
       try {
@@ -1112,9 +1188,9 @@
           lead_id: leadId,
           type: type,
           subject: subject,
-          body: $el('cc-act-body').value.trim(),
+          body: body,
           duration_minutes: parseInt($el('cc-act-duration').value) || 0,
-          outcome: $el('cc-act-outcome').value.trim()
+          outcome: outcome
         });
         if (result.success) {
           $el('cc-act-subject').value = '';
