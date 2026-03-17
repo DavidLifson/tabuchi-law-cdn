@@ -662,9 +662,9 @@
         (l.Client_Email ? '<a href="mailto:' + escapeHtml(l.Client_Email) + '">' + escapeHtml(l.Client_Email) + '</a>' : '') +
         (l.Client_Phone ? ' &middot; <a href="tel:' + escapeHtml(l.Client_Phone) + '">' + escapeHtml(l.Client_Phone) + '</a>' : '') +
         '<span class="cc-action-btns">' +
-          (l.Client_Phone ? '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-call" title="Call Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg> Call</button>' : '') +
-          (l.Client_Email ? '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-email" title="Email Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</button>' : '') +
-          (l.Client_Phone ? '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-sms" title="Send SMS"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> SMS</button>' : '') +
+          '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-call" title="Call Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg> Call</button>' +
+          '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-email" title="Email Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</button>' +
+          '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-sms" title="Send SMS"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> SMS</button>' +
         '</span>' +
       '</div>';
 
@@ -696,11 +696,20 @@
 
     // Bind action buttons
     var callBtn = document.getElementById('cc-action-call');
-    if (callBtn) callBtn.addEventListener('click', function() { showCallDialog(state.lead); });
+    if (callBtn) callBtn.addEventListener('click', function() {
+      if (!state.lead.Client_Phone) { ccToast('No phone number on file. Add a phone number first.', 'error'); return; }
+      showCallDialog(state.lead);
+    });
     var emailBtn = document.getElementById('cc-action-email');
-    if (emailBtn) emailBtn.addEventListener('click', function() { showEmailModal(state.lead); });
+    if (emailBtn) emailBtn.addEventListener('click', function() {
+      if (!state.lead.Client_Email) { ccToast('No email address on file. Add an email first.', 'error'); return; }
+      showEmailModal(state.lead);
+    });
     var smsBtn = document.getElementById('cc-action-sms');
-    if (smsBtn) smsBtn.addEventListener('click', function() { showSmsModal(state.lead); });
+    if (smsBtn) smsBtn.addEventListener('click', function() {
+      if (!state.lead.Client_Phone) { ccToast('No phone number on file. Add a phone number first.', 'error'); return; }
+      showSmsModal(state.lead);
+    });
   }
 
   // ─── Stage Progression Bar ──────────────────────────────────
