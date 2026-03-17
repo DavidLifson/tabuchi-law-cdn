@@ -2051,13 +2051,61 @@
     var selectedTemplateId = null;
     var templates = [];
 
-    // Custom email — open Outlook
+    // Custom email — open Outlook then show log form
     document.getElementById('cc-em-custom-btn').addEventListener('click', function() {
       var mailto = 'mailto:' + encodeURIComponent(record.Client_Email) +
         '?subject=' + encodeURIComponent('Tabuchi Law — ');
       window.open(mailto, '_blank');
-      ccToast('Outlook opened. Remember to log the activity manually if needed.', 'info');
-      close();
+
+      // Replace modal content with log form
+      var choiceBtns = overlay.querySelectorAll('.cc-email-choice-btn');
+      for (var i = 0; i < choiceBtns.length; i++) choiceBtns[i].style.display = 'none';
+      document.getElementById('cc-em-template-area').style.display = 'none';
+
+      var body = overlay.querySelector('.cc-modal-body');
+      body.innerHTML =
+        '<p style="margin-bottom:12px;color:#6B7280;">Outlook has been opened. After you send your email, log it below:</p>' +
+        '<div style="margin-bottom:10px;">' +
+          '<label style="display:block;font-weight:600;margin-bottom:4px;">Subject</label>' +
+          '<input type="text" id="cc-em-log-subject" class="cc-input" placeholder="Email subject line" value="Tabuchi Law — ">' +
+        '</div>' +
+        '<div style="margin-bottom:10px;">' +
+          '<label style="display:block;font-weight:600;margin-bottom:4px;">Notes (optional)</label>' +
+          '<textarea id="cc-em-log-notes" class="cc-input" rows="3" placeholder="Brief summary of what was discussed"></textarea>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button class="cc-btn cc-btn-primary" id="cc-em-log-save">Log Email Activity</button>' +
+          '<button class="cc-btn" id="cc-em-log-skip">Skip</button>' +
+        '</div>';
+
+      document.getElementById('cc-em-log-skip').addEventListener('click', function() {
+        close();
+      });
+
+      document.getElementById('cc-em-log-save').addEventListener('click', async function() {
+        var btn = this;
+        var subject = document.getElementById('cc-em-log-subject').value.trim();
+        var notes = document.getElementById('cc-em-log-notes').value.trim();
+        if (!subject) { ccToast('Please enter the email subject.', 'error'); return; }
+        btn.disabled = true;
+        btn.textContent = 'Logging...';
+        try {
+          await API.activities.create({
+            lead_id: state.lead.id,
+            type: 'EMAIL',
+            subject: subject,
+            body: notes || 'Sent via Outlook',
+            outcome: 'SENT'
+          });
+          close();
+          ccToast('Email activity logged.', 'success');
+          reloadActivities();
+        } catch (err) {
+          ccToast('Failed to log: ' + (err.error || 'Network error'), 'error');
+          btn.disabled = false;
+          btn.textContent = 'Log Email Activity';
+        }
+      });
     });
 
     // Template email
