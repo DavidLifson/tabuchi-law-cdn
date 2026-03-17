@@ -1906,51 +1906,16 @@
     sms: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'
   };
 
-  // ── RingCentral Embeddable ─────────────────────────────────
-  var _rcLoaded = false;
-  var RC_CLIENT_ID = '1ejAsAJuUryce7luguXttx';
-
-  function ensureRCWidget(cb) {
-    if (_rcLoaded && document.getElementById('rc-widget-adapter-frame')) { cb(); return; }
-    if (!RC_CLIENT_ID) {
-      ccToast('RingCentral is not configured. Please set your extension in My Settings.', 'error');
-      return;
-    }
-    var s = document.createElement('script');
-    s.src = 'https://ringcentral.github.io/ringcentral-embeddable/adapter.js?clientId=' + encodeURIComponent(RC_CLIENT_ID) + '&appServer=https://platform.ringcentral.com';
-    s.onload = function() { _rcLoaded = true; cb(); };
-    s.onerror = function() { ccToast('Failed to load RingCentral widget.', 'error'); };
-    document.body.appendChild(s);
-  }
-
-  // Listen for RingCentral call-end events (global, once)
-  window.addEventListener('message', function(e) {
-    if (!e.data || e.data.type !== 'rc-call-end-notify') return;
-    var call = e.data;
-    if (state.lead && state.lead.id) {
-      showCallLogModal({
-        lead_id: state.lead.id,
-        duration_minutes: Math.round((call.duration || 0) / 60),
-        rc_call_id: call.sessionId || ''
-      });
-    }
-  });
-
+  // ── Call via tel: link (opens RingCentral desktop app) ─────
   function showCallDialog(record) {
     if (!record.Client_Phone) { ccToast('No phone number available.', 'error'); return; }
-    ensureRCWidget(function() {
-      var frame = document.getElementById('rc-widget-adapter-frame');
-      if (frame) {
-        frame.contentWindow.postMessage({
-          type: 'rc-adapter-new-call',
-          phoneNumber: record.Client_Phone,
-          toCall: true
-        }, '*');
-        ccToast('Dialing ' + record.Client_Phone + '...', 'info');
-      } else {
-        ccToast('RingCentral widget is loading, please try again.', 'info');
-      }
-    });
+    // Open tel: link — RingCentral desktop app handles the call
+    window.open('tel:' + encodeURIComponent(record.Client_Phone), '_self');
+    ccToast('Opening phone app for ' + escapeHtml(record.Client_Phone) + '...', 'info');
+    // Show call log modal after a short delay so user can log the call
+    setTimeout(function() {
+      showCallLogModal({ lead_id: state.lead.id });
+    }, 1500);
   }
 
   function showCallLogModal(callData) {
