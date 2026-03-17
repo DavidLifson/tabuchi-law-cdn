@@ -770,11 +770,11 @@
     var val = value || '';
     return '<input type="' + type + '" class="cc-info-input" data-field="' + escapeAttr(field) + '" ' +
       'data-original="' + escapeAttr(val) + '" value="' + escapeAttr(val) + '" ' +
-      'placeholder="' + escapeAttr(placeholder) + '">';
+      'placeholder="' + escapeAttr(placeholder) + '" autocomplete="off">';
   }
 
   function renderSelectField(field, value, options) {
-    var html = '<select class="cc-info-input cc-select" data-field="' + escapeAttr(field) + '" data-original="' + escapeAttr(value || '') + '">';
+    var html = '<select class="cc-info-input cc-select" data-field="' + escapeAttr(field) + '" data-original="' + escapeAttr(value || '') + '" autocomplete="off">';
     options.forEach(function(opt) {
       var label = opt || '— Select —';
       html += '<option value="' + escapeAttr(opt) + '"' + (opt === (value || '') ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
@@ -809,7 +809,8 @@
       { label: 'Referral Source', html: editableInput('Referral_Source', l.Referral_Source, 'text', 'Who referred them?') }
     ];
 
-    var html = '<div class="cc-info-section-label">Contact Information</div>';
+    var html = '<form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:none">';
+    html += '<div class="cc-info-section-label">Contact Information</div>';
     html += '<div class="cc-info-grid">';
     contactFields.forEach(function(f) {
       html += '<div class="cc-info-item"><div class="cc-info-label">' + f.label + '</div>' + f.html + '</div>';
@@ -919,6 +920,7 @@
       html += '<div class="cc-info-item"><div class="cc-info-label">' + f.label + '</div>' + valHtml + '</div>';
     });
     html += '</div>';
+    html += '</form>';
 
     el.innerHTML = html;
     bindInfoEdits();
