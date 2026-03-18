@@ -80,8 +80,8 @@
     return API.admin.config.list().then(function(result) {
       var configs = result.configs || result.data || [];
       for (var i = 0; i < configs.length; i++) {
-        if (configs[i].Key === 'rc_client_id' && configs[i].Value) {
-          _clientId = configs[i].Value;
+        if (configs[i].Config_Key === 'rc_client_id' && configs[i].Meta) {
+          _clientId = configs[i].Meta;
           sessionStorage.setItem('cc_rc_client_id', _clientId);
           return init(_clientId);
         }
