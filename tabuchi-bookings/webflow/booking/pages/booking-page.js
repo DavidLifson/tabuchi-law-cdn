@@ -180,7 +180,14 @@
       var indicators = TabuchiAPI.getCachedDayIndicators(staffData.id, meetingTypeData.id, date, date);
       if (date in indicators) {
         el.classList.remove('tb-has-availability', 'tb-no-availability');
-        el.classList.add(indicators[date] ? 'tb-has-availability' : 'tb-no-availability');
+        if (indicators[date]) {
+          el.classList.add('tb-has-availability');
+        } else {
+          el.classList.add('tb-no-availability');
+          // Block unavailable dates — make non-clickable like past dates
+          el.classList.remove('tb-cal-available');
+          el.classList.add('tb-cal-disabled');
+        }
       }
     });
   }
