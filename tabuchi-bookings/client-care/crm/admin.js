@@ -557,6 +557,17 @@
     var fd = state.formEditorData;
     if (!fd) return;
 
+    // Prefetch drip campaigns for enroll_drip automation dropdown
+    if (!state.dripCampaigns.length && !state._dripFetched) {
+      state._dripFetched = true;
+      API.campaigns.list().then(function(r) {
+        state.dripCampaigns = (r.campaigns || [])
+          .filter(function(c) { return (c.type || c.Type || '').toUpperCase() === 'DRIP'; })
+          .sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
+        if (state.formEditorMode === 'edit' || state.formEditorMode === 'create') renderFormEditor();
+      }).catch(function() {});
+    }
+
     var isNew = state.formEditorMode === 'create';
     var title = isNew ? 'New Form' : escapeHtml(fd.name || 'Edit Form');
     var sections = fd.sections || [];
@@ -831,6 +842,23 @@
           html += '</div>';
         }
 
+        if (at.type === 'enroll_drip') {
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Drip Campaign</label>';
+          html += '<select class="cc-input cc-auto-drip-campaign">';
+          html += '<option value="">— Select Campaign —</option>';
+          var dripCamps = state.dripCampaigns || [];
+          dripCamps.forEach(function(c) {
+            var cName = c.Name || c.name || '';
+            var cId = c.id || '';
+            var sel = config.campaign_id === cId ? ' selected' : '';
+            html += '<option value="' + escapeAttr(cId) + '"' + sel + '>' + escapeHtml(cName) + '</option>';
+          });
+          html += '</select>';
+          if (config.campaign_id) {
+            html += '<a href="/crm/campaigns?id=' + escapeAttr(config.campaign_id) + '" target="_blank" style="display:inline-block;margin-top:8px;font-size:13px;color:#2563EB;text-decoration:none;">Configure Campaign Steps &rarr;</a>';
+          }
+        }
+
         html += '</div>'; // end auto config
       }
 
@@ -907,6 +935,10 @@
           if (tdEl) config.due_days = parseInt(tdEl.value, 10) || 1;
           var taEl = configEl.querySelector('.cc-auto-task-assign');
           if (taEl) config.assign_to = taEl.value;
+        }
+        if (autoType === 'enroll_drip' && configEl) {
+          var dcEl = configEl.querySelector('.cc-auto-drip-campaign');
+          if (dcEl) config.campaign_id = dcEl.value;
         }
 
         autos.push({ type: autoType, config: config });

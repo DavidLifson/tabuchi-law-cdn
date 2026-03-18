@@ -116,6 +116,7 @@
     triggerConfig: null,
     stopConditions: [],
     templatesList: [],
+    expandedStepId: null,
     user: API.auth.getUser()
   };
 
@@ -840,39 +841,171 @@
 
   function renderStepsTable() {
     if (!state.steps || state.steps.length === 0) {
-      return '<p class="cc-empty">No steps defined. Add steps to build your campaign sequence.</p>';
+      return '<div style="text-align:center;padding:2rem;color:#64748b;">' +
+        '<p style="font-size:15px;margin:0 0 12px;">No steps yet. Build your email sequence by adding steps below.</p>' +
+        '<p style="font-size:13px;margin:0;color:#94a3b8;">Each step sends an email after a delay you set.</p>' +
+        '</div>';
     }
 
     var sorted = state.steps.slice().sort(function(a, b) {
       return (a.step_number || 0) - (b.step_number || 0);
     });
 
-    var html = '<table class="cc-table cc-steps-table">';
-    html += '<thead><tr><th class="cc-th">#</th><th class="cc-th">Delay</th>';
-    html += '<th class="cc-th">Template</th><th class="cc-th">Condition</th>';
-    html += '<th class="cc-th">Actions</th>';
-    html += '</tr></thead><tbody>';
+    var cumulativeHours = 0;
+    var html = '<div class="cc-step-timeline">';
 
-    sorted.forEach(function(step) {
+    sorted.forEach(function(step, idx) {
       var delayHrs = getStepDelayHours(step);
-      html += '<tr><td>' + (step.step_number || '') + '</td>';
-      html += '<td>' + formatDelay(delayHrs) + '</td>';
-      html += '<td class="cc-step-template-cell">' + escapeHtml(getTemplateName(step)) + '</td>';
-      html += '<td>' + escapeHtml(step.condition || 'NONE') + '</td>';
-      html += '<td>';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-step-btn" data-step-id="' + step.id + '" data-step-json="' + escapeAttr(JSON.stringify(step)) + '">Edit</button> ';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-danger cc-delete-step-btn" data-step-id="' + step.id + '">Delete</button>';
-      html += '</td>';
-      html += '</tr>';
+      cumulativeHours += delayHrs;
+      var tplName = getTemplateName(step);
+      var tplObj = findTemplateForStep(step);
+      var subject = tplObj ? (tplObj.Subject || tplObj.subject || '') : '';
+      var bodyPreview = tplObj ? stripHtml(tplObj.Body_HTML || tplObj.body_html || '').substring(0, 120) : '';
+      var expanded = state.expandedStepId === step.id;
+      var cumulativeLabel = cumulativeHours === 0 ? 'Immediately' : formatDelay(cumulativeHours) + ' after enrollment';
+
+      // Timeline connector
+      if (idx > 0) {
+        html += '<div class="cc-tl-connector" style="display:flex;align-items:center;padding:4px 0 4px 18px;color:#94a3b8;">';
+        html += '<div style="width:2px;height:24px;background:#cbd5e1;margin-right:12px;"></div>';
+        html += '<span style="font-size:12px;font-style:italic;">wait ' + formatDelay(delayHrs) + '</span>';
+        html += '</div>';
+      }
+
+      // Step card
+      html += '<div class="cc-step-card" data-step-id="' + escapeAttr(step.id) + '" style="display:flex;gap:12px;align-items:flex-start;">';
+
+      // Timeline dot
+      html += '<div style="display:flex;flex-direction:column;align-items:center;min-width:38px;padding-top:14px;">';
+      html += '<div style="width:28px;height:28px;border-radius:50%;background:#2563EB;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;">' + (step.step_number || (idx + 1)) + '</div>';
+      html += '</div>';
+
+      // Card body
+      html += '<div style="flex:1;border:1px solid ' + (expanded ? '#2563EB' : '#e2e8f0') + ';border-radius:8px;background:#fff;overflow:hidden;transition:border-color 0.2s;">';
+
+      // Collapsed header — always visible
+      html += '<div class="cc-step-header" data-step-id="' + escapeAttr(step.id) + '" style="padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;" title="Click to expand">';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+      html += '<span style="background:#e0e7ff;color:#3730a3;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;">' + escapeHtml(cumulativeLabel) + '</span>';
+      if (step.condition && step.condition !== 'NONE') {
+        html += '<span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:500;padding:2px 8px;border-radius:12px;">if ' + escapeHtml(step.condition.toLowerCase().replace(/_/g, ' ')) + '</span>';
+      }
+      html += '</div>';
+      html += '<div style="font-weight:500;margin-top:4px;color:#1e293b;">' + escapeHtml(subject || tplName) + '</div>';
+      if (bodyPreview && !expanded) {
+        html += '<div style="font-size:12px;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(bodyPreview) + '</div>';
+      }
+      html += '</div>';
+      html += '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">';
+      html += '<span style="font-size:18px;color:#94a3b8;transition:transform 0.2s;' + (expanded ? 'transform:rotate(180deg)' : '') + '">&#9662;</span>';
+      html += '</div>';
+      html += '</div>';
+
+      // Expanded editor
+      if (expanded) {
+        html += '<div class="cc-step-editor" style="padding:0 16px 16px;border-top:1px solid #f1f5f9;">';
+
+        // Delay
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;">';
+        html += '<div>';
+        html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Delay After Previous Step</label>';
+        var unit = (delayHrs > 0 && delayHrs % 24 === 0) ? 'days' : 'hours';
+        var delayVal = unit === 'days' ? delayHrs / 24 : delayHrs;
+        html += '<div style="display:flex;gap:6px;">';
+        html += '<input type="number" class="cc-input cc-step-delay-val" value="' + delayVal + '" min="0" style="flex:1;">';
+        html += '<select class="cc-input cc-step-delay-unit" style="width:90px;">';
+        html += '<option value="hours"' + (unit === 'hours' ? ' selected' : '') + '>Hours</option>';
+        html += '<option value="days"' + (unit === 'days' ? ' selected' : '') + '>Days</option>';
+        html += '</select></div>';
+        html += '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">';
+        [0, 1, 24, 48, 72, 168].forEach(function(h) {
+          var lbl = h === 0 ? 'Immediate' : h < 24 ? h + 'h' : (h / 24) + 'd';
+          var sel = delayHrs === h ? 'background:#2563EB;color:#fff;border-color:#2563EB;' : '';
+          html += '<button type="button" class="cc-btn cc-btn-sm cc-btn-outline cc-step-quick-delay" data-hours="' + h + '" style="font-size:11px;padding:2px 8px;' + sel + '">' + lbl + '</button>';
+        });
+        html += '</div>';
+        html += '</div>';
+
+        // Condition
+        html += '<div>';
+        html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Condition</label>';
+        html += '<select class="cc-input cc-step-condition">';
+        ['NONE', 'OPENED', 'CLICKED', 'NO_RESPONSE'].forEach(function(cond) {
+          html += '<option value="' + cond + '"' + ((step.condition || 'NONE') === cond ? ' selected' : '') + '>' + cond.replace(/_/g, ' ') + '</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+
+        // Template selector
+        html += '<div>';
+        html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Template</label>';
+        var tid = step.template_id || step.Template_ID;
+        if (Array.isArray(tid)) tid = tid[0];
+        html += '<select class="cc-input cc-step-template-select">';
+        html += '<option value="">— None (write inline) —</option>';
+        (state.templatesList || []).forEach(function(t) {
+          var tId = t.id;
+          var tN = t.name || t.Name || tId;
+          var tCat = t.category || t.Category || '';
+          if (tCat.indexOf('Confirmation') === 0) return;
+          var label = tCat ? tN + ' (' + tCat + ')' : tN;
+          html += '<option value="' + escapeAttr(tId) + '"' + (tid === tId ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+        html += '</div>';
+
+        // Subject
+        html += '<div style="margin-top:12px;">';
+        html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Subject Line</label>';
+        html += '<input type="text" class="cc-input cc-step-subject" value="' + escapeAttr(subject) + '" placeholder="Email subject line...">';
+        html += '</div>';
+
+        // Body
+        html += '<div style="margin-top:12px;">';
+        html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Email Body <span style="color:#94a3b8;font-weight:400;">(HTML — use {{client_name}}, {{unsubscribe_url}} for merge tags)</span></label>';
+        html += '<textarea class="cc-input cc-step-body" style="min-height:160px;font-family:monospace;font-size:13px;line-height:1.5;resize:vertical;" placeholder="Write your email content here...">' + escapeHtml(tplObj ? (tplObj.Body_HTML || tplObj.body_html || '') : '') + '</textarea>';
+        html += '</div>';
+
+        // Action buttons
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9;">';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger cc-delete-step-btn" data-step-id="' + escapeAttr(step.id) + '">Delete Step</button>';
+        html += '<div style="display:flex;gap:8px;">';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-step-cancel-btn">Cancel</button>';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-step-save-btn" data-step-id="' + escapeAttr(step.id) + '">Save Step</button>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '</div>'; // end editor
+      }
+
+      html += '</div>'; // end card body
+      html += '</div>'; // end step card
     });
 
-    html += '</tbody></table>';
+    html += '</div>'; // end timeline
 
     var totalHours = sorted.reduce(function(sum, s) { return sum + getStepDelayHours(s); }, 0);
-    html += '<div class="cc-steps-summary">Total: ' + sorted.length + ' step' + (sorted.length !== 1 ? 's' : '') +
-      ' — ' + formatDelay(totalHours) + '</div>';
+    html += '<div class="cc-steps-summary" style="margin-top:12px;padding:8px 12px;background:#f8fafc;border-radius:6px;font-size:13px;color:#475569;">';
+    html += 'Total: <strong>' + sorted.length + ' step' + (sorted.length !== 1 ? 's' : '') + '</strong>';
+    html += ' &mdash; Full sequence takes <strong>' + formatDelay(totalHours) + '</strong>';
+    html += '</div>';
 
     return html;
+  }
+
+  function findTemplateForStep(step) {
+    var tid = step.template_id || step.Template_ID;
+    if (Array.isArray(tid)) tid = tid[0];
+    if (!tid || !state.templatesList.length) return null;
+    return state.templatesList.find(function(t) { return t.id === tid; }) || null;
+  }
+
+  function stripHtml(html) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
   }
 
   // ─── Editor Tab ────────────────────────────────────────────
@@ -1428,20 +1561,79 @@
     var loadRepBtn = el.querySelector('.cc-load-report-btn');
     if (loadRepBtn) loadRepBtn.addEventListener('click', handleLoadReport);
 
-    // Steps (drip)
+    // Steps (drip) — timeline interactions
     var addStepBtn = el.querySelector('.cc-add-step-btn');
     if (addStepBtn) addStepBtn.addEventListener('click', showAddStepModal);
 
-    el.querySelectorAll('.cc-delete-step-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() { handleDeleteStep(btn.dataset.stepId); });
+    // Expand/collapse step cards
+    el.querySelectorAll('.cc-step-header').forEach(function(hdr) {
+      hdr.addEventListener('click', function() {
+        var sid = hdr.dataset.stepId;
+        if (state.expandedStepId === sid) {
+          state.expandedStepId = null;
+          renderDetail();
+          return;
+        }
+        state.expandedStepId = sid;
+        // Fetch template content if needed
+        var step = state.steps.find(function(s) { return s.id === sid; });
+        var tpl = step ? findTemplateForStep(step) : null;
+        var tid = step ? (step.template_id || step.Template_ID) : null;
+        if (Array.isArray(tid)) tid = tid[0];
+        if (tid && tpl && !tpl.Body_HTML && !tpl.body_html && !tpl._fetched) {
+          tpl._fetched = true;
+          API.campaignTemplates.get(tid).then(function(res) {
+            if (res.success && res.template) {
+              tpl.Body_HTML = res.template.body_html || res.template.Body_HTML || '';
+              tpl.body_html = tpl.Body_HTML;
+              tpl.Subject = res.template.subject || res.template.Subject || tpl.Subject || '';
+              tpl.subject = tpl.Subject;
+            }
+            renderDetail();
+          }).catch(function() { renderDetail(); });
+        }
+        renderDetail();
+      });
     });
 
-    el.querySelectorAll('.cc-edit-step-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        try {
-          var step = JSON.parse(btn.dataset.stepJson);
-          showEditStepModal(step);
-        } catch (e) { showToast('Error loading step data.', 'error'); }
+    // Delete step
+    el.querySelectorAll('.cc-delete-step-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        handleDeleteStep(btn.dataset.stepId);
+      });
+    });
+
+    // Cancel inline edit
+    el.querySelectorAll('.cc-step-cancel-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        state.expandedStepId = null;
+        renderDetail();
+      });
+    });
+
+    // Save inline step
+    el.querySelectorAll('.cc-step-save-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        handleSaveInlineStep(btn.dataset.stepId);
+      });
+    });
+
+    // Quick delay buttons in expanded step
+    el.querySelectorAll('.cc-step-quick-delay').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var h = parseInt(btn.dataset.hours, 10);
+        var card = btn.closest('.cc-step-card');
+        if (!card) return;
+        var valInput = card.querySelector('.cc-step-delay-val');
+        var unitSelect = card.querySelector('.cc-step-delay-unit');
+        if (valInput && unitSelect) {
+          if (h >= 24 && h % 24 === 0) { unitSelect.value = 'days'; valInput.value = h / 24; }
+          else { unitSelect.value = 'hours'; valInput.value = h; }
+        }
       });
     });
 
@@ -2243,6 +2435,95 @@
       }
     } catch (err) {
       showToast(err.error || 'Error updating step.', 'error');
+    }
+  }
+
+  // ─── Inline Step Save ──────────────────────────────────
+  async function handleSaveInlineStep(stepId) {
+    var el = $el('cc-campaign-detail');
+    if (!el) return;
+    var card = el.querySelector('.cc-step-card[data-step-id="' + stepId + '"]');
+    if (!card) return;
+
+    var saveBtn = card.querySelector('.cc-step-save-btn');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+    // Read form values
+    var delayVal = parseInt(card.querySelector('.cc-step-delay-val').value, 10) || 0;
+    var delayUnit = card.querySelector('.cc-step-delay-unit').value;
+    var delayHours = delayUnit === 'days' ? delayVal * 24 : delayVal;
+    var condition = card.querySelector('.cc-step-condition').value;
+    var templateSelect = card.querySelector('.cc-step-template-select').value;
+    var subject = card.querySelector('.cc-step-subject').value.trim();
+    var bodyHtml = card.querySelector('.cc-step-body').value;
+
+    // Find the existing step
+    var step = state.steps.find(function(s) { return s.id === stepId; });
+    if (!step) { showToast('Step not found.', 'error'); return; }
+
+    try {
+      var templateId = templateSelect;
+
+      // If subject or body was edited, create or update the template
+      if (subject || bodyHtml) {
+        var existingTpl = findTemplateForStep(step);
+        var campName = state.activeCampaign ? (state.activeCampaign.name || state.activeCampaign.Name || '') : '';
+        var tplName = campName + ' - Step ' + (step.step_number || '');
+
+        if (existingTpl && templateId === existingTpl.id) {
+          // Update existing template
+          await API.campaignTemplates.update(existingTpl.id, {
+            subject: subject,
+            body_html: bodyHtml
+          });
+          // Update local cache
+          existingTpl.Subject = subject;
+          existingTpl.subject = subject;
+          existingTpl.Body_HTML = bodyHtml;
+          existingTpl.body_html = bodyHtml;
+        } else if (!templateId) {
+          // Create new template
+          var tplResult = await API.campaignTemplates.create({
+            name: tplName,
+            category: 'Email Marketing',
+            channel: 'EMAIL',
+            subject: subject,
+            body_html: bodyHtml,
+            is_active: true
+          });
+          if (tplResult.success && tplResult.id) {
+            templateId = tplResult.id;
+            // Add to local cache
+            state.templatesList.push({
+              id: templateId, name: tplName, Name: tplName,
+              Subject: subject, subject: subject,
+              Body_HTML: bodyHtml, body_html: bodyHtml,
+              category: 'Email Marketing', Category: 'Email Marketing'
+            });
+          } else {
+            showToast(tplResult.error || 'Failed to create template.', 'error');
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Step'; }
+            return;
+          }
+        }
+      }
+
+      // Update the step
+      var fields = { delay_hours: delayHours, condition: condition };
+      if (templateId) fields.template_id = templateId;
+
+      var result = await API.campaigns.updateStep(stepId, fields);
+      if (result.success) {
+        showToast('Step saved.', 'success');
+        state.expandedStepId = null;
+        fetchDetail(state.activeCampaign.id);
+      } else {
+        showToast(result.error || 'Failed to save step.', 'error');
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Step'; }
+      }
+    } catch (err) {
+      showToast(err.error || 'Error saving step.', 'error');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Step'; }
     }
   }
 
