@@ -60,7 +60,15 @@
       border-radius: 50%; position: absolute; bottom: 3px;
       left: 50%; transform: translateX(-50%);
     }
-    .tb-cal-day.tb-no-availability { opacity: 0.4; }
+    .tb-cal-day.tb-no-availability {
+      opacity: 0.45; position: relative;
+    }
+    .tb-cal-day.tb-no-availability::before {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      width: 60%; height: 1.5px; background: #ef4444;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      pointer-events: none;
+    }
   `;
   document.head.appendChild(style);
 

@@ -96,7 +96,7 @@
 
 .tb-no-slots {
   text-align: center; color: var(--tb-text-light); padding: 2rem;
-  font-style: italic;
+  font-style: italic; font-size: 1.15rem;
 }
 
 /* ─── Meeting Type Info Card ─────────────────────────────────── */
