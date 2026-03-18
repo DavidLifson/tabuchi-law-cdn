@@ -196,6 +196,15 @@
         state.purchases = result.purchases || [];
         state.conversion = result.conversion || { converted: false };
         if (state.activeTab === 'history') renderTabContent();
+        // Self-heal: if Last_Contacted_At is empty but activities exist, backfill it
+        if (!state.contact.Last_Contacted_At && state.activities.length > 0) {
+          var latest = state.activities[0].Occurred_At || state.activities[0].Created_At;
+          if (latest) {
+            state.contact.Last_Contacted_At = latest;
+            if (state.activeTab === 'overview') renderTabContent();
+            API.leads.update(contactId, { Last_Contacted_At: latest }).catch(function() {});
+          }
+        }
       }
     } catch (err) { /* silently fail */ }
   }

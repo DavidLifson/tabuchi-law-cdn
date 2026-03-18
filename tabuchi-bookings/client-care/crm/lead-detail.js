@@ -168,6 +168,16 @@
       var result = await API.activities.list(leadId);
       state.activities = (result.success && result.activities) || [];
       renderActivities();
+      // Self-heal: if Last_Contacted_At is empty but activities exist, backfill it
+      if (!state.lead.Last_Contacted_At && state.activities.length > 0) {
+        var latest = state.activities[0].Occurred_At || state.activities[0].Created_At;
+        if (latest) {
+          state.lead.Last_Contacted_At = latest;
+          renderInfo(); // re-render info panel with updated value
+          // Background patch — fire and forget
+          API.leads.update(leadId, { Last_Contacted_At: latest }).catch(function() {});
+        }
+      }
     } catch (err) { /* silently fail */ }
   }
 
