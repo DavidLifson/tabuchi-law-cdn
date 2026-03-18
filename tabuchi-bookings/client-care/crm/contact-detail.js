@@ -60,18 +60,18 @@
 
   var API = ClientCareAPI;
 
-  // Referral Sources — loaded from config API
-  var REFERRAL_SOURCE_OPTIONS = [''];
+  // Lead Sources — loaded from config API
+  var LEAD_SOURCE_OPTIONS = [''];
 
-  async function loadReferralSources() {
+  async function loadLeadSources() {
     try {
-      var result = await API.admin.config.list('referral_source');
+      var result = await API.admin.config.list('lead_source');
       var items = (result.data || []).filter(function(i) { return i.Is_Active !== false; }).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); });
-      REFERRAL_SOURCE_OPTIONS = [''];
-      items.forEach(function(i) { REFERRAL_SOURCE_OPTIONS.push(i.Label || i.Value); });
-      REFERRAL_SOURCE_OPTIONS.push('Other');
+      LEAD_SOURCE_OPTIONS = [''];
+      items.forEach(function(i) { LEAD_SOURCE_OPTIONS.push(i.Label || i.Value); });
+      LEAD_SOURCE_OPTIONS.push('Other');
     } catch (e) {
-      REFERRAL_SOURCE_OPTIONS = ['', 'Other'];
+      LEAD_SOURCE_OPTIONS = ['', 'Other'];
     }
   }
 
@@ -394,7 +394,7 @@
       { label: 'Spouse Name', value: c.Spouse_Name },
       { label: 'Marital Status', value: c.Marital_Status },
       { label: 'Preferred Language', value: c.Preferred_Language },
-      { label: 'Referral Source', value: c.Referral_Source },
+      { label: 'Referred By', value: c.Referral_Source },
       { label: 'Practice Area', value: formatPracticeArea(c.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(c.Service_Package) },
       { label: 'Lead Source', value: c.Source },
@@ -694,20 +694,8 @@
       html += '<option value="' + s + '"' + (c.Preferred_Language === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
     });
     html += '</select></div>';
-    // Referral Source dropdown with "Other" text input
-    var refVal = c.Referral_Source || '';
-    var refIsOther = refVal && REFERRAL_SOURCE_OPTIONS.indexOf(refVal) === -1;
-    var refSelectVal = refIsOther ? 'Other' : refVal;
-    html += '<div class="cc-edit-field"><label>Referral Source</label>' +
-      '<select class="cc-input" id="cc-edit-referral">';
-    REFERRAL_SOURCE_OPTIONS.forEach(function(opt) {
-      var lbl = opt || '— Select —';
-      html += '<option value="' + escapeAttr(opt) + '"' + (opt === refSelectVal ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
-    });
-    html += '</select>' +
-      '<input class="cc-input" id="cc-edit-referral-other" placeholder="Specify referral source" ' +
-      'value="' + escapeAttr(refIsOther ? refVal : '') + '" style="margin-top:6px;display:' + (refIsOther ? 'block' : 'none') + '" />' +
-      '</div>';
+    html += '<div class="cc-edit-field"><label>Referred By</label>' +
+      '<input class="cc-input" id="cc-edit-referral" value="' + escapeAttr(c.Referral_Source || '') + '" placeholder="Who referred them?" /></div>';
     html += '</div>';
 
     // ── CRM Pipeline ──
@@ -746,8 +734,20 @@
     var currentSPs = Array.isArray(c.Service_Package) ? c.Service_Package : (c.Service_Package ? [c.Service_Package] : []);
     html += buildMultiSelect('cc-ms-sp', 'Service Package', spOptions, currentSPs, { placeholder: 'Select service packages...' });
 
+    // Lead Source dropdown with Other
+    var srcVal = c.Source || '';
+    var srcIsOther = srcVal && LEAD_SOURCE_OPTIONS.indexOf(srcVal) === -1;
+    var srcSelectVal = srcIsOther ? 'Other' : srcVal;
     html += '<div class="cc-edit-field"><label>Lead Source</label>' +
-      '<input class="cc-input" id="cc-edit-source" value="' + escapeAttr(c.Source || '') + '" /></div>';
+      '<select class="cc-input" id="cc-edit-source">';
+    LEAD_SOURCE_OPTIONS.forEach(function(opt) {
+      var lbl = opt || '— Select —';
+      html += '<option value="' + escapeAttr(opt) + '"' + (opt === srcSelectVal ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+    });
+    html += '</select>' +
+      '<input class="cc-input" id="cc-edit-source-other" placeholder="Specify lead source" ' +
+      'value="' + escapeAttr(srcIsOther ? srcVal : '') + '" style="margin-top:6px;display:' + (srcIsOther ? 'block' : 'none') + '" />' +
+      '</div>';
     html += '<div class="cc-edit-field"><label>Lead Stage</label>' +
       '<select class="cc-input" id="cc-edit-stage">' +
       '<option value="">— Select —</option>';
@@ -887,6 +887,7 @@
     container.innerHTML = html;
 
     // Bind forms and buttons after innerHTML is set
+    bindTimelineExpand();
     bindTaskCompleteButtons();
     bindLogActivityForm();
     bindAddTaskForm();
@@ -955,14 +956,22 @@
 
     var html = '<div class="cc-timeline">';
     items.forEach(function(item) {
-      html += '<div class="cc-timeline-item cc-timeline-' + item.kind + '">';
+      // Check if this item has expandable details
+      var hasDetails = item.body || item.duration || item.outcome || item.loggedBy ||
+        (item.kind === 'purchase' && item.amountOutstanding && item.amountOutstanding > 0);
+
+      html += '<div class="cc-timeline-item cc-timeline-' + item.kind + (hasDetails ? ' cc-timeline-clickable' : '') + '"' +
+        (hasDetails ? ' style="cursor:pointer;" tabindex="0" role="button" aria-expanded="false"' : '') + '>';
       html += '<div class="cc-timeline-icon">' + item.icon + '</div>';
       html += '<div class="cc-timeline-content">';
       html += '<div class="cc-timeline-header">';
       html += '<span class="cc-timeline-type">' + escapeHtml(item.label) + '</span>';
       html += '<span class="cc-timeline-time">' + escapeHtml(API.util.formatRelativeTime(item.time)) + '</span>';
+      if (hasDetails) html += '<span class="cc-timeline-chevron" style="margin-left:auto;font-size:0.7rem;color:#9CA3AF;transition:transform .2s;">&#9660;</span>';
       html += '</div>';
       html += '<div class="cc-timeline-subject">' + escapeHtml(item.subject) + '</div>';
+      // Collapsible detail section
+      html += '<div class="cc-timeline-details" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #E5E7EB;">';
       if (item.body) html += '<div class="cc-timeline-body">' + escapeHtml(item.body) + '</div>';
       if (item.duration) html += '<div class="cc-timeline-meta">' + item.duration + ' min</div>';
       // Campaign send status badges
@@ -984,6 +993,7 @@
         if (item.outcome) html += '<div class="cc-timeline-meta">Outcome: ' + escapeHtml(item.outcome) + '</div>';
       }
       if (item.loggedBy) html += '<div class="cc-timeline-meta">By: ' + escapeHtml(item.loggedBy) + '</div>';
+      html += '</div>'; // end cc-timeline-details
       html += '</div></div>';
     });
     html += '</div>';
@@ -1193,26 +1203,27 @@
     var saveBtn = document.getElementById('cc-edit-save');
     if (!saveBtn) return;
 
+    // Bind lead source Other toggle
+    var srcSel = document.getElementById('cc-edit-source');
+    var srcOth = document.getElementById('cc-edit-source-other');
+    if (srcSel && srcOth) {
+      srcSel.addEventListener('change', function() {
+        if (srcSel.value === 'Other') {
+          srcOth.style.display = 'block';
+          srcOth.focus();
+          srcOth.value = '';
+        } else {
+          srcOth.style.display = 'none';
+          srcOth.value = '';
+        }
+      });
+    }
+
     // Initialize multi-select dropdowns
     bindMultiSelect('cc-ms-pa', { placeholder: 'Select practice areas...' });
     bindMultiSelect('cc-ms-sp', { placeholder: 'Select service packages...' });
     bindMultiSelect('cc-ms-tags', { placeholder: 'Select or create tags...', allowCreate: true });
 
-    // Bind referral source Other toggle
-    var refSel = document.getElementById('cc-edit-referral');
-    var refOth = document.getElementById('cc-edit-referral-other');
-    if (refSel && refOth) {
-      refSel.addEventListener('change', function() {
-        if (refSel.value === 'Other') {
-          refOth.style.display = 'block';
-          refOth.focus();
-          refOth.value = '';
-        } else {
-          refOth.style.display = 'none';
-          refOth.value = '';
-        }
-      });
-    }
 
     // Cancel button
     var cancelBtn = document.getElementById('cc-edit-cancel-btn');
@@ -1245,10 +1256,10 @@
           Spouse_Name: document.getElementById('cc-edit-spouse').value.trim(),
           Marital_Status: document.getElementById('cc-edit-marital').value,
           Preferred_Language: document.getElementById('cc-edit-language').value,
-          Referral_Source: (function() { var sel = document.getElementById('cc-edit-referral'); var oth = document.getElementById('cc-edit-referral-other'); return sel && sel.value === 'Other' && oth ? oth.value.trim() : (sel ? sel.value.trim() : ''); })(),
+          Referral_Source: document.getElementById('cc-edit-referral').value.trim(),
           Practice_Area: (function() { var w = document.querySelector('[data-ms-id="cc-ms-pa"]'); return w && w._getValues ? w._getValues() : []; })(),
           Service_Package: (function() { var w = document.querySelector('[data-ms-id="cc-ms-sp"]'); return w && w._getValues ? w._getValues() : []; })(),
-          Source: document.getElementById('cc-edit-source').value.trim(),
+          Source: (function() { var sel = document.getElementById('cc-edit-source'); var oth = document.getElementById('cc-edit-source-other'); return sel && sel.value === 'Other' && oth ? oth.value.trim() : (sel ? sel.value.trim() : ''); })(),
           Lead_Stage: document.getElementById('cc-edit-stage').value,
           Disposition: document.getElementById('cc-edit-disposition').value,
           Priority: document.getElementById('cc-edit-priority').value,
@@ -1337,6 +1348,20 @@
   }
 
   // ─── Task Complete Buttons ──────────────────────────────────
+  function bindTimelineExpand() {
+    document.querySelectorAll('.cc-timeline-clickable').forEach(function(item) {
+      item.addEventListener('click', function() {
+        var details = item.querySelector('.cc-timeline-details');
+        var chevron = item.querySelector('.cc-timeline-chevron');
+        if (!details) return;
+        var isOpen = details.style.display !== 'none';
+        details.style.display = isOpen ? 'none' : 'block';
+        item.setAttribute('aria-expanded', String(!isOpen));
+        if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+      });
+    });
+  }
+
   function bindTaskCompleteButtons() {
     document.querySelectorAll('.cc-task-complete-btn').forEach(function(btn) {
       btn.addEventListener('click', async function(e) {
@@ -2044,7 +2069,7 @@
     if (user && userNameEl) userNameEl.textContent = user.name || user.email;
 
     bindBackButton();
-    loadReferralSources();
+    loadLeadSources();
     loadData();
   }
 

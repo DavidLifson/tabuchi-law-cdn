@@ -51,14 +51,13 @@
     { key: 'dispositions', label: 'Dispositions' },
     { key: 'activity-types', label: 'Activity Types' },
     { key: 'entity-types', label: 'Entity Types' },
-    { key: 'referral-sources', label: 'Referral Sources' },
     { key: 'tags', label: 'Tags' },
     { key: 'price-book', label: 'Price Books' },
     { key: 'assignment-rules', label: 'Assignment Rules' }
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
-  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'referral-sources', 'tags'];
+  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'tags'];
 
   // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
   var HIDDEN_TABS = ['drip-enrollment'];
@@ -74,7 +73,6 @@
     ],
     'activity_type': [],
     'entity_type': [],
-    'referral_source': [],
     'tag': [
       { key: 'category', label: 'Category', type: 'select', choices: ['Client Type', 'Marketing', 'Case Status', 'Practice Area', 'Internal'] },
       { key: 'color', label: 'Color', type: 'color' }
@@ -82,7 +80,7 @@
   };
 
   function tabToConfigKey(tabKey) {
-    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'referral-sources': 'referral_source', 'tags': 'tag' };
+    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'tags': 'tag' };
     return map[tabKey] || tabKey;
   }
 
@@ -287,7 +285,6 @@
       case 'dispositions':
       case 'activity-types':
       case 'entity-types':
-      case 'referral-sources':
         renderConfigTab(tabToConfigKey(state.activeTab), TABS.find(function(t) { return t.key === state.activeTab; }).label);
         break;
     }

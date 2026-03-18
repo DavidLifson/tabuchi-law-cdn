@@ -885,43 +885,42 @@
 
   var LANGUAGE_OPTIONS = ['', 'English', 'French', 'Mandarin', 'Cantonese', 'Hindi', 'Italian', 'Other'];
 
-  // Referral Sources — loaded from config API
-  var REFERRAL_SOURCE_OPTIONS = [''];
+  // Lead Sources — loaded from config API (for Lead Source dropdown)
+  var LEAD_SOURCE_OPTIONS = [''];
 
-  async function loadReferralSources() {
+  async function loadLeadSources() {
     try {
-      var result = await API.admin.config.list('referral_source');
+      var result = await API.admin.config.list('lead_source');
       var items = (result.data || []).filter(function(i) { return i.Is_Active !== false; }).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); });
-      REFERRAL_SOURCE_OPTIONS = [''];
-      items.forEach(function(i) { REFERRAL_SOURCE_OPTIONS.push(i.Label || i.Value); });
-      REFERRAL_SOURCE_OPTIONS.push('Other');
+      LEAD_SOURCE_OPTIONS = [''];
+      items.forEach(function(i) { LEAD_SOURCE_OPTIONS.push(i.Label || i.Value); });
+      LEAD_SOURCE_OPTIONS.push('Other');
     } catch (e) {
-      // Fallback: keep empty + Other
-      REFERRAL_SOURCE_OPTIONS = ['', 'Other'];
+      LEAD_SOURCE_OPTIONS = ['', 'Other'];
     }
   }
 
-  function renderReferralSourceField(l) {
-    var val = l.Referral_Source || '';
-    var isOther = val && REFERRAL_SOURCE_OPTIONS.indexOf(val) === -1;
+  function renderLeadSourceField(l) {
+    var val = l.Source || '';
+    var isOther = val && LEAD_SOURCE_OPTIONS.indexOf(val) === -1;
     var selectVal = isOther ? 'Other' : val;
-    var html = '<div class="cc-ref-wrap">';
-    html += '<select class="cc-info-input cc-select" data-field="Referral_Source" data-original="' + escapeAttr(val) + '" id="cc-ref-select" autocomplete="off">';
-    REFERRAL_SOURCE_OPTIONS.forEach(function(opt) {
+    var html = '<div class="cc-leadsrc-wrap">';
+    html += '<select class="cc-info-input cc-select" data-field="Source" data-original="' + escapeAttr(val) + '" id="cc-leadsrc-select" autocomplete="off">';
+    LEAD_SOURCE_OPTIONS.forEach(function(opt) {
       var label = opt || '— Select —';
       html += '<option value="' + escapeAttr(opt) + '"' + (opt === selectVal ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
     });
     html += '</select>';
-    html += '<input type="text" class="cc-info-input" id="cc-ref-other" data-field="Referral_Source" ' +
-      'placeholder="Specify referral source" value="' + escapeAttr(isOther ? val : '') + '" ' +
+    html += '<input type="text" class="cc-info-input" id="cc-leadsrc-other" data-field="Source" ' +
+      'placeholder="Specify lead source" value="' + escapeAttr(isOther ? val : '') + '" ' +
       'autocomplete="off" style="margin-top:6px;display:' + (isOther ? 'block' : 'none') + '">';
     html += '</div>';
     return html;
   }
 
-  function bindReferralSourceField() {
-    var sel = document.getElementById('cc-ref-select');
-    var other = document.getElementById('cc-ref-other');
+  function bindLeadSourceField() {
+    var sel = document.getElementById('cc-leadsrc-select');
+    var other = document.getElementById('cc-leadsrc-other');
     if (!sel || !other) return;
     sel.addEventListener('change', function() {
       if (sel.value === 'Other') {
@@ -932,7 +931,6 @@
         other.style.display = 'none';
         other.value = '';
       }
-      // Mark dirty
       sel.classList.add('cc-field-dirty');
       var saveBar = document.getElementById('cc-info-save-bar');
       if (saveBar) saveBar.style.display = '';
@@ -1008,7 +1006,7 @@
       { label: 'Spouse Name', html: editableInput('Spouse_Name', l.Spouse_Name, 'text', 'Enter spouse name') },
       { label: 'Marital Status', html: renderSelectField('Marital_Status', l.Marital_Status, ['', 'Single', 'Married', 'Common-Law', 'Divorced', 'Widowed', 'Separated']) },
       { label: 'Preferred Language', html: renderLanguageField(l) },
-      { label: 'Referral Source', html: renderReferralSourceField(l) }
+      { label: 'Referred By', html: editableInput('Referral_Source', l.Referral_Source, 'text', 'Who referred them?') }
     ];
 
     var html = '<form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:none">';
@@ -1065,9 +1063,9 @@
         html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-sp-check" value="' + sp.key + '"> ' + escapeHtml(sp.label) + '</label>';
       });
       html += '</div></div>';
-      // Lead Source dropdown
+      // Lead Source dropdown (from config)
       html += '<div class="cc-info-item"><div class="cc-info-label">Lead Source</div>';
-      html += renderSelectField('Source', '', ['WEBFORM', 'REFERRAL', 'COLD_CALL', 'WEBSITE', 'SOCIAL_MEDIA', 'ADVERTISING', 'EVENT', 'OTHER']);
+      html += renderLeadSourceField({ Source: '' });
       html += '</div>';
       // Est. Closing Date
       html += '<div class="cc-info-item"><div class="cc-info-label">Est. Closing Date</div>';
@@ -1085,7 +1083,7 @@
       el.innerHTML = html;
       bindInfoEdits();
     bindLanguageField();
-    bindReferralSourceField();
+    bindLeadSourceField();
       // Bind services selector button
       var svcBtn = document.getElementById('cc-new-lead-svc-btn');
       if (svcBtn) svcBtn.addEventListener('click', function() { showNewLeadServicesModal(); });
@@ -1096,7 +1094,7 @@
     var detailFields = [
       { label: 'Practice Area', value: formatPracticeArea(l.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
-      { label: 'Lead Source', value: l.Source || '—' },
+      { label: 'Lead Source', html: renderLeadSourceField(l) },
       { label: 'Owner', value: l.Lead_Owner_Name || '—' },
       { label: 'Responsible Lawyer', value: l.Responsible_Lawyer_Name || '—' },
       { label: 'Created', value: API.util.formatDateTime(l.Created_At) },
@@ -1129,7 +1127,7 @@
     el.innerHTML = html;
     bindInfoEdits();
     bindLanguageField();
-    bindReferralSourceField();
+    bindLeadSourceField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────
@@ -1145,21 +1143,41 @@
     var html = '<div class="cc-timeline">';
     state.activities.forEach(function(a) {
       var icon = getActivityIcon(a.Type);
-      html += '<div class="cc-timeline-item">';
+      var hasDetails = a.Body || a.Duration_Minutes || a.Outcome;
+
+      html += '<div class="cc-timeline-item' + (hasDetails ? ' cc-timeline-clickable' : '') + '"' +
+        (hasDetails ? ' style="cursor:pointer;" tabindex="0" role="button" aria-expanded="false"' : '') + '>';
       html += '<div class="cc-timeline-icon">' + icon + '</div>';
       html += '<div class="cc-timeline-content">';
       html += '<div class="cc-timeline-header">';
       html += '<span class="cc-timeline-type">' + escapeHtml(a.Type || '') + '</span>';
       html += '<span class="cc-timeline-time">' + escapeHtml(API.util.formatRelativeTime(a.Occurred_At)) + '</span>';
+      if (hasDetails) html += '<span class="cc-timeline-chevron" style="margin-left:auto;font-size:0.7rem;color:#9CA3AF;transition:transform .2s;">&#9660;</span>';
       html += '</div>';
       html += '<div class="cc-timeline-subject">' + escapeHtml(a.Subject || '') + '</div>';
+      // Collapsible detail section
+      html += '<div class="cc-timeline-details" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #E5E7EB;">';
       if (a.Body) html += '<div class="cc-timeline-body">' + escapeHtml(a.Body) + '</div>';
       if (a.Duration_Minutes) html += '<div class="cc-timeline-meta">' + escapeHtml(String(a.Duration_Minutes)) + ' min</div>';
       if (a.Outcome) html += '<div class="cc-timeline-meta">Outcome: ' + escapeHtml(a.Outcome) + '</div>';
+      html += '</div>'; // end cc-timeline-details
       html += '</div></div>';
     });
     html += '</div>';
     el.innerHTML = html;
+
+    // Bind click-to-expand on timeline items
+    el.querySelectorAll('.cc-timeline-clickable').forEach(function(item) {
+      item.addEventListener('click', function() {
+        var details = item.querySelector('.cc-timeline-details');
+        var chevron = item.querySelector('.cc-timeline-chevron');
+        if (!details) return;
+        var isOpen = details.style.display !== 'none';
+        details.style.display = isOpen ? 'none' : 'block';
+        item.setAttribute('aria-expanded', String(!isOpen));
+        if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+      });
+    });
   }
 
   function getActivityIcon(type) {
@@ -1328,7 +1346,6 @@
     });
 
     form.innerHTML =
-      '<h3 class="cc-form-title">Add Task</h3>' +
       '<div class="cc-form-row" style="flex-wrap:wrap;gap:0.5rem;">' +
         '<input id="cc-task-title" class="cc-input" placeholder="Task title" style="flex:2;min-width:150px;" />' +
         '<input id="cc-task-due" class="cc-input" type="date" style="min-width:130px;" />' +
@@ -1537,17 +1554,17 @@
           var updates = {};
           var langSelect = document.getElementById('cc-lang-select');
           var langOther = document.getElementById('cc-lang-other');
-          var refSelect = document.getElementById('cc-ref-select');
-          var refOther = document.getElementById('cc-ref-other');
+          var srcSelect = document.getElementById('cc-leadsrc-select');
+          var srcOther = document.getElementById('cc-leadsrc-other');
           document.querySelectorAll('.cc-info-input').forEach(function(inp) {
             // Skip hidden language "Other" text input when a standard language is selected
             if (inp.id === 'cc-lang-other' && langSelect && langSelect.value !== 'Other') return;
             // Skip language select when "Other" is chosen (use text input value instead)
             if (inp.id === 'cc-lang-select' && langSelect && langSelect.value === 'Other') return;
-            // Skip hidden referral source "Other" text input when a standard option is selected
-            if (inp.id === 'cc-ref-other' && refSelect && refSelect.value !== 'Other') return;
-            // Skip referral source select when "Other" is chosen (use text input value instead)
-            if (inp.id === 'cc-ref-select' && refSelect && refSelect.value === 'Other') return;
+            // Skip hidden lead source "Other" text input when a standard option is selected
+            if (inp.id === 'cc-leadsrc-other' && srcSelect && srcSelect.value !== 'Other') return;
+            // Skip lead source select when "Other" is chosen (use text input value instead)
+            if (inp.id === 'cc-leadsrc-select' && srcSelect && srcSelect.value === 'Other') return;
             var field = inp.getAttribute('data-field');
             var original = inp.getAttribute('data-original');
             var current = inp.value.trim();
@@ -1603,13 +1620,13 @@
         var data = {};
         var langSel = document.getElementById('cc-lang-select');
         var langOth = document.getElementById('cc-lang-other');
-        var refSel = document.getElementById('cc-ref-select');
-        var refOth = document.getElementById('cc-ref-other');
+        var srcSel = document.getElementById('cc-leadsrc-select');
+        var srcOth = document.getElementById('cc-leadsrc-other');
         document.querySelectorAll('.cc-info-input').forEach(function(inp) {
           if (inp.id === 'cc-lang-other' && langSel && langSel.value !== 'Other') return;
           if (inp.id === 'cc-lang-select' && langSel && langSel.value === 'Other') return;
-          if (inp.id === 'cc-ref-other' && refSel && refSel.value !== 'Other') return;
-          if (inp.id === 'cc-ref-select' && refSel && refSel.value === 'Other') return;
+          if (inp.id === 'cc-leadsrc-other' && srcSel && srcSel.value !== 'Other') return;
+          if (inp.id === 'cc-leadsrc-select' && srcSel && srcSel.value === 'Other') return;
           var v = inp.value.trim();
           if (v) data[inp.getAttribute('data-field')] = v;
         });
@@ -2600,7 +2617,7 @@
     // Cleanup refresh timer on page unload
     window.addEventListener('beforeunload', stopRecordingsRefresh);
 
-    loadReferralSources();
+    loadLeadSources();
     loadData();
   }
 
