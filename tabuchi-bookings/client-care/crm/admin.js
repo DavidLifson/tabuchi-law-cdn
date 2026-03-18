@@ -441,10 +441,11 @@
       html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-edit-btn" data-form-slug="' + escapeAttr(slug) + '">Edit</button> ';
       html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-dup-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(name) + '" data-form-slug="' + escapeAttr(slug) + '">Duplicate</button> ';
       if (itemActive) {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="deactivate">Deactivate</button>';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="deactivate">Deactivate</button> ';
       } else {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="activate">Activate</button>';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="activate">Activate</button> ';
       }
+      html += '<button class="cc-btn cc-btn-sm cc-btn-danger cc-form-delete-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(name) + '" style="margin-left:2px;">Delete</button>';
       html += '</td>';
       html += '</tr>';
     });
@@ -544,6 +545,24 @@
           fetchForms();
         } catch (err) {
           showToast(err.error || 'Failed to ' + verb.toLowerCase() + '.', 'error');
+        }
+      });
+    });
+
+    // Delete buttons
+    content.querySelectorAll('.cc-form-delete-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var formId = btn.dataset.formId;
+        var formName = btn.dataset.formName;
+        if (!confirm('Permanently delete "' + formName + '"?\n\nThis will remove the form and all its sections, fields, and submissions. This action cannot be undone.')) return;
+        if (!confirm('Are you sure? This is irreversible.')) return;
+        try {
+          await API.forms.delete(formId);
+          showToast('Form deleted.', 'success');
+          fetchForms();
+        } catch (err) {
+          showToast(err.error || 'Failed to delete form.', 'error');
         }
       });
     });
