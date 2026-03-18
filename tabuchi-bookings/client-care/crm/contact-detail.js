@@ -60,6 +60,21 @@
 
   var API = ClientCareAPI;
 
+  // Referral Sources — loaded from config API
+  var REFERRAL_SOURCE_OPTIONS = [''];
+
+  async function loadReferralSources() {
+    try {
+      var result = await API.admin.config.list('referral_source');
+      var items = (result.data || []).filter(function(i) { return i.Is_Active !== false; }).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); });
+      REFERRAL_SOURCE_OPTIONS = [''];
+      items.forEach(function(i) { REFERRAL_SOURCE_OPTIONS.push(i.Label || i.Value); });
+      REFERRAL_SOURCE_OPTIONS.push('Other');
+    } catch (e) {
+      REFERRAL_SOURCE_OPTIONS = ['', 'Other'];
+    }
+  }
+
   // Pick visible element, avoiding hidden .w-embed duplicate
   var $el = function(id) {
     var all = document.querySelectorAll('#' + id);
@@ -679,8 +694,20 @@
       html += '<option value="' + s + '"' + (c.Preferred_Language === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>';
     });
     html += '</select></div>';
+    // Referral Source dropdown with "Other" text input
+    var refVal = c.Referral_Source || '';
+    var refIsOther = refVal && REFERRAL_SOURCE_OPTIONS.indexOf(refVal) === -1;
+    var refSelectVal = refIsOther ? 'Other' : refVal;
     html += '<div class="cc-edit-field"><label>Referral Source</label>' +
-      '<input class="cc-input" id="cc-edit-referral" value="' + escapeAttr(c.Referral_Source || '') + '" /></div>';
+      '<select class="cc-input" id="cc-edit-referral">';
+    REFERRAL_SOURCE_OPTIONS.forEach(function(opt) {
+      var lbl = opt || '— Select —';
+      html += '<option value="' + escapeAttr(opt) + '"' + (opt === refSelectVal ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+    });
+    html += '</select>' +
+      '<input class="cc-input" id="cc-edit-referral-other" placeholder="Specify referral source" ' +
+      'value="' + escapeAttr(refIsOther ? refVal : '') + '" style="margin-top:6px;display:' + (refIsOther ? 'block' : 'none') + '" />' +
+      '</div>';
     html += '</div>';
 
     // ── CRM Pipeline ──
@@ -1171,6 +1198,22 @@
     bindMultiSelect('cc-ms-sp', { placeholder: 'Select service packages...' });
     bindMultiSelect('cc-ms-tags', { placeholder: 'Select or create tags...', allowCreate: true });
 
+    // Bind referral source Other toggle
+    var refSel = document.getElementById('cc-edit-referral');
+    var refOth = document.getElementById('cc-edit-referral-other');
+    if (refSel && refOth) {
+      refSel.addEventListener('change', function() {
+        if (refSel.value === 'Other') {
+          refOth.style.display = 'block';
+          refOth.focus();
+          refOth.value = '';
+        } else {
+          refOth.style.display = 'none';
+          refOth.value = '';
+        }
+      });
+    }
+
     // Cancel button
     var cancelBtn = document.getElementById('cc-edit-cancel-btn');
     if (cancelBtn) {
@@ -1202,7 +1245,7 @@
           Spouse_Name: document.getElementById('cc-edit-spouse').value.trim(),
           Marital_Status: document.getElementById('cc-edit-marital').value,
           Preferred_Language: document.getElementById('cc-edit-language').value,
-          Referral_Source: document.getElementById('cc-edit-referral').value.trim(),
+          Referral_Source: (function() { var sel = document.getElementById('cc-edit-referral'); var oth = document.getElementById('cc-edit-referral-other'); return sel && sel.value === 'Other' && oth ? oth.value.trim() : (sel ? sel.value.trim() : ''); })(),
           Practice_Area: (function() { var w = document.querySelector('[data-ms-id="cc-ms-pa"]'); return w && w._getValues ? w._getValues() : []; })(),
           Service_Package: (function() { var w = document.querySelector('[data-ms-id="cc-ms-sp"]'); return w && w._getValues ? w._getValues() : []; })(),
           Source: document.getElementById('cc-edit-source').value.trim(),
@@ -1934,6 +1977,7 @@
     if (user && userNameEl) userNameEl.textContent = user.name || user.email;
 
     bindBackButton();
+    loadReferralSources();
     loadData();
   }
 

@@ -885,6 +885,65 @@
 
   var LANGUAGE_OPTIONS = ['', 'English', 'French', 'Mandarin', 'Cantonese', 'Hindi', 'Italian', 'Other'];
 
+  // Referral Sources — loaded from config API
+  var REFERRAL_SOURCE_OPTIONS = [''];
+
+  async function loadReferralSources() {
+    try {
+      var result = await API.admin.config.list('referral_source');
+      var items = (result.data || []).filter(function(i) { return i.Is_Active !== false; }).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); });
+      REFERRAL_SOURCE_OPTIONS = [''];
+      items.forEach(function(i) { REFERRAL_SOURCE_OPTIONS.push(i.Label || i.Value); });
+      REFERRAL_SOURCE_OPTIONS.push('Other');
+    } catch (e) {
+      // Fallback: keep empty + Other
+      REFERRAL_SOURCE_OPTIONS = ['', 'Other'];
+    }
+  }
+
+  function renderReferralSourceField(l) {
+    var val = l.Referral_Source || '';
+    var isOther = val && REFERRAL_SOURCE_OPTIONS.indexOf(val) === -1;
+    var selectVal = isOther ? 'Other' : val;
+    var html = '<div class="cc-ref-wrap">';
+    html += '<select class="cc-info-input cc-select" data-field="Referral_Source" data-original="' + escapeAttr(val) + '" id="cc-ref-select" autocomplete="off">';
+    REFERRAL_SOURCE_OPTIONS.forEach(function(opt) {
+      var label = opt || '— Select —';
+      html += '<option value="' + escapeAttr(opt) + '"' + (opt === selectVal ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+    });
+    html += '</select>';
+    html += '<input type="text" class="cc-info-input" id="cc-ref-other" data-field="Referral_Source" ' +
+      'placeholder="Specify referral source" value="' + escapeAttr(isOther ? val : '') + '" ' +
+      'autocomplete="off" style="margin-top:6px;display:' + (isOther ? 'block' : 'none') + '">';
+    html += '</div>';
+    return html;
+  }
+
+  function bindReferralSourceField() {
+    var sel = document.getElementById('cc-ref-select');
+    var other = document.getElementById('cc-ref-other');
+    if (!sel || !other) return;
+    sel.addEventListener('change', function() {
+      if (sel.value === 'Other') {
+        other.style.display = 'block';
+        other.focus();
+        other.value = '';
+      } else {
+        other.style.display = 'none';
+        other.value = '';
+      }
+      // Mark dirty
+      sel.classList.add('cc-field-dirty');
+      var saveBar = document.getElementById('cc-info-save-bar');
+      if (saveBar) saveBar.style.display = '';
+    });
+    other.addEventListener('input', function() {
+      other.classList.add('cc-field-dirty');
+      var saveBar = document.getElementById('cc-info-save-bar');
+      if (saveBar) saveBar.style.display = '';
+    });
+  }
+
   function renderLanguageField(l) {
     var val = l.Preferred_Language || '';
     var isOther = val && LANGUAGE_OPTIONS.indexOf(val) === -1;
@@ -949,7 +1008,7 @@
       { label: 'Spouse Name', html: editableInput('Spouse_Name', l.Spouse_Name, 'text', 'Enter spouse name') },
       { label: 'Marital Status', html: renderSelectField('Marital_Status', l.Marital_Status, ['', 'Single', 'Married', 'Common-Law', 'Divorced', 'Widowed', 'Separated']) },
       { label: 'Preferred Language', html: renderLanguageField(l) },
-      { label: 'Referral Source', html: editableInput('Referral_Source', l.Referral_Source, 'text', 'Who referred them?') }
+      { label: 'Referral Source', html: renderReferralSourceField(l) }
     ];
 
     var html = '<form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:none">';
@@ -1026,6 +1085,7 @@
       el.innerHTML = html;
       bindInfoEdits();
     bindLanguageField();
+    bindReferralSourceField();
       // Bind services selector button
       var svcBtn = document.getElementById('cc-new-lead-svc-btn');
       if (svcBtn) svcBtn.addEventListener('click', function() { showNewLeadServicesModal(); });
@@ -1069,6 +1129,7 @@
     el.innerHTML = html;
     bindInfoEdits();
     bindLanguageField();
+    bindReferralSourceField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────
@@ -1476,11 +1537,17 @@
           var updates = {};
           var langSelect = document.getElementById('cc-lang-select');
           var langOther = document.getElementById('cc-lang-other');
+          var refSelect = document.getElementById('cc-ref-select');
+          var refOther = document.getElementById('cc-ref-other');
           document.querySelectorAll('.cc-info-input').forEach(function(inp) {
             // Skip hidden language "Other" text input when a standard language is selected
             if (inp.id === 'cc-lang-other' && langSelect && langSelect.value !== 'Other') return;
             // Skip language select when "Other" is chosen (use text input value instead)
             if (inp.id === 'cc-lang-select' && langSelect && langSelect.value === 'Other') return;
+            // Skip hidden referral source "Other" text input when a standard option is selected
+            if (inp.id === 'cc-ref-other' && refSelect && refSelect.value !== 'Other') return;
+            // Skip referral source select when "Other" is chosen (use text input value instead)
+            if (inp.id === 'cc-ref-select' && refSelect && refSelect.value === 'Other') return;
             var field = inp.getAttribute('data-field');
             var original = inp.getAttribute('data-original');
             var current = inp.value.trim();
@@ -1536,9 +1603,13 @@
         var data = {};
         var langSel = document.getElementById('cc-lang-select');
         var langOth = document.getElementById('cc-lang-other');
+        var refSel = document.getElementById('cc-ref-select');
+        var refOth = document.getElementById('cc-ref-other');
         document.querySelectorAll('.cc-info-input').forEach(function(inp) {
           if (inp.id === 'cc-lang-other' && langSel && langSel.value !== 'Other') return;
           if (inp.id === 'cc-lang-select' && langSel && langSel.value === 'Other') return;
+          if (inp.id === 'cc-ref-other' && refSel && refSel.value !== 'Other') return;
+          if (inp.id === 'cc-ref-select' && refSel && refSel.value === 'Other') return;
           var v = inp.value.trim();
           if (v) data[inp.getAttribute('data-field')] = v;
         });
@@ -2456,6 +2527,7 @@
     // Cleanup refresh timer on page unload
     window.addEventListener('beforeunload', stopRecordingsRefresh);
 
+    loadReferralSources();
     loadData();
   }
 
