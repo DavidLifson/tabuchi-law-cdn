@@ -1539,6 +1539,9 @@
   }
 
   function showCallLogModal(callData) {
+    var _timerStart = Date.now();
+    var _timerInterval = null;
+
     var overlay = document.createElement('div');
     overlay.className = 'cc-modal-overlay';
     overlay.innerHTML =
@@ -1546,9 +1549,14 @@
         '<div class="cc-modal-header"><h3>' + _icons.phone + 'Log Call</h3>' +
           '<button class="cc-modal-close" id="cc-cl-close">&times;</button></div>' +
         '<div class="cc-modal-body">' +
+          '<div class="cc-call-timer" style="text-align:center;margin-bottom:16px;padding:12px;background:#F0F9FF;border-radius:8px;">' +
+            '<div style="font-size:0.75rem;color:#6B7280;margin-bottom:4px;">Call Duration</div>' +
+            '<div id="cc-cl-timer-display" style="font-size:1.8rem;font-weight:700;color:#2563EB;font-variant-numeric:tabular-nums;">00:00</div>' +
+            '<div style="font-size:0.7rem;color:#9CA3AF;margin-top:2px;">Timer started when call was placed</div>' +
+          '</div>' +
           '<div class="cc-call-log-grid">' +
             '<div class="cc-edit-field">' +
-              '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Duration (min)</label>' +
+              '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Duration (min) <span style="font-weight:400;color:#9CA3AF;">— auto-filled from timer</span></label>' +
               '<input type="number" id="cc-cl-duration" class="cc-input" value="' + (callData.duration_minutes || 0) + '" min="0">' +
             '</div>' +
             '<div class="cc-edit-field">' +
@@ -1563,6 +1571,11 @@
             '</div>' +
           '</div>' +
           '<div style="margin-top:12px;">' +
+            '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Recording URL</label>' +
+            '<input type="url" id="cc-cl-recording" class="cc-input" placeholder="https://app.ringcentral.com/..." value="">' +
+            '<div style="font-size:0.7rem;color:#9CA3AF;margin-top:2px;">Paste the RingCentral recording link after the call ends</div>' +
+          '</div>' +
+          '<div style="margin-top:12px;">' +
             '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Notes</label>' +
             '<textarea id="cc-cl-notes" class="cc-input cc-textarea" rows="3" placeholder="Call notes..."></textarea>' +
           '</div>' +
@@ -1574,7 +1587,25 @@
       '</div>';
     document.body.appendChild(overlay);
 
-    var close = function() { overlay.remove(); };
+    // Live timer
+    function updateTimer() {
+      var elapsed = Math.floor((Date.now() - _timerStart) / 1000);
+      var mins = Math.floor(elapsed / 60);
+      var secs = elapsed % 60;
+      var display = document.getElementById('cc-cl-timer-display');
+      if (display) display.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+      // Auto-update the duration field (rounded up)
+      var durInput = document.getElementById('cc-cl-duration');
+      if (durInput && !durInput._manualEdit) durInput.value = Math.ceil(elapsed / 60);
+    }
+    _timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+
+    // Allow manual override of duration
+    var durField = document.getElementById('cc-cl-duration');
+    if (durField) durField.addEventListener('input', function() { durField._manualEdit = true; });
+
+    var close = function() { if (_timerInterval) clearInterval(_timerInterval); overlay.remove(); };
     document.getElementById('cc-cl-close').addEventListener('click', close);
     document.getElementById('cc-cl-cancel').addEventListener('click', close);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
@@ -1582,13 +1613,15 @@
     document.getElementById('cc-cl-save').addEventListener('click', async function() {
       var btn = this;
       btn.disabled = true; btn.textContent = 'Saving...';
+      if (_timerInterval) clearInterval(_timerInterval);
       try {
         await API.comms.logCall({
           lead_id: callData.lead_id,
           duration_minutes: parseInt(document.getElementById('cc-cl-duration').value) || 0,
           outcome: document.getElementById('cc-cl-outcome').value,
           notes: document.getElementById('cc-cl-notes').value.trim(),
-          rc_call_id: callData.rc_call_id || ''
+          rc_call_id: callData.rc_call_id || '',
+          recording_url: (document.getElementById('cc-cl-recording').value || '').trim()
         });
         ccToast('Call logged successfully.', 'success');
         close();
@@ -1596,6 +1629,7 @@
       } catch (err) {
         ccToast('Failed to log call: ' + (err.error || 'Network error'), 'error');
         btn.disabled = false; btn.textContent = 'Save Call Log';
+        _timerInterval = setInterval(updateTimer, 1000); // Resume timer on error
       }
     });
   }

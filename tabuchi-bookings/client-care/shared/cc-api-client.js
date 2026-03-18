@@ -949,7 +949,7 @@ const ClientCareAPI = (() => {
   }
 
   async function logCall(data) {
-    return request('POST', '/cc/comms', { body: { action: 'log_call', lead_id: data.lead_id, duration_minutes: data.duration_minutes, outcome: data.outcome, notes: data.notes, rc_call_id: data.rc_call_id } });
+    return request('POST', '/cc/comms', { body: { action: 'log_call', lead_id: data.lead_id, duration_minutes: data.duration_minutes, outcome: data.outcome, notes: data.notes, rc_call_id: data.rc_call_id, recording_url: data.recording_url } });
   }
 
   // ─── User Settings ────────────────────────────────────────────
