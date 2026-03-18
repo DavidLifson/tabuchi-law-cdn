@@ -262,7 +262,7 @@
 /* ═══════════════════════════════════════════
    16. Timeline (Activity History)
    ═══════════════════════════════════════════ */
-.cc-timeline { display:flex;flex-direction:column;gap:0.75rem; }
+.cc-timeline { display:flex;flex-direction:column;gap:0.75rem;max-height:500px;overflow-y:auto; }
 .cc-timeline-item { display:flex;gap:0.75rem;padding:0.75rem;background:white;border:1px solid #E5E7EB;border-radius:8px; }
 .cc-timeline-icon { font-size:1.2rem;flex-shrink:0;width:32px;text-align:center; }
 .cc-timeline-content { flex:1;min-width:0; }
