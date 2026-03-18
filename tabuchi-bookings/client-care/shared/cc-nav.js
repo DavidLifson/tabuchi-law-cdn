@@ -72,7 +72,7 @@
   html += '<span style="color:#9CA3AF;font-size:0.6rem;">&#9662;</span>';
   html += '</button>';
   html += '<div id="app-user-dropdown" style="display:none;position:absolute;right:0;top:100%;background:white;border:1px solid #E5E7EB;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:170px;z-index:100;margin-top:0.25rem;">';
-  html += '<a href="/dashboard-settings" data-nav="bk-settings" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Booking Settings</a>';
+  html += '<a href="/dashboard-settings" data-nav="bk-settings" id="app-meeting-settings-link" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Meeting Settings</a>';
   html += '<a href="#" id="app-my-settings-link" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">My Settings</a>';
   html += '<a id="app-user-admin-link" href="/crm/admin" data-nav="admin-crm" style="display:none;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Admin Settings</a>';
   html += '<div style="border-top:1px solid #E5E7EB;margin:0.25rem 0;"></div>';
@@ -145,6 +145,17 @@
     if (u.is_admin) {
       var adminLink = bar.querySelector('#app-user-admin-link');
       if (adminLink) adminLink.style.display = 'block';
+    }
+
+    // Grey out Meeting Settings if not on a booking page
+    var meetingLink = bar.querySelector('#app-meeting-settings-link');
+    if (meetingLink) {
+      var onBookingPage = window.location.pathname.indexOf('/dashboard') === 0;
+      if (!onBookingPage) {
+        meetingLink.style.color = '#9CA3AF';
+        meetingLink.style.cursor = 'default';
+        meetingLink.addEventListener('click', function(e) { e.preventDefault(); });
+      }
     }
 
     if (u.role === 'BOOKINGS') {
