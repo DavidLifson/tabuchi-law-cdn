@@ -981,6 +981,93 @@
     });
   }
 
+  var PA_OPTIONS = [
+    { key: 'ESTATE_PLANNING_WILL_POA', label: 'Estate Planning (Will & POA)' },
+    { key: 'TRUSTS_HENSON_SPOUSAL', label: 'Trusts (Henson/Spousal)' },
+    { key: 'GUARDIANSHIP_MINORS', label: 'Guardianship (Minors)' },
+    { key: 'PROBATE_ESTATE_ADMIN', label: 'Probate & Estate Admin' },
+    { key: 'BUSINESS_SUCCESSION', label: 'Business Succession' },
+    { key: 'REAL_ESTATE', label: 'Real Estate' },
+    { key: 'CORPORATE', label: 'Corporate' },
+    { key: 'FAMILY_LAW', label: 'Family Law' }
+  ];
+
+  function renderPracticeAreaField(l) {
+    var vals = Array.isArray(l.Practice_Area) ? l.Practice_Area : (l.Practice_Area ? [l.Practice_Area] : []);
+    var html = '<div class="cc-pa-inline-wrap" id="cc-pa-inline">';
+    html += '<div class="cc-pa-pills" id="cc-pa-pills">';
+    if (vals.length) {
+      vals.forEach(function(v) {
+        var opt = PA_OPTIONS.find(function(o) { return o.key === v || o.label === v; });
+        html += '<span class="cc-ms-pill">' + escapeHtml(opt ? opt.label : v) + '</span>';
+      });
+    } else {
+      html += '<span class="cc-text-muted">— Select —</span>';
+    }
+    html += '</div>';
+    html += '<span class="cc-ms-arrow" style="cursor:pointer">&#9662;</span>';
+    html += '<div class="cc-pa-dropdown" id="cc-pa-dropdown" style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:6px 0;min-width:240px;max-height:280px;overflow-y:auto;">';
+    PA_OPTIONS.forEach(function(o) {
+      var checked = vals.indexOf(o.key) >= 0 || vals.indexOf(o.label) >= 0;
+      html += '<label style="display:flex;align-items:center;padding:6px 12px;cursor:pointer;font-size:13px;gap:6px;" class="cc-pa-opt">';
+      html += '<input type="checkbox" class="cc-pa-cb" value="' + escapeAttr(o.key) + '"' + (checked ? ' checked' : '') + '> ';
+      html += escapeHtml(o.label) + '</label>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  function bindPracticeAreaField() {
+    var wrap = document.getElementById('cc-pa-inline');
+    if (!wrap) return;
+    var dropdown = document.getElementById('cc-pa-dropdown');
+    var pills = document.getElementById('cc-pa-pills');
+    var isOpen = false;
+
+    function toggle(open) {
+      isOpen = typeof open === 'boolean' ? open : !isOpen;
+      dropdown.style.display = isOpen ? 'block' : 'none';
+    }
+
+    function refreshPills() {
+      var checked = [];
+      dropdown.querySelectorAll('.cc-pa-cb:checked').forEach(function(cb) { checked.push(cb.value); });
+      var html = '';
+      if (checked.length) {
+        checked.forEach(function(v) {
+          var opt = PA_OPTIONS.find(function(o) { return o.key === v; });
+          html += '<span class="cc-ms-pill">' + escapeHtml(opt ? opt.label : v) + '</span>';
+        });
+      } else {
+        html += '<span class="cc-text-muted">— Select —</span>';
+      }
+      pills.innerHTML = html;
+    }
+
+    wrap.addEventListener('click', function(e) {
+      if (e.target.classList.contains('cc-pa-cb')) return;
+      toggle();
+    });
+
+    dropdown.addEventListener('change', function(e) {
+      if (e.target.classList.contains('cc-pa-cb')) {
+        refreshPills();
+        var checked = [];
+        dropdown.querySelectorAll('.cc-pa-cb:checked').forEach(function(cb) { checked.push(cb.value); });
+        state.lead.Practice_Area = checked;
+        API.leads.update(leadId, { Practice_Area: checked }).then(function() {
+          ccToast('Practice area updated.', 'success');
+        }).catch(function() {
+          ccToast('Failed to update practice area.', 'error');
+        });
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!wrap.contains(e.target)) toggle(false);
+    });
+  }
+
   function bindLeadSourceField() {
     var sel = document.getElementById('cc-leadsrc-select');
     var other = document.getElementById('cc-leadsrc-other');
@@ -1155,7 +1242,7 @@
 
     // ── Lead details (read-only) ──
     var detailFields = [
-      { label: 'Practice Area', value: formatPracticeArea(l.Practice_Area) },
+      { label: 'Practice Area', html: renderPracticeAreaField(l) },
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
       { label: 'Lead Source', html: renderLeadSourceField(l) },
       { label: 'Owner', value: l.Lead_Owner_Name || '—' },
@@ -1192,6 +1279,7 @@
     bindLanguageField();
     bindLeadSourceField();
     bindConsentField();
+    bindPracticeAreaField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────
@@ -2680,7 +2768,11 @@
       '.cc-btn-secondary{background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer}' +
       '.cc-btn-secondary:hover{background:#f9fafb}' +
       '.cc-info-section-label{font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:8px;padding-bottom:4px}' +
-      '.cc-info-divider{border:none;border-top:1px solid #e2e8f0;margin:16px 0}';
+      '.cc-info-divider{border:none;border-top:1px solid #e2e8f0;margin:16px 0}' +
+      '.cc-ms-pill{display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:4px;font-size:.78rem;font-weight:500;background:#EDE9FE;color:#5B21B6;white-space:nowrap;margin:1px 2px}' +
+      '.cc-ms-arrow{font-size:12px;color:#6B7280;margin-left:4px}' +
+      '.cc-pa-inline-wrap{position:relative;display:flex;align-items:center;flex-wrap:wrap;cursor:pointer;gap:2px}' +
+      '.cc-pa-pills{display:flex;flex-wrap:wrap;gap:2px;flex:1}';
     document.head.appendChild(s);
   }
 
