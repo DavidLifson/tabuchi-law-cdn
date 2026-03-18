@@ -346,7 +346,8 @@
     { type: 'log_activity', label: 'Log Activity', desc: 'Create an activity log entry on the lead record' },
     { type: 'assign_owner', label: 'Assign Owner', desc: 'Set the lead owner to a specific staff member' },
     { type: 'send_confirmation', label: 'Send Confirmation Email', desc: 'Send a confirmation email to the client' },
-    { type: 'create_task', label: 'Create Task', desc: 'Create a follow-up task when form is submitted' }
+    { type: 'create_task', label: 'Create Task', desc: 'Create a follow-up task when form is submitted' },
+    { type: 'enroll_drip', label: 'Enroll in Drip Campaign', desc: 'Automatically enroll the lead in a drip email campaign' }
   ];
 
   var STAGE_OPTIONS = [
@@ -417,23 +418,29 @@
     html += '</tr></thead><tbody>';
 
     items.forEach(function(item) {
-      var activeCls = item.is_active !== false ? 'green' : 'gray';
-      var activeText = item.is_active !== false ? 'Active' : 'Inactive';
+      var itemActive = item.Is_Active !== undefined ? item.Is_Active : (item.is_active !== false);
+      var activeCls = itemActive ? 'green' : 'gray';
+      var activeText = itemActive ? 'Active' : 'Inactive';
       var paLabel = '';
-      var pa = FORM_PRACTICE_AREAS.find(function(p) { return p.key === item.practice_area; });
+      var pAreaVal = item.Practice_Area || item.practice_area || '';
+      var pa = FORM_PRACTICE_AREAS.find(function(p) { return p.key === pAreaVal; });
       if (pa) paLabel = pa.label;
       else paLabel = item.practice_area || '';
 
-      html += '<tr class="cc-form-row" data-form-id="' + escapeAttr(item.id || '') + '" style="border-bottom:1px solid #F3F4F6;transition:background 0.1s;cursor:pointer;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'\'">';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;font-weight:500;">' + escapeHtml(item.name || '') + '</td>';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:4px;">' + escapeHtml(item.form_id || item.slug || '') + '</code></td>';
+      var slug = item.Form_ID || item.form_id || item.slug || '';
+      var name = item.Name || item.name || '';
+      var subCount = item.Submission_Count || item.submission_count || 0;
+      var isActive = item.Is_Active !== undefined ? item.Is_Active : (item.is_active !== false);
+      html += '<tr class="cc-form-row" data-form-slug="' + escapeAttr(slug) + '" data-form-rec-id="' + escapeAttr(item.id || '') + '" style="border-bottom:1px solid #F3F4F6;transition:background 0.1s;cursor:pointer;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'\'">';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;font-weight:500;">' + escapeHtml(name) + '</td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:4px;">' + escapeHtml(slug) + '</code></td>';
       html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + escapeHtml(paLabel) + '</td>';
       html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + (item.submission_count || 0) + '</td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + subCount + '</td>';
       html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-edit-btn" data-form-id="' + escapeAttr(item.id || '') + '">Edit</button> ';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-dup-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(item.name || '') + '" data-form-slug="' + escapeAttr(item.form_id || item.slug || '') + '">Duplicate</button> ';
-      if (item.is_active !== false) {
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-edit-btn" data-form-slug="' + escapeAttr(slug) + '">Edit</button> ';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-dup-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(name) + '" data-form-slug="' + escapeAttr(slug) + '">Duplicate</button> ';
+      if (itemActive) {
         html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="deactivate">Deactivate</button>';
       } else {
         html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="activate">Activate</button>';
@@ -473,10 +480,10 @@
     content.querySelectorAll('.cc-form-edit-btn').forEach(function(btn) {
       btn.addEventListener('click', async function(e) {
         e.stopPropagation();
-        var formId = btn.dataset.formId;
+        var slug = btn.dataset.formSlug;
         try {
           showToast('Loading form...', 'info');
-          var result = await API.forms.get(formId);
+          var result = await API.forms.get(slug);
           state.formEditorMode = 'edit';
           state.formEditorData = result.config || result.data || result;
           state.formSectionExpanded = {};
@@ -491,10 +498,10 @@
     content.querySelectorAll('.cc-form-row').forEach(function(row) {
       row.addEventListener('click', async function(e) {
         if (e.target.closest('button')) return;
-        var formId = row.dataset.formId;
+        var slug = row.dataset.formSlug;
         try {
           showToast('Loading form...', 'info');
-          var result = await API.forms.get(formId);
+          var result = await API.forms.get(slug);
           state.formEditorMode = 'edit';
           state.formEditorData = result.config || result.data || result;
           state.formSectionExpanded = {};
@@ -937,8 +944,9 @@
       saveBtn.textContent = 'Saving...';
       try {
         var fd = collectFormEditorData();
-        if (!fd.name) throw { error: 'Form name is required.' };
-        if (!fd.form_id) fd.form_id = slugify(fd.name);
+        if (!fd.name || !fd.name.trim()) throw { error: 'Form Name is required.' };
+        if (!fd.form_id || !fd.form_id.trim()) throw { error: 'Form ID is required.' };
+        if (!/^[a-z0-9][a-z0-9-]*$/.test(fd.form_id.trim())) throw { error: 'Form ID must be lowercase letters, numbers, and hyphens only.' };
 
         if (state.formEditorMode === 'create') {
           var result = await API.forms.create(fd);
