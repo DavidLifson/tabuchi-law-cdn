@@ -958,6 +958,23 @@
     consentGroup.appendChild(consentLabel);
     reviewDiv.appendChild(consentGroup);
 
+    // Honeypot field — hidden from humans, bots will fill it
+    var hpWrap = document.createElement('div');
+    hpWrap.setAttribute('aria-hidden', 'true');
+    hpWrap.style.cssText = 'position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;opacity:0;pointer-events:none;';
+    var hpLabel = document.createElement('label');
+    hpLabel.setAttribute('for', 'cc_website_url');
+    hpLabel.textContent = 'Website';
+    var hpInput = document.createElement('input');
+    hpInput.type = 'text';
+    hpInput.name = 'cc_website_url';
+    hpInput.id = 'cc_website_url';
+    hpInput.setAttribute('tabindex', '-1');
+    hpInput.setAttribute('autocomplete', 'off');
+    hpWrap.appendChild(hpLabel);
+    hpWrap.appendChild(hpInput);
+    reviewDiv.appendChild(hpWrap);
+
     container.appendChild(reviewDiv);
   }
 
@@ -1142,6 +1159,10 @@
 
       var consentStatus = state.formData.marketing_consent ? 'SUBSCRIBED' : 'UNKNOWN';
 
+      // Honeypot — read hidden field value
+      var hpField = document.getElementById('cc_website_url');
+      var hpVal = hpField ? hpField.value : '';
+
       var result;
       if (state.isDynamic) {
         // Dynamic forms use CC-32 submit handler
@@ -1150,7 +1171,8 @@
           form_id: state.formId,
           final_form_data: finalData,
           uploaded_files: Object.keys(state.uploadedFiles).length > 0 ? state.uploadedFiles : undefined,
-          consent_status: consentStatus
+          consent_status: consentStatus,
+          _hp: hpVal
         });
       } else {
         // Static forms use CC-02 intake submit
@@ -1159,7 +1181,8 @@
           form_id: state.formId,
           final_form_data: finalData,
           uploaded_files: Object.keys(state.uploadedFiles).length > 0 ? state.uploadedFiles : undefined,
-          consent_status: consentStatus
+          consent_status: consentStatus,
+          _hp: hpVal
         });
       }
 
