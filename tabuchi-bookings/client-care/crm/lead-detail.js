@@ -1260,7 +1260,6 @@
     form.dataset.bound = 'true';
 
     form.innerHTML =
-      '<h3 class="cc-form-title">Log Activity</h3>' +
       '<div class="cc-form-row">' +
         '<select id="cc-act-type" class="cc-input">' +
           '<option value="CALL">Call</option>' +
