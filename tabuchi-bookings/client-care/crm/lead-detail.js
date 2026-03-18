@@ -2112,9 +2112,52 @@
     });
   }
 
+  // ── RingCentral Embeddable Integration ────────────────────
+  function _ensureRCWidget(cb) {
+    if (window.ClientCareRC && window.ClientCareRC.isLoaded()) { cb(true); return; }
+    if (!window.ClientCareRC) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/gh/DavidLifson/tabuchi-law-cdn@main/tabuchi-bookings/client-care/shared/rc-widget.js?v=20260318';
+      s.onload = function() {
+        if (window.ClientCareRC) {
+          window.ClientCareRC.autoInit().then(function(ok) { cb(ok); });
+        } else { cb(false); }
+      };
+      s.onerror = function() { cb(false); };
+      document.body.appendChild(s);
+    } else {
+      window.ClientCareRC.autoInit().then(function(ok) { cb(ok); });
+    }
+  }
+
   function showCallDialog(record) {
     if (!record.Client_Phone) { ccToast('No phone number available.', 'error'); return; }
-    // Create temporary <a> to trigger tel: link without navigating the page
+
+    _ensureRCWidget(function(rcAvailable) {
+      if (rcAvailable) {
+        ccToast('Dialing ' + escapeHtml(record.Client_Phone) + ' via RingCentral...', 'info');
+        window.ClientCareRC.dial(record.Client_Phone, function(result) {
+          if (result.error) {
+            ccToast(result.error, 'error');
+            _fallbackCall(record);
+            return;
+          }
+          showCallLogModal({
+            lead_id: state.lead.id,
+            duration_minutes: result.duration_minutes || 0,
+            outcome: result.outcome || 'COMPLETED',
+            recording_url: result.recording_url || '',
+            rc_call_id: result.session_id || '',
+            fromRC: true
+          });
+        });
+      } else {
+        _fallbackCall(record);
+      }
+    });
+  }
+
+  function _fallbackCall(record) {
     var a = document.createElement('a');
     a.href = 'tel:' + encodeURIComponent(record.Client_Phone);
     a.style.display = 'none';
@@ -2122,13 +2165,52 @@
     a.click();
     document.body.removeChild(a);
     ccToast('Opening phone app for ' + escapeHtml(record.Client_Phone) + '...', 'info');
-    // Show call log modal immediately so user can log after their call
     showCallLogModal({ lead_id: state.lead.id });
   }
 
   function showCallLogModal(callData) {
     var _timerStart = Date.now();
     var _timerInterval = null;
+    var isFromRC = !!callData.fromRC;
+
+    // Build timer/summary section
+    var timerHtml;
+    if (isFromRC && callData.duration_minutes > 0) {
+      // RC call ended — show static summary
+      var rcMins = Math.floor((callData.duration_minutes * 60) / 60);
+      var rcSecs = Math.round((callData.duration_minutes * 60) % 60);
+      timerHtml =
+        '<div class="cc-call-timer" style="text-align:center;margin-bottom:16px;padding:12px;background:#ECFDF5;border-radius:8px;">' +
+          '<div style="font-size:0.75rem;color:#059669;margin-bottom:4px;">Call Completed</div>' +
+          '<div style="font-size:1.8rem;font-weight:700;color:#059669;font-variant-numeric:tabular-nums;">' + String(rcMins).padStart(2, '0') + ':' + String(rcSecs).padStart(2, '0') + '</div>' +
+          '<div style="font-size:0.7rem;color:#6B7280;margin-top:2px;">Duration captured from RingCentral' + (callData.recording_url ? ' &middot; Recording captured' : '') + '</div>' +
+        '</div>';
+    } else {
+      // Fallback — live timer
+      timerHtml =
+        '<div class="cc-call-timer" style="text-align:center;margin-bottom:16px;padding:12px;background:#F0F9FF;border-radius:8px;">' +
+          '<div style="font-size:0.75rem;color:#6B7280;margin-bottom:4px;">Call Duration</div>' +
+          '<div id="cc-cl-timer-display" style="font-size:1.8rem;font-weight:700;color:#2563EB;font-variant-numeric:tabular-nums;">00:00</div>' +
+          '<div style="font-size:0.7rem;color:#9CA3AF;margin-top:2px;">Timer started when call was placed</div>' +
+        '</div>';
+    }
+
+    // Recording row: auto-filled if from RC, manual input if fallback
+    var recordingHtml;
+    if (isFromRC && callData.recording_url) {
+      recordingHtml =
+        '<div style="margin-top:12px;">' +
+          '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Recording <span style="color:#059669;font-weight:400;">&#10003; Captured</span></label>' +
+          '<input type="url" id="cc-cl-recording" class="cc-input" value="' + escapeAttr(callData.recording_url) + '" style="background:#F9FAFB;color:#6B7280;" readonly>' +
+        '</div>';
+    } else {
+      recordingHtml =
+        '<div style="margin-top:12px;">' +
+          '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Recording URL</label>' +
+          '<input type="url" id="cc-cl-recording" class="cc-input" placeholder="https://app.ringcentral.com/..." value="">' +
+          '<div style="font-size:0.7rem;color:#9CA3AF;margin-top:2px;">Paste the RingCentral recording link after the call ends</div>' +
+        '</div>';
+    }
 
     var overlay = document.createElement('div');
     overlay.className = 'cc-modal-overlay';
@@ -2137,32 +2219,24 @@
         '<div class="cc-modal-header"><h3>' + _icons.phone + 'Log Call</h3>' +
           '<button class="cc-modal-close" id="cc-cl-close">&times;</button></div>' +
         '<div class="cc-modal-body">' +
-          '<div class="cc-call-timer" style="text-align:center;margin-bottom:16px;padding:12px;background:#F0F9FF;border-radius:8px;">' +
-            '<div style="font-size:0.75rem;color:#6B7280;margin-bottom:4px;">Call Duration</div>' +
-            '<div id="cc-cl-timer-display" style="font-size:1.8rem;font-weight:700;color:#2563EB;font-variant-numeric:tabular-nums;">00:00</div>' +
-            '<div style="font-size:0.7rem;color:#9CA3AF;margin-top:2px;">Timer started when call was placed</div>' +
-          '</div>' +
+          timerHtml +
           '<div class="cc-call-log-grid">' +
             '<div class="cc-edit-field">' +
-              '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Duration (min) <span style="font-weight:400;color:#9CA3AF;">— auto-filled from timer</span></label>' +
+              '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Duration (min)</label>' +
               '<input type="number" id="cc-cl-duration" class="cc-input" value="' + (callData.duration_minutes || 0) + '" min="0">' +
             '</div>' +
             '<div class="cc-edit-field">' +
               '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Outcome</label>' +
               '<select id="cc-cl-outcome" class="cc-input">' +
-                '<option value="COMPLETED">Completed</option>' +
-                '<option value="NO_ANSWER">No Answer</option>' +
-                '<option value="LEFT_VOICEMAIL">Left Voicemail</option>' +
-                '<option value="BUSY">Busy</option>' +
+                '<option value="COMPLETED"' + (callData.outcome === 'COMPLETED' ? ' selected' : '') + '>Completed</option>' +
+                '<option value="NO_ANSWER"' + (callData.outcome === 'NO_ANSWER' ? ' selected' : '') + '>No Answer</option>' +
+                '<option value="LEFT_VOICEMAIL"' + (callData.outcome === 'LEFT_VOICEMAIL' ? ' selected' : '') + '>Left Voicemail</option>' +
+                '<option value="BUSY"' + (callData.outcome === 'BUSY' ? ' selected' : '') + '>Busy</option>' +
                 '<option value="WRONG_NUMBER">Wrong Number</option>' +
               '</select>' +
             '</div>' +
           '</div>' +
-          '<div style="margin-top:12px;">' +
-            '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Recording URL</label>' +
-            '<input type="url" id="cc-cl-recording" class="cc-input" placeholder="https://app.ringcentral.com/..." value="">' +
-            '<div style="font-size:0.7rem;color:#9CA3AF;margin-top:2px;">Paste the RingCentral recording link after the call ends</div>' +
-          '</div>' +
+          recordingHtml +
           '<div style="margin-top:12px;">' +
             '<label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.85rem;">Notes</label>' +
             '<textarea id="cc-cl-notes" class="cc-input cc-textarea" rows="3" placeholder="Call notes..."></textarea>' +
@@ -2175,23 +2249,22 @@
       '</div>';
     document.body.appendChild(overlay);
 
-    // Live timer
-    function updateTimer() {
-      var elapsed = Math.floor((Date.now() - _timerStart) / 1000);
-      var mins = Math.floor(elapsed / 60);
-      var secs = elapsed % 60;
-      var display = document.getElementById('cc-cl-timer-display');
-      if (display) display.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-      // Auto-update the duration field (rounded up)
-      var durInput = document.getElementById('cc-cl-duration');
-      if (durInput && !durInput._manualEdit) durInput.value = Math.ceil(elapsed / 60);
+    // Live timer (only for fallback mode)
+    if (!isFromRC || !callData.duration_minutes) {
+      function updateTimer() {
+        var elapsed = Math.floor((Date.now() - _timerStart) / 1000);
+        var mins = Math.floor(elapsed / 60);
+        var secs = elapsed % 60;
+        var display = document.getElementById('cc-cl-timer-display');
+        if (display) display.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        var durInput = document.getElementById('cc-cl-duration');
+        if (durInput && !durInput._manualEdit) durInput.value = Math.ceil(elapsed / 60);
+      }
+      _timerInterval = setInterval(updateTimer, 1000);
+      updateTimer();
+      var durField = document.getElementById('cc-cl-duration');
+      if (durField) durField.addEventListener('input', function() { durField._manualEdit = true; });
     }
-    _timerInterval = setInterval(updateTimer, 1000);
-    updateTimer();
-
-    // Allow manual override of duration
-    var durField = document.getElementById('cc-cl-duration');
-    if (durField) durField.addEventListener('input', function() { durField._manualEdit = true; });
 
     var close = function() { if (_timerInterval) clearInterval(_timerInterval); overlay.remove(); };
     document.getElementById('cc-cl-close').addEventListener('click', close);
@@ -2217,7 +2290,7 @@
       } catch (err) {
         ccToast('Failed to log call: ' + (err.error || 'Network error'), 'error');
         btn.disabled = false; btn.textContent = 'Save Call Log';
-        _timerInterval = setInterval(updateTimer, 1000); // Resume timer on error
+        if (!isFromRC) _timerInterval = setInterval(updateTimer, 1000);
       }
     });
   }
