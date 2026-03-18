@@ -81,6 +81,10 @@
     meetingTypeData = response.meetingType;
     intakeQuestions = response.intakeQuestions || [];
 
+    // Ensure IDs exist (backend may not return Airtable record IDs — use slugs as fallback)
+    if (!staffData.id) staffData.id = staffSlug;
+    if (!meetingTypeData.id) meetingTypeData.id = meetingSlug;
+
     renderStaffInfo();
     renderMeetingTypeInfo();
     renderCalendar();
