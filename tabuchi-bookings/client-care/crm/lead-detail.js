@@ -2681,7 +2681,13 @@
     }
 
     loadThread();
-    refreshInterval = setInterval(loadThread, 5000);
+    refreshInterval = setInterval(loadThread, 3000);
+
+    // Immediately reload when tab becomes visible (handles background throttle)
+    var visHandler = function() { if (!document.hidden) loadThread(); };
+    document.addEventListener('visibilitychange', visHandler);
+    var origClose = close;
+    close = function() { document.removeEventListener('visibilitychange', visHandler); origClose(); };
 
     // Send SMS
     document.getElementById('cc-sms-send').addEventListener('click', async function() {
