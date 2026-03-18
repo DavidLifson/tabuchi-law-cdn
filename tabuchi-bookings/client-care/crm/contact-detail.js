@@ -1963,7 +1963,8 @@
       '</div>';
     document.body.appendChild(overlay);
 
-    var close = function() { overlay.remove(); };
+    var refreshInterval = null;
+    var close = function() { if (refreshInterval) clearInterval(refreshInterval); overlay.remove(); };
     document.getElementById('cc-sms-close').addEventListener('click', close);
     overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
 
@@ -1993,6 +1994,7 @@
     }
 
     loadThread();
+    refreshInterval = setInterval(loadThread, 10000);
 
     document.getElementById('cc-sms-send').addEventListener('click', async function() {
       var input = document.getElementById('cc-sms-input');
