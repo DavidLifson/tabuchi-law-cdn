@@ -928,6 +928,36 @@
     return html;
   }
 
+  function renderConsentField(l) {
+    var val = (l.Consent_Status || 'UNKNOWN').toUpperCase();
+    var opts = [
+      { value: 'UNKNOWN', label: 'Unknown' },
+      { value: 'SUBSCRIBED', label: 'Subscribed' },
+      { value: 'UNSUBSCRIBED', label: 'Unsubscribed' }
+    ];
+    var html = '<select class="cc-info-input cc-select" id="cc-consent-select" autocomplete="off">';
+    opts.forEach(function(o) {
+      html += '<option value="' + o.value + '"' + (o.value === val ? ' selected' : '') + '>' + escapeHtml(o.label) + '</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+
+  function bindConsentField() {
+    var sel = document.getElementById('cc-consent-select');
+    if (!sel) return;
+    sel.addEventListener('change', async function() {
+      var newVal = sel.value;
+      try {
+        await API.leads.update(leadId, { Consent_Status: newVal });
+        state.lead.Consent_Status = newVal;
+        ccToast('Subscription status updated.', 'success');
+      } catch (e) {
+        ccToast('Failed to update subscription status.', 'error');
+      }
+    });
+  }
+
   function bindLeadSourceField() {
     var sel = document.getElementById('cc-leadsrc-select');
     var other = document.getElementById('cc-leadsrc-other');
@@ -1112,7 +1142,7 @@
       { label: 'Next Action', value: API.util.formatDateTime(l.Next_Action_At) || '—' },
       { label: 'Est. Closing Date', html: renderClosingDateField(l) },
       { label: 'Services Required', html: renderServicesField(l) },
-      { label: 'Subscribed', value: l.Consent_Status || 'UNKNOWN' }
+      { label: 'Subscribed', html: renderConsentField(l) }
     ];
 
     if (l.Disposition !== 'OPEN') {
@@ -1138,6 +1168,7 @@
     bindInfoEdits();
     bindLanguageField();
     bindLeadSourceField();
+    bindConsentField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────

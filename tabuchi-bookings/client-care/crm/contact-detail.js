@@ -383,8 +383,39 @@
 
     // Bind interactive elements
     if (state.editMode) bindEditForm();
+    bindConsentField();
     bindTagControls();
     bindNotesControls();
+  }
+
+  function renderConsentField(c) {
+    var val = (c.Consent_Status || 'UNKNOWN').toUpperCase();
+    var opts = [
+      { value: 'UNKNOWN', label: 'Unknown' },
+      { value: 'SUBSCRIBED', label: 'Subscribed' },
+      { value: 'UNSUBSCRIBED', label: 'Unsubscribed' }
+    ];
+    var html = '<select class="cc-info-input cc-select" id="cc-consent-select" autocomplete="off">';
+    opts.forEach(function(o) {
+      html += '<option value="' + o.value + '"' + (o.value === val ? ' selected' : '') + '>' + escapeHtml(o.label) + '</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+
+  function bindConsentField() {
+    var sel = document.getElementById('cc-consent-select');
+    if (!sel) return;
+    sel.addEventListener('change', async function() {
+      var newVal = sel.value;
+      try {
+        await API.leads.update(contactId, { Consent_Status: newVal });
+        state.contact.Consent_Status = newVal;
+        ccToast('Subscription status updated.', 'success');
+      } catch (e) {
+        ccToast('Failed to update subscription status.', 'error');
+      }
+    });
   }
 
   function buildInfoGrid(c) {
@@ -412,7 +443,7 @@
       { label: 'Priority', value: c.Priority },
       { label: 'Owner', value: c.Lead_Owner_Name },
       { label: 'Responsible Lawyer', value: c.Responsible_Lawyer_Name },
-      { label: 'Subscribed', value: c.Consent_Status || 'UNKNOWN' },
+      { label: 'Subscribed', html: renderConsentField(c) },
       { label: 'Date Created', value: API.util.formatDateTime(c.Created_At) },
       { label: 'Last Updated', value: c.Updated_At ? API.util.formatDateTime(c.Updated_At) : '—' },
       { label: 'Last Contact', value: API.util.formatRelativeTime(c.Last_Contacted_At) },
@@ -425,9 +456,10 @@
     var html = '<div class="cc-section"><h3 class="cc-section-title">Contact Information</h3>';
     html += '<div class="cc-info-grid">';
     fields.forEach(function(f) {
+      var valHtml = f.html ? f.html : '<span class="cc-info-value">' + escapeHtml(f.value || '—') + '</span>';
       html += '<div class="cc-info-item">' +
         '<span class="cc-info-label">' + escapeHtml(f.label) + '</span>' +
-        '<span class="cc-info-value">' + escapeHtml(f.value || '—') + '</span>' +
+        valHtml +
       '</div>';
     });
     html += '</div></div>';
