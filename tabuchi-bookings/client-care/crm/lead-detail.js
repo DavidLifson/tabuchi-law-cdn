@@ -2543,7 +2543,7 @@
     }
 
     loadThread();
-    refreshInterval = setInterval(loadThread, 10000);
+    refreshInterval = setInterval(loadThread, 5000);
 
     // Send SMS
     document.getElementById('cc-sms-send').addEventListener('click', async function() {

@@ -1994,7 +1994,7 @@
     }
 
     loadThread();
-    refreshInterval = setInterval(loadThread, 10000);
+    refreshInterval = setInterval(loadThread, 5000);
 
     document.getElementById('cc-sms-send').addEventListener('click', async function() {
       var input = document.getElementById('cc-sms-input');
