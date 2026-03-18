@@ -1249,6 +1249,17 @@
     bindLogActivityForm();
     bindAddTaskForm();
     bindBackButton();
+
+    // Move Log Activity form above Activity Timeline
+    var logForm = $el('cc-log-activity-form');
+    var timeline = $el('cc-activity-timeline');
+    if (logForm && timeline) {
+      var formContainer = logForm.closest('div[style*="background"]') || logForm.parentElement;
+      var column = timeline.parentElement;
+      if (formContainer && column && column.contains(formContainer)) {
+        column.insertBefore(formContainer, column.firstChild);
+      }
+    }
   }
 
   function bindLogActivityForm() {
