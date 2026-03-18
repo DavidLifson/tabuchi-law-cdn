@@ -187,7 +187,30 @@
       var result = await API.tasks.list({ lead_id: leadId });
       state.tasks = (result.success && result.tasks) || [];
       renderTasks();
+      // Compute Next Action from earliest incomplete task due date
+      syncNextAction();
     } catch (err) { /* silently fail */ }
+  }
+
+  function syncNextAction() {
+    var now = new Date();
+    var earliest = null;
+    state.tasks.forEach(function(t) {
+      if (t.Status === 'DONE' || !t.Due_At) return;
+      var d = new Date(t.Due_At);
+      if (!earliest || d < earliest) earliest = d;
+    });
+    var newVal = earliest ? earliest.toISOString() : null;
+    var current = state.lead.Next_Action_At || state.lead.Next_Action_Date || null;
+    // Only update if different
+    var currentDate = current ? new Date(current).toISOString().slice(0, 10) : null;
+    var newDate = newVal ? new Date(newVal).toISOString().slice(0, 10) : null;
+    if (currentDate !== newDate) {
+      state.lead.Next_Action_At = newVal;
+      state.lead.Next_Action_Date = newVal;
+      renderInfo();
+      API.leads.update(leadId, { Next_Action_Date: newDate || '' }).catch(function() {});
+    }
   }
 
   // ─── Render All Sections ────────────────────────────────────

@@ -215,7 +215,27 @@
       var result = await API.tasks.list({ lead_id: contactId });
       state.tasks = (result.success && result.tasks) || [];
       if (state.activeTab === 'history') renderTabContent();
+      syncNextAction();
     } catch (err) { /* silently fail */ }
+  }
+
+  function syncNextAction() {
+    var earliest = null;
+    state.tasks.forEach(function(t) {
+      if (t.Status === 'DONE' || !t.Due_At) return;
+      var d = new Date(t.Due_At);
+      if (!earliest || d < earliest) earliest = d;
+    });
+    var newVal = earliest ? earliest.toISOString() : null;
+    var current = state.contact.Next_Action_At || state.contact.Next_Action_Date || null;
+    var currentDate = current ? new Date(current).toISOString().slice(0, 10) : null;
+    var newDate = newVal ? new Date(newVal).toISOString().slice(0, 10) : null;
+    if (currentDate !== newDate) {
+      state.contact.Next_Action_At = newVal;
+      state.contact.Next_Action_Date = newVal;
+      if (state.activeTab === 'overview') renderTabContent();
+      API.leads.update(contactId, { Next_Action_Date: newDate || '' }).catch(function() {});
+    }
   }
 
   // ─── Render All Sections ────────────────────────────────────
