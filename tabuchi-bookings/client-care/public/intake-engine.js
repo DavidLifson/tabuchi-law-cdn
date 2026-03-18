@@ -36,6 +36,8 @@
   var state = {
     formId: null,
     config: null,
+    isDynamic: false,
+    isPreview: false,
     currentStepIndex: 0,
     sessionId: null,
     formData: {},
@@ -151,9 +153,14 @@
     if (!content) return;
 
     // Simple fields
+    var checkboxGroupValues = {};
     content.querySelectorAll('[data-field]').forEach(function(el) {
       var field = el.dataset.field;
-      if (el.type === 'checkbox') {
+      if (el.type === 'checkbox' && el.name === field && el.closest('.cc-intake-checkbox-group')) {
+        // Checkbox group: collect all checked values into an array
+        if (!checkboxGroupValues[field]) checkboxGroupValues[field] = [];
+        if (el.checked) checkboxGroupValues[field].push(el.value);
+      } else if (el.type === 'checkbox') {
         state.formData[field] = el.checked;
       } else if (el.type === 'radio') {
         if (el.checked) state.formData[field] = el.value;
@@ -161,6 +168,10 @@
         var val = el.value.trim();
         if (val !== '') state.formData[field] = val;
       }
+    });
+    // Apply checkbox group values
+    Object.keys(checkboxGroupValues).forEach(function(field) {
+      state.formData[field] = checkboxGroupValues[field];
     });
 
     // Address compound fields
@@ -190,7 +201,10 @@
     content.querySelectorAll('[data-field]').forEach(function(el) {
       var val = state.formData[el.dataset.field];
       if (val === undefined || val === null) return;
-      if (el.type === 'checkbox') {
+      if (el.type === 'checkbox' && el.closest('.cc-intake-checkbox-group')) {
+        // Checkbox group: check if value is in the array
+        el.checked = Array.isArray(val) && val.indexOf(el.value) !== -1;
+      } else if (el.type === 'checkbox') {
         el.checked = !!val;
       } else if (el.type === 'radio') {
         el.checked = (el.value === String(val));
@@ -292,6 +306,10 @@
     if (field.type === 'multiple_choice' || field.type === 'yes_no') {
       var checked = content.querySelector('[data-field="' + escapeAttr(field.id) + '"]:checked');
       return checked ? checked.value : '';
+    }
+    if (field.type === 'checkbox_group') {
+      var checkedBoxes = content.querySelectorAll('[data-field="' + escapeAttr(field.id) + '"]:checked');
+      return checkedBoxes.length > 0 ? Array.from(checkedBoxes).map(function(el) { return el.value; }) : '';
     }
     if (field.type === 'address') {
       var container = content.querySelector('[data-address-field="' + escapeAttr(field.id) + '"]');
@@ -488,6 +506,69 @@
       ]
     });
     return fieldRenderers.multiple_choice(yesNoField);
+  };
+
+  fieldRenderers.select = function(field) {
+    var group = createFieldGroup(field);
+    var select = document.createElement('select');
+    select.className = 'cc-select';
+    select.setAttribute('data-field', field.id);
+    if (field.required) select.required = true;
+
+    // Add placeholder option
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = field.placeholder || 'Select...';
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    select.appendChild(placeholder);
+
+    (field.options || []).forEach(function(opt) {
+      var option = document.createElement('option');
+      option.value = opt.value || opt;
+      option.textContent = opt.label || opt;
+      select.appendChild(option);
+    });
+
+    group.appendChild(select);
+    return group;
+  };
+
+  fieldRenderers.checkbox_group = function(field) {
+    var group = createFieldGroup(field);
+    var container = document.createElement('div');
+    container.className = 'cc-intake-checkbox-group';
+
+    (field.options || []).forEach(function(opt) {
+      var label = document.createElement('label');
+      label.className = 'cc-intake-checkbox-item';
+
+      var input = document.createElement('input');
+      input.type = 'checkbox';
+      input.name = field.id;
+      input.value = opt.value || opt;
+      input.setAttribute('data-field', field.id);
+      input.className = 'cc-checkbox';
+
+      var span = document.createElement('span');
+      span.className = 'cc-checkbox-label';
+      span.textContent = opt.label || opt;
+
+      label.appendChild(input);
+      label.appendChild(span);
+
+      if (opt.description) {
+        var desc = document.createElement('span');
+        desc.className = 'cc-checkbox-desc';
+        desc.textContent = opt.description;
+        label.appendChild(desc);
+      }
+
+      container.appendChild(label);
+    });
+
+    group.appendChild(container);
+    return group;
   };
 
   fieldRenderers.file_upload = function(field) {
@@ -916,7 +997,7 @@
 
   // ─── Auto-Save ───────────────────────────────────────────────
   async function autoSave() {
-    if (state.saving || state.submitted) return;
+    if (state.saving || state.submitted || state.isPreview) return;
     state.saving = true;
 
     var statusEl = $el('cc-intake-save-status');
@@ -1061,13 +1142,26 @@
 
       var consentStatus = state.formData.marketing_consent ? 'SUBSCRIBED' : 'UNKNOWN';
 
-      var result = await API.intake.submit({
-        session_id: state.sessionId,
-        form_id: state.formId,
-        final_form_data: finalData,
-        uploaded_files: Object.keys(state.uploadedFiles).length > 0 ? state.uploadedFiles : undefined,
-        consent_status: consentStatus
-      });
+      var result;
+      if (state.isDynamic) {
+        // Dynamic forms use CC-32 submit handler
+        result = await API.forms.submitDynamic({
+          session_id: state.sessionId,
+          form_id: state.formId,
+          final_form_data: finalData,
+          uploaded_files: Object.keys(state.uploadedFiles).length > 0 ? state.uploadedFiles : undefined,
+          consent_status: consentStatus
+        });
+      } else {
+        // Static forms use CC-02 intake submit
+        result = await API.intake.submit({
+          session_id: state.sessionId,
+          form_id: state.formId,
+          final_form_data: finalData,
+          uploaded_files: Object.keys(state.uploadedFiles).length > 0 ? state.uploadedFiles : undefined,
+          consent_status: consentStatus
+        });
+      }
 
       if (result.success) {
         state.submitted = true;
@@ -1150,10 +1244,26 @@
     // Determine form ID from URL param, default to 'uepp'
     var params = new URLSearchParams(window.location.search);
     state.formId = params.get('form') || 'uepp';
+    state.isPreview = params.get('preview') === '1';
 
-    // Load form config
+    // 1. Try local static config first (backward compatible)
     var configs = window.IntakeFormConfigs || {};
     state.config = configs[state.formId];
+
+    // 2. If not found locally, fetch from API (dynamic form)
+    if (!state.config && API.forms) {
+      try {
+        var titleEl = $el('cc-intake-step-title');
+        if (titleEl) titleEl.textContent = 'Loading form...';
+        var result = await API.forms.getPublic(state.formId);
+        if (result && result.success && result.config) {
+          state.config = result.config;
+          state.isDynamic = true;
+        }
+      } catch (err) {
+        // Fall through to error display below
+      }
+    }
 
     if (!state.config) {
       var content = $el('cc-intake-step-content');
@@ -1167,12 +1277,34 @@
       return;
     }
 
-    // Update page title
-    var titleEl = $el('cc-intake-step-title');
-    if (titleEl) titleEl.textContent = 'Loading...';
+    // Apply branding if configured
+    var formRoot = $el('cc-intake-form');
+    if (formRoot && state.config.branding) {
+      if (state.config.branding.accent_color) {
+        formRoot.style.setProperty('--cc-form-brand-color', state.config.branding.accent_color);
+      }
+      formRoot.classList.add('cc-form-branded');
+    }
 
-    // Try to resume saved session
-    await tryResume();
+    // Preview mode banner
+    if (state.isPreview) {
+      var formContainer = $el('cc-intake-form');
+      if (formContainer) {
+        var banner = document.createElement('div');
+        banner.className = 'cc-preview-banner';
+        banner.textContent = 'Preview Mode \u2014 Submissions are disabled';
+        formContainer.insertBefore(banner, formContainer.firstChild);
+      }
+    }
+
+    // Update page title
+    var titleEl2 = $el('cc-intake-step-title');
+    if (titleEl2) titleEl2.textContent = 'Loading...';
+
+    // Try to resume saved session (skip in preview mode)
+    if (!state.isPreview) {
+      await tryResume();
+    }
 
     // Bind nav buttons
     var prevBtn = $el('cc-intake-prev-btn');
@@ -1184,6 +1316,7 @@
 
     if (nextBtn) {
       nextBtn.addEventListener('click', function() {
+        if (state.isPreview) return; // Disable submit in preview
         if (isReviewStep()) {
           submitForm();
         } else {
