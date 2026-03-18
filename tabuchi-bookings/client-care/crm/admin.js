@@ -44,6 +44,7 @@
     { key: 'system-status', label: 'System Status' },
     { key: 'staff-users', label: 'Users' },
     { key: 'templates', label: 'Templates' },
+    { key: 'forms', label: 'Forms' },
     { key: 'categories', label: 'Categories' },
     { key: 'lead-sources', label: 'Lead Sources' },
     { key: 'stages', label: 'Stages' },
@@ -173,7 +174,15 @@
     assignmentRules: [],
     assignmentRulesLoading: false,
     assignmentRulesUsers: [],
-    assignmentRulesConfigCache: {}
+    assignmentRulesConfigCache: {},
+    // Forms
+    forms: [],
+    formsLoading: false,
+    formDetail: null,
+    formDetailLoading: false,
+    formEditorMode: null, // null | 'list' | 'edit' | 'create'
+    formEditorData: null,
+    formSectionExpanded: {}
   };
 
   // ─── Role Gate ─────────────────────────────────────────────
@@ -266,6 +275,7 @@
       case 'system-status':  renderSystemStatus(); break;
       case 'staff-users':    renderStaffUsersTab(); break;
       case 'templates':      renderTemplatesTab(); break;
+      case 'forms':          renderFormsTab(); break;
       case 'categories':     renderCategoriesTab(); break;
       case 'price-book':     renderPriceBookTab(); break;
       case 'assignment-rules': renderAssignmentRulesTab(); break;
@@ -283,6 +293,7 @@
       case 'system-status': fetchOverviewData(); break;
       case 'staff-users':   fetchStaffUsers(); break;
       case 'templates':     fetchTemplates(); break;
+      case 'forms':         fetchForms(); break;
       case 'categories':    fetchCategories(); break;
       case 'price-book':    fetchPriceBookItems(); break;
       case 'assignment-rules': fetchAssignmentRulesData(); break;
@@ -296,6 +307,1087 @@
         }
         break;
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // FORMS TAB
+  // ═══════════════════════════════════════════════════════════
+
+  var FORM_PRACTICE_AREAS = [
+    { key: 'ESTATE_PLANNING_WILL_POA', label: 'Estate Planning - Will & POA' },
+    { key: 'ESTATE_PLANNING_TRUST', label: 'Estate Planning - Trust' },
+    { key: 'ESTATE_PLANNING_FULL', label: 'Estate Planning - Full' },
+    { key: 'PROBATE', label: 'Probate' },
+    { key: 'ESTATE_ADMINISTRATION', label: 'Estate Administration' },
+    { key: 'REAL_ESTATE', label: 'Real Estate' },
+    { key: 'CORPORATE', label: 'Corporate' },
+    { key: 'OTHER', label: 'Other' }
+  ];
+
+  var FORM_FIELD_TYPES = [
+    { key: 'short_text', label: 'Short Text' },
+    { key: 'long_text', label: 'Long Text' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'number', label: 'Number' },
+    { key: 'date', label: 'Date' },
+    { key: 'address', label: 'Address' },
+    { key: 'multiple_choice', label: 'Multiple Choice' },
+    { key: 'yes_no', label: 'Yes / No' },
+    { key: 'file_upload', label: 'File Upload' },
+    { key: 'info', label: 'Info Block' },
+    { key: 'select', label: 'Select Dropdown' },
+    { key: 'checkbox_group', label: 'Checkbox Group' }
+  ];
+
+  var AUTOMATION_TYPES = [
+    { type: 'notify_staff', label: 'Notify Staff', desc: 'Send email notification to selected staff members' },
+    { type: 'update_stage', label: 'Update Lead Stage', desc: 'Automatically change the lead\'s pipeline stage' },
+    { type: 'log_activity', label: 'Log Activity', desc: 'Create an activity log entry on the lead record' },
+    { type: 'assign_owner', label: 'Assign Owner', desc: 'Set the lead owner to a specific staff member' },
+    { type: 'send_confirmation', label: 'Send Confirmation Email', desc: 'Send a confirmation email to the client' },
+    { type: 'create_task', label: 'Create Task', desc: 'Create a follow-up task when form is submitted' }
+  ];
+
+  var STAGE_OPTIONS = [
+    { key: 'NEW_LEAD', label: 'New Lead' },
+    { key: 'CONTACTED', label: 'Contacted' },
+    { key: 'INTAKE_RECEIVED', label: 'Intake Received' },
+    { key: 'DISCOVERY_MEETING_BOOKED', label: 'Discovery Meeting Booked' },
+    { key: 'MEETING_DONE', label: 'Meeting Done' },
+    { key: 'READY_TO_DRAFT', label: 'Ready to Draft' }
+  ];
+
+  function slugify(text) {
+    return (text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  async function fetchForms() {
+    state.formsLoading = true;
+    renderFormsTab();
+    try {
+      var result = await API.forms.list();
+      state.forms = (result && result.data) || [];
+    } catch (e) {
+      state.forms = [];
+    }
+    state.formsLoading = false;
+    renderFormsTab();
+  }
+
+  function renderFormsTab() {
+    if (state.formEditorMode === 'edit' || state.formEditorMode === 'create') {
+      renderFormEditor();
+      return;
+    }
+
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    var items = state.forms || [];
+
+    var html = '<div class="cc-admin-config">';
+    html += '<div class="cc-admin-section-header">';
+    html += '<h3 class="cc-admin-section-title">Forms</h3>';
+    html += '<button id="cc-forms-add-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ New Form</button>';
+    html += '</div>';
+
+    if (state.formsLoading) {
+      html += '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading forms...</p></div></div>';
+      content.innerHTML = html;
+      return;
+    }
+
+    if (items.length === 0) {
+      html += '<div class="cc-empty"><p>No forms configured yet.</p></div></div>';
+      content.innerHTML = html;
+      bindFormsAddBtn();
+      return;
+    }
+
+    html += '<div style="background:white;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;">';
+    html += '<table class="cc-table">';
+    html += '<thead><tr>';
+    html += '<th class="cc-th">Name</th>';
+    html += '<th class="cc-th" style="width:160px;">Form ID</th>';
+    html += '<th class="cc-th" style="width:160px;">Practice Area</th>';
+    html += '<th class="cc-th" style="width:80px;">Status</th>';
+    html += '<th class="cc-th" style="width:100px;">Submissions</th>';
+    html += '<th class="cc-th" style="width:220px;">Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    items.forEach(function(item) {
+      var activeCls = item.is_active !== false ? 'green' : 'gray';
+      var activeText = item.is_active !== false ? 'Active' : 'Inactive';
+      var paLabel = '';
+      var pa = FORM_PRACTICE_AREAS.find(function(p) { return p.key === item.practice_area; });
+      if (pa) paLabel = pa.label;
+      else paLabel = item.practice_area || '';
+
+      html += '<tr class="cc-form-row" data-form-id="' + escapeAttr(item.id || '') + '" style="border-bottom:1px solid #F3F4F6;transition:background 0.1s;cursor:pointer;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'\'">';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;font-weight:500;">' + escapeHtml(item.name || '') + '</td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:4px;">' + escapeHtml(item.form_id || item.slug || '') + '</code></td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + escapeHtml(paLabel) + '</td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + (item.submission_count || 0) + '</td>';
+      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-edit-btn" data-form-id="' + escapeAttr(item.id || '') + '">Edit</button> ';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-dup-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(item.name || '') + '" data-form-slug="' + escapeAttr(item.form_id || item.slug || '') + '">Duplicate</button> ';
+      if (item.is_active !== false) {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="deactivate">Deactivate</button>';
+      } else {
+        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="activate">Activate</button>';
+      }
+      html += '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    html += '</div>';
+    content.innerHTML = html;
+
+    bindFormsAddBtn();
+    bindFormsTableEvents();
+  }
+
+  function bindFormsAddBtn() {
+    var btn = document.getElementById('cc-forms-add-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      state.formEditorMode = 'create';
+      state.formEditorData = {
+        name: '', form_id: '', practice_area: '', description: '',
+        submit_message: '', is_active: true, settings_json: '{}',
+        automations_json: '[]', sections: []
+      };
+      state.formSectionExpanded = {};
+      renderFormsTab();
+    });
+  }
+
+  function bindFormsTableEvents() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    // Edit buttons
+    content.querySelectorAll('.cc-form-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var formId = btn.dataset.formId;
+        try {
+          showToast('Loading form...', 'info');
+          var result = await API.forms.get(formId);
+          state.formEditorMode = 'edit';
+          state.formEditorData = result.config || result.data || result;
+          state.formSectionExpanded = {};
+          renderFormsTab();
+        } catch (err) {
+          showToast(err.error || 'Failed to load form.', 'error');
+        }
+      });
+    });
+
+    // Row click → edit
+    content.querySelectorAll('.cc-form-row').forEach(function(row) {
+      row.addEventListener('click', async function(e) {
+        if (e.target.closest('button')) return;
+        var formId = row.dataset.formId;
+        try {
+          showToast('Loading form...', 'info');
+          var result = await API.forms.get(formId);
+          state.formEditorMode = 'edit';
+          state.formEditorData = result.config || result.data || result;
+          state.formSectionExpanded = {};
+          renderFormsTab();
+        } catch (err) {
+          showToast(err.error || 'Failed to load form.', 'error');
+        }
+      });
+    });
+
+    // Duplicate buttons
+    content.querySelectorAll('.cc-form-dup-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var formId = btn.dataset.formId;
+        var formName = btn.dataset.formName;
+        var formSlug = btn.dataset.formSlug;
+        try {
+          await API.forms.duplicate(formId, formName + ' (Copy)', formSlug + '-copy');
+          showToast('Form duplicated.', 'success');
+          fetchForms();
+        } catch (err) {
+          showToast(err.error || 'Failed to duplicate form.', 'error');
+        }
+      });
+    });
+
+    // Toggle (activate/deactivate) buttons
+    content.querySelectorAll('.cc-form-toggle-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var formId = btn.dataset.formId;
+        var action = btn.dataset.action;
+        var newActive = action === 'activate';
+        var verb = newActive ? 'Activate' : 'Deactivate';
+        if (!confirm(verb + ' this form?')) return;
+        try {
+          await API.forms.update(formId, { is_active: newActive });
+          showToast('Form ' + verb.toLowerCase() + 'd.', 'success');
+          fetchForms();
+        } catch (err) {
+          showToast(err.error || 'Failed to ' + verb.toLowerCase() + '.', 'error');
+        }
+      });
+    });
+  }
+
+  // ─── Form Editor ─────────────────────────────────────────
+
+  function renderFormEditor() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+    var fd = state.formEditorData;
+    if (!fd) return;
+
+    var isNew = state.formEditorMode === 'create';
+    var title = isNew ? 'New Form' : escapeHtml(fd.name || 'Edit Form');
+    var sections = fd.sections || [];
+    var settings = {};
+    try { settings = typeof fd.settings_json === 'string' ? JSON.parse(fd.settings_json || '{}') : (fd.settings_json || {}); } catch(e) { settings = {}; }
+    var automations = [];
+    try { automations = typeof fd.automations_json === 'string' ? JSON.parse(fd.automations_json || '[]') : (fd.automations_json || []); } catch(e) { automations = []; }
+    var branding = settings.branding || {};
+
+    var html = '';
+
+    // ─ Header bar
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">';
+    html += '<div style="display:flex;align-items:center;gap:12px;">';
+    html += '<button id="cc-form-back-btn" class="cc-btn cc-btn-outline cc-btn-sm">&larr; Back to Forms</button>';
+    html += '<h3 style="margin:0;font-size:18px;font-weight:600;color:#1e293b;">' + title + '</h3>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:8px;">';
+    if (!isNew && fd.form_id) {
+      html += '<button id="cc-form-preview-btn" class="cc-btn cc-btn-outline cc-btn-sm">Preview</button>';
+    }
+    html += '<button id="cc-form-save-btn" class="cc-btn cc-btn-primary cc-btn-sm">Save</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // ─ Settings panel
+    html += '<div class="cc-form-settings" style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">';
+    html += '<h4 style="margin:0 0 16px;font-size:15px;font-weight:600;color:#334155;">Form Settings</h4>';
+    html += '<div class="cc-form-settings-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">';
+
+    // Name
+    html += '<div>';
+    html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Name</label>';
+    html += '<input type="text" id="cc-form-name" class="cc-input" value="' + escapeAttr(fd.name || '') + '" placeholder="Form name">';
+    html += '</div>';
+
+    // Form ID / slug
+    html += '<div>';
+    html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Form ID (slug)</label>';
+    html += '<input type="text" id="cc-form-slug" class="cc-input" value="' + escapeAttr(fd.form_id || '') + '" placeholder="auto-generated-from-name">';
+    html += '</div>';
+
+    // Practice Area
+    html += '<div>';
+    html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Practice Area</label>';
+    html += '<select id="cc-form-practice-area" class="cc-input">';
+    html += '<option value="">— Select —</option>';
+    FORM_PRACTICE_AREAS.forEach(function(pa) {
+      var sel = (fd.practice_area === pa.key) ? ' selected' : '';
+      html += '<option value="' + escapeAttr(pa.key) + '"' + sel + '>' + escapeHtml(pa.label) + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
+
+    // Active toggle
+    html += '<div style="display:flex;align-items:center;gap:8px;padding-top:20px;">';
+    html += '<input type="checkbox" id="cc-form-active"' + (fd.is_active !== false ? ' checked' : '') + '>';
+    html += '<label for="cc-form-active" style="font-size:13px;font-weight:500;color:#475569;">Active</label>';
+    html += '</div>';
+
+    // Description (full width)
+    html += '<div style="grid-column:1/-1;">';
+    html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Description</label>';
+    html += '<textarea id="cc-form-description" class="cc-input" rows="2" placeholder="Brief description of this form">' + escapeHtml(fd.description || '') + '</textarea>';
+    html += '</div>';
+
+    // Submit Message (full width)
+    html += '<div style="grid-column:1/-1;">';
+    html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Submit Message</label>';
+    html += '<textarea id="cc-form-submit-message" class="cc-input" rows="2" placeholder="Custom thank-you message...">' + escapeHtml(fd.submit_message || '') + '</textarea>';
+    html += '</div>';
+
+    // Accent Color
+    html += '<div>';
+    html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Accent Color</label>';
+    html += '<input type="color" id="cc-form-accent-color" class="cc-input" value="' + escapeAttr(branding.accent_color || '#2563eb') + '" style="width:60px;height:36px;padding:2px;cursor:pointer;">';
+    html += '</div>';
+
+    html += '</div>'; // end grid
+    html += '</div>'; // end settings panel
+
+    // ─ Sections & Steps Builder
+    html += '<div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">';
+    html += '<h4 style="margin:0 0 16px;font-size:15px;font-weight:600;color:#334155;">Sections &amp; Steps</h4>';
+
+    if (sections.length === 0) {
+      html += '<div class="cc-empty" style="padding:24px;text-align:center;"><p>No sections yet. Add a section to start building.</p></div>';
+    }
+
+    sections.forEach(function(section, si) {
+      var secId = section.id || section.section_id || ('sec-' + si);
+      var expanded = !!state.formSectionExpanded[secId];
+      var steps = section.steps || [];
+
+      html += '<div class="cc-form-section-card" data-section-idx="' + si + '" style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:12px;overflow:hidden;">';
+
+      // Section header
+      html += '<div class="cc-form-section-header" data-section-id="' + escapeAttr(secId) + '" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#f8fafc;cursor:pointer;user-select:none;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span style="display:inline-block;transition:transform .2s;transform:rotate(' + (expanded ? '90' : '0') + 'deg);font-size:12px;color:#64748b;">&#9654;</span>';
+      html += '<span style="font-weight:600;font-size:14px;color:#334155;">' + escapeHtml(section.title || 'Untitled Section') + '</span>';
+      html += '<span style="color:#94a3b8;font-size:13px;">(' + steps.length + ' step' + (steps.length !== 1 ? 's' : '') + ')</span>';
+      html += '</div>';
+      html += '<div style="display:flex;gap:4px;" onclick="event.stopPropagation()">';
+      if (si > 0) html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-section-up" data-section-idx="' + si + '" title="Move up">&uarr;</button>';
+      if (si < sections.length - 1) html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-section-down" data-section-idx="' + si + '" title="Move down">&darr;</button>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-section-edit" data-section-idx="' + si + '" title="Edit section">&#9998;</button>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-form-section-delete" data-section-idx="' + si + '" title="Delete section">&times;</button>';
+      html += '</div>';
+      html += '</div>';
+
+      // Section body (steps) — only if expanded
+      if (expanded) {
+        html += '<div style="padding:12px 14px;">';
+
+        steps.forEach(function(step, sti) {
+          var fields = step.fields || [];
+          html += '<div class="cc-form-step-card" data-section-idx="' + si + '" data-step-idx="' + sti + '" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:10px;overflow:hidden;">';
+
+          // Step header
+          html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f1f5f9;">';
+          html += '<div style="display:flex;align-items:center;gap:8px;">';
+          html += '<span style="font-weight:500;font-size:13px;color:#475569;">' + escapeHtml(step.title || 'Untitled Step') + '</span>';
+          html += '<span class="cc-badge cc-badge-gray" style="font-size:11px;">' + fields.length + ' field' + (fields.length !== 1 ? 's' : '') + '</span>';
+          html += '</div>';
+          html += '<div style="display:flex;gap:4px;">';
+          if (sti > 0) html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-step-up" data-section-idx="' + si + '" data-step-idx="' + sti + '" title="Move up">&uarr;</button>';
+          if (sti < steps.length - 1) html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-step-down" data-section-idx="' + si + '" data-step-idx="' + sti + '" title="Move down">&darr;</button>';
+          html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-form-step-delete" data-section-idx="' + si + '" data-step-idx="' + sti + '" title="Delete step">&times;</button>';
+          html += '</div>';
+          html += '</div>';
+
+          // Fields
+          html += '<div style="padding:8px 12px;">';
+          if (fields.length === 0) {
+            html += '<p style="color:#94a3b8;font-size:13px;margin:4px 0;">No fields yet.</p>';
+          }
+          fields.forEach(function(field, fi) {
+            var typeLabel = (FORM_FIELD_TYPES.find(function(t) { return t.key === field.type; }) || {}).label || field.type || 'Unknown';
+            html += '<div class="cc-form-field-item" style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;">';
+            html += '<div style="display:flex;align-items:center;gap:8px;">';
+            html += '<span class="cc-badge cc-badge-blue" style="font-size:10px;text-transform:uppercase;">' + escapeHtml(typeLabel) + '</span>';
+            html += '<span style="font-size:13px;color:#334155;">' + escapeHtml(field.label || field.field_id || '') + '</span>';
+            if (field.required) html += ' <span class="cc-badge cc-badge-red" style="font-size:10px;">Required</span>';
+            html += '</div>';
+            html += '<div style="display:flex;gap:4px;">';
+            html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-field-edit" data-section-idx="' + si + '" data-step-idx="' + sti + '" data-field-idx="' + fi + '" title="Edit field">&#9998;</button>';
+            html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-form-field-delete" data-section-idx="' + si + '" data-step-idx="' + sti + '" data-field-idx="' + fi + '" title="Delete field">&times;</button>';
+            html += '</div>';
+            html += '</div>';
+          });
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-add-field" data-section-idx="' + si + '" data-step-idx="' + sti + '" style="margin-top:8px;">+ Add Field</button>';
+          html += '</div>'; // end fields
+          html += '</div>'; // end step card
+        });
+
+        html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-add-step" data-section-idx="' + si + '" style="margin-top:4px;">+ Add Step</button>';
+        html += '</div>'; // end section body
+      }
+
+      html += '</div>'; // end section card
+    });
+
+    html += '<button id="cc-form-add-section" class="cc-btn cc-btn-sm cc-btn-outline" style="margin-top:8px;">+ Add Section</button>';
+    html += '</div>'; // end sections panel
+
+    // ─ Automations panel
+    html += '<div style="background:white;border:1px solid #E5E7EB;border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">';
+    html += '<h4 style="margin:0 0 16px;font-size:15px;font-weight:600;color:#334155;">Automations</h4>';
+    html += '<p style="color:#64748b;font-size:13px;margin:0 0 16px;">Configure actions that run when this form is submitted.</p>';
+
+    AUTOMATION_TYPES.forEach(function(at) {
+      var existing = automations.find(function(a) { return a.type === at.type; });
+      var enabled = !!existing;
+
+      html += '<div class="cc-automation-card" style="border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:10px;">';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:' + (enabled ? '10' : '0') + 'px;">';
+      html += '<div>';
+      html += '<span style="font-weight:600;font-size:14px;color:#334155;">' + escapeHtml(at.label) + '</span>';
+      html += '<p style="color:#64748b;font-size:12px;margin:2px 0 0;">' + escapeHtml(at.desc) + '</p>';
+      html += '</div>';
+      html += '<label style="display:flex;align-items:center;cursor:pointer;gap:6px;">';
+      html += '<input type="checkbox" class="cc-form-auto-toggle" data-auto-type="' + escapeAttr(at.type) + '"' + (enabled ? ' checked' : '') + '>';
+      html += '<span style="font-size:12px;color:#64748b;">' + (enabled ? 'On' : 'Off') + '</span>';
+      html += '</label>';
+      html += '</div>';
+
+      // Config fields when enabled
+      if (enabled) {
+        var config = existing.config || {};
+        html += '<div class="cc-auto-config" data-auto-type="' + escapeAttr(at.type) + '" style="padding-top:10px;border-top:1px solid #f1f5f9;">';
+
+        if (at.type === 'notify_staff') {
+          html += '<div style="margin-bottom:8px;">';
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Notify Users</label>';
+          var staffUsers = state.users || state.staffList || [];
+          staffUsers.forEach(function(u) {
+            var uName = u.Name || u.name || '';
+            var uId = u.id || '';
+            var checked = (config.user_ids || []).indexOf(uId) !== -1 ? ' checked' : '';
+            html += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:4px;">';
+            html += '<input type="checkbox" class="cc-auto-notify-user" data-user-id="' + escapeAttr(uId) + '"' + checked + '>';
+            html += escapeHtml(uName);
+            html += '</label>';
+          });
+          html += '</div>';
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Subject Template</label>';
+          html += '<input type="text" class="cc-input cc-auto-notify-subject" value="' + escapeAttr(config.subject || 'New {{form_name}} submission from {{client_name}}') + '" placeholder="New {{form_name}} submission from {{client_name}}">';
+        }
+
+        if (at.type === 'update_stage') {
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Target Stage</label>';
+          html += '<select class="cc-input cc-auto-stage-select">';
+          STAGE_OPTIONS.forEach(function(s) {
+            var sel = config.stage === s.key ? ' selected' : '';
+            html += '<option value="' + escapeAttr(s.key) + '"' + sel + '>' + escapeHtml(s.label) + '</option>';
+          });
+          html += '</select>';
+        }
+
+        if (at.type === 'log_activity') {
+          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+          html += '<div>';
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Activity Type</label>';
+          html += '<input type="text" class="cc-input cc-auto-activity-type" value="' + escapeAttr(config.activity_type || 'Form Submission') + '" placeholder="Form Submission">';
+          html += '</div>';
+          html += '<div>';
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Subject Template</label>';
+          html += '<input type="text" class="cc-input cc-auto-activity-subject" value="' + escapeAttr(config.subject || '{{form_name}} submitted by {{client_name}}') + '" placeholder="{{form_name}} submitted by {{client_name}}">';
+          html += '</div>';
+          html += '</div>';
+        }
+
+        if (at.type === 'assign_owner') {
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Assign To</label>';
+          html += '<select class="cc-input cc-auto-assign-select">';
+          html += '<option value="">— Select User —</option>';
+          var staffUsers2 = state.users || state.staffList || [];
+          staffUsers2.forEach(function(u) {
+            var sel = config.user_id === (u.id || '') ? ' selected' : '';
+            html += '<option value="' + escapeAttr(u.id || '') + '"' + sel + '>' + escapeHtml(u.Name || u.name || '') + '</option>';
+          });
+          html += '</select>';
+        }
+
+        if (at.type === 'send_confirmation') {
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Template ID</label>';
+          html += '<input type="text" class="cc-input cc-auto-confirm-template" value="' + escapeAttr(config.template_id || '') + '" placeholder="Email template ID or name">';
+        }
+
+        if (at.type === 'create_task') {
+          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+          html += '<div>';
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Task Title</label>';
+          html += '<input type="text" class="cc-input cc-auto-task-title" value="' + escapeAttr(config.title || 'Follow up: {{form_name}} - {{client_name}}') + '" placeholder="Follow up: {{form_name}} - {{client_name}}">';
+          html += '</div>';
+          html += '<div>';
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Due In (days)</label>';
+          html += '<input type="number" class="cc-input cc-auto-task-days" value="' + escapeAttr(String(config.due_days || 1)) + '" min="0">';
+          html += '</div>';
+          html += '</div>';
+          html += '<div style="margin-top:8px;">';
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Assign To</label>';
+          html += '<select class="cc-input cc-auto-task-assign">';
+          html += '<option value="owner"' + (config.assign_to === 'owner' || !config.assign_to ? ' selected' : '') + '>Lead Owner</option>';
+          var staffUsers3 = state.users || state.staffList || [];
+          staffUsers3.forEach(function(u) {
+            var sel = config.assign_to === (u.id || '') ? ' selected' : '';
+            html += '<option value="' + escapeAttr(u.id || '') + '"' + sel + '>' + escapeHtml(u.Name || u.name || '') + '</option>';
+          });
+          html += '</select>';
+          html += '</div>';
+        }
+
+        html += '</div>'; // end auto config
+      }
+
+      html += '</div>'; // end automation card
+    });
+
+    html += '</div>'; // end automations panel
+
+    content.innerHTML = html;
+    bindFormEditorEvents();
+  }
+
+  function collectFormEditorData() {
+    var fd = state.formEditorData;
+    if (!fd) return null;
+
+    fd.name = (document.getElementById('cc-form-name') || {}).value || '';
+    fd.form_id = (document.getElementById('cc-form-slug') || {}).value || '';
+    fd.practice_area = (document.getElementById('cc-form-practice-area') || {}).value || '';
+    fd.is_active = !!(document.getElementById('cc-form-active') || {}).checked;
+    fd.description = (document.getElementById('cc-form-description') || {}).value || '';
+    fd.submit_message = (document.getElementById('cc-form-submit-message') || {}).value || '';
+
+    // Collect accent color into settings_json
+    var settings = {};
+    try { settings = typeof fd.settings_json === 'string' ? JSON.parse(fd.settings_json || '{}') : (fd.settings_json || {}); } catch(e) { settings = {}; }
+    var accentEl = document.getElementById('cc-form-accent-color');
+    if (accentEl) {
+      if (!settings.branding) settings.branding = {};
+      settings.branding.accent_color = accentEl.value;
+    }
+    fd.settings_json = JSON.stringify(settings);
+
+    // Collect automations from the UI
+    var autos = [];
+    var content = $el('cc-admin-content');
+    if (content) {
+      content.querySelectorAll('.cc-form-auto-toggle').forEach(function(toggle) {
+        if (!toggle.checked) return;
+        var autoType = toggle.dataset.autoType;
+        var config = {};
+        var configEl = content.querySelector('.cc-auto-config[data-auto-type="' + autoType + '"]');
+
+        if (autoType === 'notify_staff' && configEl) {
+          config.user_ids = [];
+          configEl.querySelectorAll('.cc-auto-notify-user:checked').forEach(function(cb) {
+            config.user_ids.push(cb.dataset.userId);
+          });
+          var subjectEl = configEl.querySelector('.cc-auto-notify-subject');
+          if (subjectEl) config.subject = subjectEl.value;
+        }
+        if (autoType === 'update_stage' && configEl) {
+          var stageEl = configEl.querySelector('.cc-auto-stage-select');
+          if (stageEl) config.stage = stageEl.value;
+        }
+        if (autoType === 'log_activity' && configEl) {
+          var atEl = configEl.querySelector('.cc-auto-activity-type');
+          if (atEl) config.activity_type = atEl.value;
+          var asEl = configEl.querySelector('.cc-auto-activity-subject');
+          if (asEl) config.subject = asEl.value;
+        }
+        if (autoType === 'assign_owner' && configEl) {
+          var aoEl = configEl.querySelector('.cc-auto-assign-select');
+          if (aoEl) config.user_id = aoEl.value;
+        }
+        if (autoType === 'send_confirmation' && configEl) {
+          var tplEl = configEl.querySelector('.cc-auto-confirm-template');
+          if (tplEl) config.template_id = tplEl.value;
+        }
+        if (autoType === 'create_task' && configEl) {
+          var ttEl = configEl.querySelector('.cc-auto-task-title');
+          if (ttEl) config.title = ttEl.value;
+          var tdEl = configEl.querySelector('.cc-auto-task-days');
+          if (tdEl) config.due_days = parseInt(tdEl.value, 10) || 1;
+          var taEl = configEl.querySelector('.cc-auto-task-assign');
+          if (taEl) config.assign_to = taEl.value;
+        }
+
+        autos.push({ type: autoType, config: config });
+      });
+    }
+    fd.automations_json = JSON.stringify(autos);
+    return fd;
+  }
+
+  function bindFormEditorEvents() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    // Back button
+    var backBtn = document.getElementById('cc-form-back-btn');
+    if (backBtn) backBtn.addEventListener('click', function() {
+      state.formEditorMode = null;
+      state.formEditorData = null;
+      state.formSectionExpanded = {};
+      renderFormsTab();
+    });
+
+    // Preview button
+    var previewBtn = document.getElementById('cc-form-preview-btn');
+    if (previewBtn) previewBtn.addEventListener('click', function() {
+      var slug = (document.getElementById('cc-form-slug') || {}).value || state.formEditorData.form_id || '';
+      window.open('/intake?form=' + encodeURIComponent(slug) + '&preview=1', '_blank');
+    });
+
+    // Save button
+    var saveBtn = document.getElementById('cc-form-save-btn');
+    if (saveBtn) saveBtn.addEventListener('click', async function() {
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+      try {
+        var fd = collectFormEditorData();
+        if (!fd.name) throw { error: 'Form name is required.' };
+        if (!fd.form_id) fd.form_id = slugify(fd.name);
+
+        if (state.formEditorMode === 'create') {
+          var result = await API.forms.create(fd);
+          showToast('Form created.', 'success');
+          // Switch to edit mode with returned data
+          state.formEditorMode = 'edit';
+          state.formEditorData = result.config || result.data || result;
+        } else {
+          await API.forms.update(fd.id, fd);
+          showToast('Form saved.', 'success');
+        }
+      } catch (err) {
+        showToast(err.error || 'Failed to save form.', 'error');
+      }
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    });
+
+    // Auto-slug from name
+    var nameInput = document.getElementById('cc-form-name');
+    var slugInput = document.getElementById('cc-form-slug');
+    if (nameInput && slugInput && state.formEditorMode === 'create') {
+      nameInput.addEventListener('input', function() {
+        slugInput.value = slugify(nameInput.value);
+      });
+    }
+
+    // Section header click → toggle expand
+    content.querySelectorAll('.cc-form-section-header').forEach(function(hdr) {
+      hdr.addEventListener('click', function() {
+        var secId = hdr.dataset.sectionId;
+        state.formSectionExpanded[secId] = !state.formSectionExpanded[secId];
+        // Collect current form data before re-render
+        collectFormEditorData();
+        renderFormEditor();
+      });
+    });
+
+    // Section sort (up/down)
+    content.querySelectorAll('.cc-form-section-up').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(btn.dataset.sectionIdx, 10);
+        collectFormEditorData();
+        var secs = state.formEditorData.sections;
+        if (idx > 0 && idx < secs.length) {
+          var tmp = secs[idx];
+          secs[idx] = secs[idx - 1];
+          secs[idx - 1] = tmp;
+        }
+        renderFormEditor();
+      });
+    });
+    content.querySelectorAll('.cc-form-section-down').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(btn.dataset.sectionIdx, 10);
+        collectFormEditorData();
+        var secs = state.formEditorData.sections;
+        if (idx >= 0 && idx < secs.length - 1) {
+          var tmp = secs[idx];
+          secs[idx] = secs[idx + 1];
+          secs[idx + 1] = tmp;
+        }
+        renderFormEditor();
+      });
+    });
+
+    // Section edit
+    content.querySelectorAll('.cc-form-section-edit').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(btn.dataset.sectionIdx, 10);
+        collectFormEditorData();
+        var section = state.formEditorData.sections[idx];
+        if (!section) return;
+        var newTitle = prompt('Section title:', section.title || '');
+        if (newTitle !== null) {
+          section.title = newTitle;
+          renderFormEditor();
+        }
+      });
+    });
+
+    // Section delete
+    content.querySelectorAll('.cc-form-section-delete').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = parseInt(btn.dataset.sectionIdx, 10);
+        if (!confirm('Delete this section and all its steps/fields?')) return;
+        collectFormEditorData();
+        state.formEditorData.sections.splice(idx, 1);
+        renderFormEditor();
+      });
+    });
+
+    // Add section
+    var addSecBtn = document.getElementById('cc-form-add-section');
+    if (addSecBtn) addSecBtn.addEventListener('click', function() {
+      var title = prompt('Section title:', '');
+      if (!title) return;
+      var secId = slugify(title) || ('section-' + Date.now());
+      collectFormEditorData();
+      state.formEditorData.sections.push({
+        id: secId, section_id: secId, title: title, steps: []
+      });
+      state.formSectionExpanded[secId] = true;
+      renderFormEditor();
+    });
+
+    // Add step
+    content.querySelectorAll('.cc-form-add-step').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var sIdx = parseInt(btn.dataset.sectionIdx, 10);
+        var title = prompt('Step title:', '');
+        if (!title) return;
+        var stepId = slugify(title) || ('step-' + Date.now());
+        collectFormEditorData();
+        var section = state.formEditorData.sections[sIdx];
+        if (!section) return;
+        if (!section.steps) section.steps = [];
+        section.steps.push({ id: stepId, step_id: stepId, title: title, fields: [] });
+        renderFormEditor();
+      });
+    });
+
+    // Step sort (up/down)
+    content.querySelectorAll('.cc-form-step-up').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var sIdx = parseInt(btn.dataset.sectionIdx, 10);
+        var stIdx = parseInt(btn.dataset.stepIdx, 10);
+        collectFormEditorData();
+        var steps = (state.formEditorData.sections[sIdx] || {}).steps || [];
+        if (stIdx > 0 && stIdx < steps.length) {
+          var tmp = steps[stIdx];
+          steps[stIdx] = steps[stIdx - 1];
+          steps[stIdx - 1] = tmp;
+        }
+        renderFormEditor();
+      });
+    });
+    content.querySelectorAll('.cc-form-step-down').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var sIdx = parseInt(btn.dataset.sectionIdx, 10);
+        var stIdx = parseInt(btn.dataset.stepIdx, 10);
+        collectFormEditorData();
+        var steps = (state.formEditorData.sections[sIdx] || {}).steps || [];
+        if (stIdx >= 0 && stIdx < steps.length - 1) {
+          var tmp = steps[stIdx];
+          steps[stIdx] = steps[stIdx + 1];
+          steps[stIdx + 1] = tmp;
+        }
+        renderFormEditor();
+      });
+    });
+
+    // Step delete
+    content.querySelectorAll('.cc-form-step-delete').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var sIdx = parseInt(btn.dataset.sectionIdx, 10);
+        var stIdx = parseInt(btn.dataset.stepIdx, 10);
+        if (!confirm('Delete this step and all its fields?')) return;
+        collectFormEditorData();
+        var steps = (state.formEditorData.sections[sIdx] || {}).steps || [];
+        steps.splice(stIdx, 1);
+        renderFormEditor();
+      });
+    });
+
+    // Add field
+    content.querySelectorAll('.cc-form-add-field').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var sIdx = parseInt(btn.dataset.sectionIdx, 10);
+        var stIdx = parseInt(btn.dataset.stepIdx, 10);
+        collectFormEditorData();
+        showFieldEditorModal(sIdx, stIdx, null, null);
+      });
+    });
+
+    // Edit field
+    content.querySelectorAll('.cc-form-field-edit').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var sIdx = parseInt(btn.dataset.sectionIdx, 10);
+        var stIdx = parseInt(btn.dataset.stepIdx, 10);
+        var fIdx = parseInt(btn.dataset.fieldIdx, 10);
+        collectFormEditorData();
+        var field = ((state.formEditorData.sections[sIdx] || {}).steps || [])[stIdx];
+        var existingField = field ? (field.fields || [])[fIdx] : null;
+        showFieldEditorModal(sIdx, stIdx, fIdx, existingField);
+      });
+    });
+
+    // Delete field
+    content.querySelectorAll('.cc-form-field-delete').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var sIdx = parseInt(btn.dataset.sectionIdx, 10);
+        var stIdx = parseInt(btn.dataset.stepIdx, 10);
+        var fIdx = parseInt(btn.dataset.fieldIdx, 10);
+        if (!confirm('Delete this field?')) return;
+        collectFormEditorData();
+        var step = ((state.formEditorData.sections[sIdx] || {}).steps || [])[stIdx];
+        if (step && step.fields) step.fields.splice(fIdx, 1);
+        renderFormEditor();
+      });
+    });
+
+    // Automation toggles
+    content.querySelectorAll('.cc-form-auto-toggle').forEach(function(toggle) {
+      toggle.addEventListener('change', function() {
+        collectFormEditorData();
+        // Re-parse automations after collection, then toggle
+        var autos = [];
+        try { autos = JSON.parse(state.formEditorData.automations_json || '[]'); } catch(e) { autos = []; }
+        var autoType = toggle.dataset.autoType;
+        if (toggle.checked) {
+          // Add if not present
+          var exists = autos.find(function(a) { return a.type === autoType; });
+          if (!exists) autos.push({ type: autoType, config: {} });
+        } else {
+          // Remove
+          autos = autos.filter(function(a) { return a.type !== autoType; });
+        }
+        state.formEditorData.automations_json = JSON.stringify(autos);
+        renderFormEditor();
+      });
+    });
+  }
+
+  // ─── Field Editor Modal ──────────────────────────────────
+
+  function showFieldEditorModal(sectionIdx, stepIdx, fieldIdx, existingField) {
+    var isEdit = existingField !== null && existingField !== undefined;
+    var f = existingField || {};
+    var modalTitle = isEdit ? 'Edit Field' : 'Add Field';
+
+    // Gather all field IDs in the form for conditional logic dropdown
+    var allFieldIds = [];
+    (state.formEditorData.sections || []).forEach(function(sec) {
+      (sec.steps || []).forEach(function(step) {
+        (step.fields || []).forEach(function(fld) {
+          if (fld.field_id) allFieldIds.push(fld.field_id);
+        });
+      });
+    });
+
+    var condition = f.condition || {};
+
+    var bodyHtml = '';
+
+    // Type
+    bodyHtml += '<div style="margin-bottom:12px;">';
+    bodyHtml += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Type</label>';
+    bodyHtml += '<select id="cc-field-type" class="cc-input">';
+    FORM_FIELD_TYPES.forEach(function(t) {
+      var sel = f.type === t.key ? ' selected' : '';
+      bodyHtml += '<option value="' + escapeAttr(t.key) + '"' + sel + '>' + escapeHtml(t.label) + '</option>';
+    });
+    bodyHtml += '</select>';
+    bodyHtml += '</div>';
+
+    // Field ID
+    bodyHtml += '<div style="margin-bottom:12px;">';
+    bodyHtml += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Field ID</label>';
+    bodyHtml += '<input type="text" id="cc-field-id" class="cc-input" value="' + escapeAttr(f.field_id || '') + '" placeholder="auto-from-label">';
+    bodyHtml += '</div>';
+
+    // Label
+    bodyHtml += '<div style="margin-bottom:12px;">';
+    bodyHtml += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Label</label>';
+    bodyHtml += '<input type="text" id="cc-field-label" class="cc-input" value="' + escapeAttr(f.label || '') + '">';
+    bodyHtml += '</div>';
+
+    // Description
+    bodyHtml += '<div style="margin-bottom:12px;">';
+    bodyHtml += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Description</label>';
+    bodyHtml += '<textarea id="cc-field-description" class="cc-input" rows="2">' + escapeHtml(f.description || '') + '</textarea>';
+    bodyHtml += '</div>';
+
+    // Placeholder
+    bodyHtml += '<div style="margin-bottom:12px;">';
+    bodyHtml += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Placeholder</label>';
+    bodyHtml += '<input type="text" id="cc-field-placeholder" class="cc-input" value="' + escapeAttr(f.placeholder || '') + '">';
+    bodyHtml += '</div>';
+
+    // Required
+    bodyHtml += '<div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">';
+    bodyHtml += '<input type="checkbox" id="cc-field-required"' + (f.required ? ' checked' : '') + '>';
+    bodyHtml += '<label for="cc-field-required" style="font-size:13px;font-weight:500;color:#475569;">Required</label>';
+    bodyHtml += '</div>';
+
+    // Conditional logic
+    bodyHtml += '<div style="margin-bottom:12px;padding:12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">';
+    bodyHtml += '<label style="display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:8px;">Conditional Logic (optional)</label>';
+    bodyHtml += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">';
+
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="display:block;font-size:11px;color:#64748b;margin-bottom:2px;">Field</label>';
+    bodyHtml += '<select id="cc-field-cond-field" class="cc-input">';
+    bodyHtml += '<option value="">— None —</option>';
+    allFieldIds.forEach(function(fid) {
+      var sel = condition.field === fid ? ' selected' : '';
+      bodyHtml += '<option value="' + escapeAttr(fid) + '"' + sel + '>' + escapeHtml(fid) + '</option>';
+    });
+    bodyHtml += '</select>';
+    bodyHtml += '</div>';
+
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="display:block;font-size:11px;color:#64748b;margin-bottom:2px;">Operator</label>';
+    bodyHtml += '<select id="cc-field-cond-op" class="cc-input">';
+    ['eq', 'neq', 'in', 'truthy', 'falsy'].forEach(function(op) {
+      var sel = condition.op === op ? ' selected' : '';
+      bodyHtml += '<option value="' + op + '"' + sel + '>' + op + '</option>';
+    });
+    bodyHtml += '</select>';
+    bodyHtml += '</div>';
+
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="display:block;font-size:11px;color:#64748b;margin-bottom:2px;">Value</label>';
+    bodyHtml += '<input type="text" id="cc-field-cond-value" class="cc-input" value="' + escapeAttr(condition.value || '') + '">';
+    bodyHtml += '</div>';
+
+    bodyHtml += '</div>'; // end grid
+    bodyHtml += '</div>'; // end conditional
+
+    // Type-specific section
+    bodyHtml += '<div id="cc-field-type-specific" style="margin-bottom:12px;">';
+    bodyHtml += renderFieldTypeSpecific(f.type || 'short_text', f);
+    bodyHtml += '</div>';
+
+    showModal(modalTitle, bodyHtml, async function(formEl) {
+      var fieldData = {
+        type: (formEl.querySelector('#cc-field-type') || {}).value || 'short_text',
+        field_id: (formEl.querySelector('#cc-field-id') || {}).value || '',
+        label: (formEl.querySelector('#cc-field-label') || {}).value || '',
+        description: (formEl.querySelector('#cc-field-description') || {}).value || '',
+        placeholder: (formEl.querySelector('#cc-field-placeholder') || {}).value || '',
+        required: !!(formEl.querySelector('#cc-field-required') || {}).checked
+      };
+
+      // Auto-generate field_id from label if empty
+      if (!fieldData.field_id) fieldData.field_id = slugify(fieldData.label);
+
+      // Conditional logic
+      var condField = (formEl.querySelector('#cc-field-cond-field') || {}).value;
+      if (condField) {
+        fieldData.condition = {
+          field: condField,
+          op: (formEl.querySelector('#cc-field-cond-op') || {}).value || 'eq',
+          value: (formEl.querySelector('#cc-field-cond-value') || {}).value || ''
+        };
+      }
+
+      // Type-specific data
+      if (fieldData.type === 'multiple_choice' || fieldData.type === 'select' || fieldData.type === 'checkbox_group') {
+        fieldData.options = collectFieldOptions(formEl);
+      }
+      if (fieldData.type === 'long_text') {
+        fieldData.rows = parseInt((formEl.querySelector('#cc-field-rows') || {}).value, 10) || 4;
+      }
+      if (fieldData.type === 'yes_no') {
+        fieldData.yes_label = (formEl.querySelector('#cc-field-yes-label') || {}).value || 'Yes';
+        fieldData.no_label = (formEl.querySelector('#cc-field-no-label') || {}).value || 'No';
+      }
+
+      // Save to local state
+      var step = ((state.formEditorData.sections[sectionIdx] || {}).steps || [])[stepIdx];
+      if (!step) return;
+      if (!step.fields) step.fields = [];
+
+      if (isEdit && fieldIdx !== null) {
+        // Preserve any extra properties from existing field
+        step.fields[fieldIdx] = Object.assign({}, step.fields[fieldIdx], fieldData);
+      } else {
+        step.fields.push(fieldData);
+      }
+
+      closeModal();
+      renderFormEditor();
+    });
+
+    // Bind type change to show/hide type-specific fields
+    var typeSelect = document.querySelector('#cc-field-type');
+    if (typeSelect) {
+      typeSelect.addEventListener('change', function() {
+        var specific = document.getElementById('cc-field-type-specific');
+        if (specific) specific.innerHTML = renderFieldTypeSpecific(typeSelect.value, f);
+      });
+    }
+
+    // Auto-generate field_id from label
+    var labelInput = document.querySelector('#cc-field-label');
+    var fieldIdInput = document.querySelector('#cc-field-id');
+    if (labelInput && fieldIdInput && !isEdit) {
+      labelInput.addEventListener('input', function() {
+        fieldIdInput.value = slugify(labelInput.value);
+      });
+    }
+  }
+
+  function renderFieldTypeSpecific(type, fieldData) {
+    var html = '';
+    fieldData = fieldData || {};
+
+    if (type === 'multiple_choice' || type === 'select' || type === 'checkbox_group') {
+      var options = fieldData.options || [];
+      html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Options</label>';
+      html += '<div id="cc-field-options-list">';
+      if (options.length === 0) {
+        html += '<p style="color:#94a3b8;font-size:12px;">No options yet. Click "Add Option" to start.</p>';
+      }
+      options.forEach(function(opt, oi) {
+        html += '<div class="cc-field-option-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">';
+        html += '<input type="text" class="cc-input cc-field-opt-value" value="' + escapeAttr(opt.value || '') + '" placeholder="Value" style="flex:1;">';
+        html += '<input type="text" class="cc-input cc-field-opt-label" value="' + escapeAttr(opt.label || '') + '" placeholder="Label" style="flex:1;">';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-field-opt-remove" data-opt-idx="' + oi + '">&times;</button>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '<button id="cc-field-add-option" class="cc-btn cc-btn-sm cc-btn-outline" style="margin-top:4px;">+ Add Option</button>';
+    }
+
+    if (type === 'long_text') {
+      html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Rows</label>';
+      html += '<input type="number" id="cc-field-rows" class="cc-input" value="' + escapeAttr(String(fieldData.rows || 4)) + '" min="1" max="20" style="width:80px;">';
+    }
+
+    if (type === 'yes_no') {
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+      html += '<div>';
+      html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Yes Label</label>';
+      html += '<input type="text" id="cc-field-yes-label" class="cc-input" value="' + escapeAttr(fieldData.yes_label || 'Yes') + '">';
+      html += '</div>';
+      html += '<div>';
+      html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">No Label</label>';
+      html += '<input type="text" id="cc-field-no-label" class="cc-input" value="' + escapeAttr(fieldData.no_label || 'No') + '">';
+      html += '</div>';
+      html += '</div>';
+    }
+
+    return html;
+  }
+
+  function collectFieldOptions(formEl) {
+    var options = [];
+    var rows = formEl.querySelectorAll('.cc-field-option-row');
+    rows.forEach(function(row) {
+      var value = (row.querySelector('.cc-field-opt-value') || {}).value || '';
+      var label = (row.querySelector('.cc-field-opt-label') || {}).value || '';
+      if (value || label) {
+        options.push({ value: value || slugify(label), label: label || value });
+      }
+    });
+    return options;
   }
 
   // ═══════════════════════════════════════════════════════════

@@ -32,7 +32,8 @@ const ClientCareAPI = (() => {
   var READ_ACTIONS = ['list', 'get', 'get_history', 'list_users', 'list_templates',
     'system_stats', 'list_recipients', 'report', 'preview_audience', 'list_steps',
     'approve_review', 'link_lead', 'recent_messages',
-    'get_sms_thread', 'get_user_settings'];
+    'get_sms_thread', 'get_user_settings',
+    'list_submissions', 'get_public'];
 
   // Actions that mutate data (invalidate cache)
   var WRITE_ACTIONS = ['create', 'update', 'delete', 'bulk_update_tags',
@@ -41,7 +42,10 @@ const ClientCareAPI = (() => {
     'resend_non_openers', 'create_template', 'update_template',
     'create_task', 'update_task', 'delete_task',
     'generate_will', 'upload_to_clio', 'retry_processing',
-    'send_email', 'send_sms', 'log_call', 'update_user_settings'];
+    'send_email', 'send_sms', 'log_call', 'update_user_settings',
+    'create_section', 'update_section', 'delete_section',
+    'create_field', 'update_field', 'delete_field', 'reorder',
+    'send_link'];
 
   function _cacheKey(path, body) {
     return path + '|' + JSON.stringify(body || {});
@@ -49,6 +53,7 @@ const ClientCareAPI = (() => {
 
   function _getCacheTTL(path) {
     if (path.indexOf('/cc/config') !== -1) return CACHE_TTL.config;
+    if (path.indexOf('/cc/forms') !== -1) return CACHE_TTL.default;
     if (path.indexOf('/cc/price-book') !== -1) return CACHE_TTL.price_book;
     if (path.indexOf('/cc/admin') !== -1 && path.indexOf('stats') !== -1) return CACHE_TTL.system_stats;
     if (path.indexOf('/cc/reports') !== -1) return CACHE_TTL.reports;
@@ -666,6 +671,78 @@ const ClientCareAPI = (() => {
     return resp.json();
   }
 
+  // ─── Forms ────────────────────────────────────────────────
+
+  async function listForms(filters) {
+    return request('POST', '/cc/forms', { body: Object.assign({ action: 'list' }, filters || {}) });
+  }
+
+  async function getForm(formId) {
+    return request('POST', '/cc/forms', { body: { action: 'get', form_id: formId } });
+  }
+
+  async function getFormPublic(formId) {
+    return request('POST', '/cc/forms/public', { body: { form_id: formId }, skipAuth: true });
+  }
+
+  async function createForm(data) {
+    return request('POST', '/cc/forms', { body: Object.assign({ action: 'create' }, data) });
+  }
+
+  async function updateForm(id, fields) {
+    return request('POST', '/cc/forms', { body: Object.assign({ action: 'update', id: id }, fields) });
+  }
+
+  async function deleteForm(id) {
+    return request('POST', '/cc/forms', { body: { action: 'delete', id: id } });
+  }
+
+  async function duplicateForm(id, name, formId) {
+    return request('POST', '/cc/forms', { body: { action: 'duplicate', id: id, name: name, form_id: formId } });
+  }
+
+  async function sendFormLink(data) {
+    return request('POST', '/cc/forms', { body: Object.assign({ action: 'send_link' }, data) });
+  }
+
+  async function listFormSubmissions(formId) {
+    return request('POST', '/cc/forms', { body: { action: 'list_submissions', form_id: formId } });
+  }
+
+  async function submitDynamicForm(data) {
+    return request('POST', '/cc/form-submit', { body: data, skipAuth: true });
+  }
+
+  // Form sections
+  async function createFormSection(data) {
+    return request('POST', '/cc/form-fields', { body: Object.assign({ action: 'create_section' }, data) });
+  }
+
+  async function updateFormSection(id, fields) {
+    return request('POST', '/cc/form-fields', { body: Object.assign({ action: 'update_section', id: id }, fields) });
+  }
+
+  async function deleteFormSection(id, formId, sectionId) {
+    return request('POST', '/cc/form-fields', { body: { action: 'delete_section', id: id, form_id: formId, section_id: sectionId } });
+  }
+
+  // Form fields
+  async function createFormField(data) {
+    return request('POST', '/cc/form-fields', { body: Object.assign({ action: 'create_field' }, data) });
+  }
+
+  async function updateFormField(id, fields) {
+    return request('POST', '/cc/form-fields', { body: Object.assign({ action: 'update_field', id: id }, fields) });
+  }
+
+  async function deleteFormField(id) {
+    return request('POST', '/cc/form-fields', { body: { action: 'delete_field', id: id } });
+  }
+
+  async function reorderFormItems(type, updates) {
+    return request('POST', '/cc/form-fields', { body: { action: 'reorder', type: type, updates: updates } });
+  }
+
   // ─── Contacts ──────────────────────────────────────────────
 
   /**
@@ -944,6 +1021,16 @@ const ClientCareAPI = (() => {
     dashboard: { get: getDashboard },
     // Subscriptions
     subscriptions: { unsubscribe },
+    // Forms (management)
+    forms: {
+      list: listForms, get: getForm, getPublic: getFormPublic,
+      create: createForm, update: updateForm, delete: deleteForm,
+      duplicate: duplicateForm, sendLink: sendFormLink,
+      listSubmissions: listFormSubmissions, submitDynamic: submitDynamicForm,
+      createSection: createFormSection, updateSection: updateFormSection, deleteSection: deleteFormSection,
+      createField: createFormField, updateField: updateFormField, deleteField: deleteFormField,
+      reorder: reorderFormItems
+    },
     // Intake (public)
     intake: { save: saveIntakeForm, resume: resumeIntakeForm, submit: submitIntakeForm, uploadFile: uploadIntakeFile },
     // Cache management
