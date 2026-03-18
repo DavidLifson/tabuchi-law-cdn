@@ -455,7 +455,6 @@
       { label: 'Marital Status', value: c.Marital_Status },
       { label: 'Preferred Language', value: c.Preferred_Language },
       { label: 'Referred By', value: c.Referral_Source },
-      { label: 'Practice Area', value: formatPracticeArea(c.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(c.Service_Package) },
       { label: 'Lead Source', value: c.Source },
       { label: 'Lead Stage', value: API.util.stageLabel(c.Lead_Stage) },
@@ -762,19 +761,6 @@
     // ── CRM Pipeline ──
     html += '<div class="cc-edit-group-label">Pipeline</div>';
     html += '<div class="cc-edit-grid">';
-    var practiceAreas = [
-      { key: 'ESTATE_PLANNING_WILL_POA', label: 'Estate Planning (Will & POA)' },
-      { key: 'TRUSTS_HENSON_SPOUSAL', label: 'Trusts (Henson/Spousal)' },
-      { key: 'GUARDIANSHIP_MINORS', label: 'Guardianship (Minors)' },
-      { key: 'PROBATE_ESTATE_ADMIN', label: 'Probate & Estate Admin' },
-      { key: 'BUSINESS_SUCCESSION', label: 'Business Succession' },
-      { key: 'REAL_ESTATE', label: 'Real Estate' },
-      { key: 'CORPORATE', label: 'Corporate' },
-      { key: 'FAMILY_LAW', label: 'Family Law' }
-    ];
-    var currentPAs = Array.isArray(c.Practice_Area) ? c.Practice_Area : (c.Practice_Area ? [c.Practice_Area] : []);
-    html += buildMultiSelect('cc-ms-pa', 'Practice Area', practiceAreas, currentPAs, { placeholder: 'Select practice areas...' });
-
     // Service Packages from Price Book data
     var spOptions = (state.priceBookItems || []).map(function(item) {
       return { key: item.Service_Code || item.id, label: item.Service_Name || item.Name || item.Service_Code || '' };
@@ -1318,7 +1304,6 @@
           Marital_Status: document.getElementById('cc-edit-marital').value,
           Preferred_Language: document.getElementById('cc-edit-language').value,
           Referral_Source: document.getElementById('cc-edit-referral').value.trim(),
-          Practice_Area: (function() { var w = document.querySelector('[data-ms-id="cc-ms-pa"]'); return w && w._getValues ? w._getValues() : []; })(),
           Service_Package: (function() { var w = document.querySelector('[data-ms-id="cc-ms-sp"]'); return w && w._getValues ? w._getValues() : []; })(),
           Source: (function() { var sel = document.getElementById('cc-edit-source'); var oth = document.getElementById('cc-edit-source-other'); return sel && sel.value === 'Other' && oth ? oth.value.trim() : (sel ? sel.value.trim() : ''); })(),
           Lead_Stage: document.getElementById('cc-edit-stage').value,

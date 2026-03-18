@@ -1181,22 +1181,6 @@
       html += '<div class="cc-info-divider"></div>';
       html += '<div class="cc-info-section-label">Lead Details</div>';
       html += '<div class="cc-info-grid">';
-      // Practice Area multi-checkbox
-      html += '<div class="cc-info-item cc-info-item-full"><div class="cc-info-label">Practice Area</div>';
-      html += '<div class="cc-checkbox-group" data-field="Practice_Area">';
-      [
-        { key: 'ESTATE_PLANNING_WILL_POA', label: 'Estate Planning (Will & POA)' },
-        { key: 'TRUSTS_HENSON_SPOUSAL', label: 'Trusts (Henson/Spousal)' },
-        { key: 'GUARDIANSHIP_MINORS', label: 'Guardianship (Minors)' },
-        { key: 'PROBATE_ESTATE_ADMIN', label: 'Probate & Estate Admin' },
-        { key: 'BUSINESS_SUCCESSION', label: 'Business Succession' },
-        { key: 'REAL_ESTATE', label: 'Real Estate' },
-        { key: 'CORPORATE', label: 'Corporate' },
-        { key: 'FAMILY_LAW', label: 'Family Law' }
-      ].forEach(function(pa) {
-        html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-pa-check" value="' + pa.key + '"> ' + escapeHtml(pa.label) + '</label>';
-      });
-      html += '</div></div>';
       // Service Package multi-checkbox
       html += '<div class="cc-info-item cc-info-item-full"><div class="cc-info-label">Service Package</div>';
       html += '<div class="cc-checkbox-group" data-field="Service_Package">';
@@ -1242,7 +1226,6 @@
 
     // ── Lead details (read-only) ──
     var detailFields = [
-      { label: 'Practice Area', html: renderPracticeAreaField(l) },
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
       { label: 'Lead Source', html: renderLeadSourceField(l) },
       { label: 'Owner', value: l.Lead_Owner_Name || '—' },
@@ -1279,7 +1262,6 @@
     bindLanguageField();
     bindLeadSourceField();
     bindConsentField();
-    bindPracticeAreaField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────
@@ -1799,12 +1781,6 @@
         // Build Client_Name from first + last
         var parts = [data.First_Name, data.Last_Name].filter(Boolean);
         if (parts.length) data.Client_Name = parts.join(' ');
-
-        // Collect Practice Area checkboxes
-        var paChecks = document.querySelectorAll('.cc-pa-check:checked');
-        if (paChecks.length) {
-          data.Practice_Area = Array.from(paChecks).map(function(cb) { return cb.value; });
-        }
 
         // Collect Service Package checkboxes
         var spChecks = document.querySelectorAll('.cc-sp-check:checked');
