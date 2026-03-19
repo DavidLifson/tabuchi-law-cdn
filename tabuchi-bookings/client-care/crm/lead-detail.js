@@ -196,23 +196,23 @@
   }
 
   function syncNextAction() {
-    var now = new Date();
     var earliest = null;
     state.tasks.forEach(function(t) {
       if (t.Status === 'DONE' || !t.Due_At) return;
       var d = new Date(t.Due_At);
       if (!earliest || d < earliest) earliest = d;
     });
-    var newVal = earliest ? earliest.toISOString() : null;
+    // Only update Next Action if tasks provide a date; never clear a manually-set value
+    if (!earliest) return;
+    var newVal = earliest.toISOString();
     var current = state.lead.Next_Action_At || state.lead.Next_Action_Date || null;
-    // Only update if different
     var currentDate = current ? new Date(current).toISOString().slice(0, 10) : null;
-    var newDate = newVal ? new Date(newVal).toISOString().slice(0, 10) : null;
+    var newDate = new Date(newVal).toISOString().slice(0, 10);
     if (currentDate !== newDate) {
       state.lead.Next_Action_At = newVal;
       state.lead.Next_Action_Date = newVal;
       renderInfo();
-      API.leads.update(leadId, { Next_Action_Date: newDate || '' }).catch(function() {});
+      API.leads.update(leadId, { Next_Action_Date: newDate }).catch(function() {});
     }
   }
 
