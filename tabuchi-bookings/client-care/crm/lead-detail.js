@@ -1394,12 +1394,20 @@
     // Filter out ghost tasks (empty items from n8n alwaysOutputData)
     var validTasks = state.tasks.filter(function(t) { return t.id; });
 
+    // Sort most recent first (by Due_At descending, tasks without dates last)
+    validTasks.sort(function(a, b) {
+      if (!a.Due_At && !b.Due_At) return 0;
+      if (!a.Due_At) return 1;
+      if (!b.Due_At) return -1;
+      return new Date(b.Due_At) - new Date(a.Due_At);
+    });
+
     if (validTasks.length === 0) {
       el.innerHTML = '<div class="cc-empty">No tasks for this lead.</div>';
       return;
     }
 
-    var html = '<div class="cc-task-list">';
+    var html = '<div class="cc-task-list" style="max-height:600px;overflow-y:auto;display:flex;flex-direction:column;gap:0.75rem;">';
     validTasks.forEach(function(t) {
       var isDone = t.Status === 'DONE';
       var isOverdue = !isDone && t.Due_At && new Date(t.Due_At) < new Date();
