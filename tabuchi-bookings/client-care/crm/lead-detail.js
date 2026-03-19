@@ -1680,7 +1680,7 @@
     return '<div class="cc-info-value cc-field-btn" id="cc-closing-date-val" title="Click to edit">' +
       '<span class="cc-field-btn-text">' + placeholder + '</span>' +
       '<span class="cc-field-btn-icon">&#128197;</span></div>' +
-      '<input type="date" id="cc-closing-date-input" class="cc-info-input" style="display:none" ' +
+      '<input type="date" id="cc-closing-date-input" class="cc-info-input" data-field="Estimated_Closing_Date" data-original="' + escapeAttr(l.Estimated_Closing_Date || '') + '" style="display:none" ' +
       'value="' + escapeAttr(l.Estimated_Closing_Date || '') + '">';
   }
 
