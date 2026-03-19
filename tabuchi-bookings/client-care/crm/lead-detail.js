@@ -1465,6 +1465,17 @@
         column.insertBefore(formContainer, column.firstChild);
       }
     }
+
+    // Move Add Task form above Tasks list
+    var addTaskForm = $el('cc-add-task-form');
+    var taskList = $el('cc-task-list');
+    if (addTaskForm && taskList) {
+      var taskFormContainer = addTaskForm.closest('div[style*="background"]') || addTaskForm.parentElement;
+      var taskColumn = taskList.parentElement;
+      if (taskFormContainer && taskColumn && taskColumn.contains(taskFormContainer)) {
+        taskColumn.insertBefore(taskFormContainer, taskColumn.firstChild);
+      }
+    }
   }
 
   function bindLogActivityForm() {
