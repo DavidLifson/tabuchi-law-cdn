@@ -961,7 +961,7 @@
       { value: 'SUBSCRIBED', label: 'Subscribed' },
       { value: 'UNSUBSCRIBED', label: 'Unsubscribed' }
     ];
-    var html = '<select class="cc-info-input cc-select" id="cc-consent-select" autocomplete="off">';
+    var html = '<select class="cc-info-input cc-select" id="cc-consent-select" data-field="Consent_Status" data-original="' + escapeAttr(val) + '" autocomplete="off">';
     opts.forEach(function(o) {
       html += '<option value="' + o.value + '"' + (o.value === val ? ' selected' : '') + '>' + escapeHtml(o.label) + '</option>';
     });
