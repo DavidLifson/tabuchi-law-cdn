@@ -2677,7 +2677,7 @@
     document.getElementById('cc-em-custom-btn').addEventListener('click', function() {
       var mailto = 'mailto:' + encodeURIComponent(record.Client_Email) +
         '?subject=' + encodeURIComponent('Tabuchi Law — ');
-      window.open(mailto, '_blank');
+      window.location.href = mailto;
 
       // Replace modal content with log form
       var choiceBtns = overlay.querySelectorAll('.cc-email-choice-btn');
