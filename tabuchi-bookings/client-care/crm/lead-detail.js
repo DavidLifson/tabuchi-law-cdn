@@ -210,9 +210,8 @@
     var newDate = new Date(newVal).toISOString().slice(0, 10);
     if (currentDate !== newDate) {
       state.lead.Next_Action_At = newVal;
-      state.lead.Next_Action_Date = newVal;
       renderInfo();
-      API.leads.update(leadId, { Next_Action_Date: newDate }).catch(function() {});
+      API.leads.update(leadId, { Next_Action_At: newDate }).catch(function() {});
     }
   }
 
