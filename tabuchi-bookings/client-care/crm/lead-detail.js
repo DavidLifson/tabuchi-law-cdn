@@ -1385,6 +1385,12 @@
     var el = $el('cc-task-list');
     if (!el) return;
 
+    // Ensure card styling on the task list container
+    el.style.background = '#F9FAFB';
+    el.style.border = '1px solid #E5E7EB';
+    el.style.borderRadius = '8px';
+    el.style.padding = '1rem';
+
     // Filter out ghost tasks (empty items from n8n alwaysOutputData)
     var validTasks = state.tasks.filter(function(t) { return t.id; });
 
