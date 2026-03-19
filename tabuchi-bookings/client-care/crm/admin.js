@@ -46,6 +46,7 @@
     { key: 'templates', label: 'Templates' },
     { key: 'forms', label: 'Forms' },
     { key: 'categories', label: 'Categories' },
+    { key: 'practice-areas', label: 'Practice Areas' },
     { key: 'lead-sources', label: 'Lead Sources' },
     { key: 'stages', label: 'Stages' },
     { key: 'dispositions', label: 'Dispositions' },
@@ -57,12 +58,13 @@
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
-  var OPTIONS_LIST_TABS = ['categories', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'tags'];
+  var OPTIONS_LIST_TABS = ['categories', 'practice-areas', 'stages', 'lead-sources', 'dispositions', 'activity-types', 'entity-types', 'tags'];
 
   // Tabs accessible via hash but hidden from tab bar (accessed via Campaigns nav dropdown)
   var HIDDEN_TABS = ['drip-enrollment'];
 
   var CONFIG_META = {
+    'practice_area': [],
     'lead_source': [],
     'stage': [
       { key: 'percentage', label: 'Percentage (%)', type: 'number' },
@@ -80,7 +82,7 @@
   };
 
   function tabToConfigKey(tabKey) {
-    var map = { 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'tags': 'tag' };
+    var map = { 'practice-areas': 'practice_area', 'lead-sources': 'lead_source', 'stages': 'stage', 'dispositions': 'disposition', 'activity-types': 'activity_type', 'entity-types': 'entity_type', 'tags': 'tag' };
     return map[tabKey] || tabKey;
   }
 
