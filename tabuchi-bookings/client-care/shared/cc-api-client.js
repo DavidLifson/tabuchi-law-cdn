@@ -945,7 +945,7 @@ const ClientCareAPI = (() => {
 
   async function getSmsThread(leadId, opts) {
     opts = opts || {};
-    return request('POST', '/cc/comms', { body: { action: 'get_sms_thread', lead_id: leadId, limit: opts.limit, offset: opts.offset } });
+    return request('POST', '/cc/comms', { body: { action: 'get_sms_thread', lead_id: leadId, limit: opts.limit, offset: opts.offset }, skipCache: true });
   }
 
   async function logCall(data) {
