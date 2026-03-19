@@ -1021,22 +1021,24 @@
 
   function renderPracticeAreaField(l) {
     var vals = Array.isArray(l.Practice_Area) ? l.Practice_Area : (l.Practice_Area ? [l.Practice_Area] : []);
-    var html = '<div class="cc-pa-inline-wrap" id="cc-pa-inline">';
-    html += '<div class="cc-pa-pills" id="cc-pa-pills">';
+    var html = '<div class="cc-multiselect-wrap" id="cc-pa-inline">';
+    html += '<div class="cc-ms-control cc-input" id="cc-pa-control">';
+    html += '<div class="cc-ms-pills" id="cc-pa-pills">';
     if (vals.length) {
       vals.forEach(function(v) {
         var opt = PA_OPTIONS.find(function(o) { return o.key === v || o.label === v; });
         html += '<span class="cc-ms-pill">' + escapeHtml(opt ? opt.label : v) + '</span>';
       });
     } else {
-      html += '<span class="cc-text-muted">— Select —</span>';
+      html += '<span class="cc-ms-placeholder" style="color:#9CA3AF;font-size:0.85rem;">Select practice areas...</span>';
     }
     html += '</div>';
-    html += '<span class="cc-ms-arrow" style="cursor:pointer">&#9662;</span>';
-    html += '<div class="cc-pa-dropdown" id="cc-pa-dropdown" style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:6px 0;min-width:240px;max-height:280px;overflow-y:auto;">';
+    html += '<span class="cc-ms-arrow">&#9662;</span>';
+    html += '</div>';
+    html += '<div class="cc-ms-dropdown" id="cc-pa-dropdown">';
     PA_OPTIONS.forEach(function(o) {
       var checked = vals.indexOf(o.key) >= 0 || vals.indexOf(o.label) >= 0;
-      html += '<label style="display:flex;align-items:center;padding:6px 12px;cursor:pointer;font-size:13px;gap:6px;" class="cc-pa-opt">';
+      html += '<label class="cc-ms-option' + (checked ? ' cc-ms-option-checked' : '') + '">';
       html += '<input type="checkbox" class="cc-pa-cb" value="' + escapeAttr(o.key) + '"' + (checked ? ' checked' : '') + '> ';
       html += escapeHtml(o.label) + '</label>';
     });
@@ -1047,6 +1049,7 @@
   function bindPracticeAreaField() {
     var wrap = document.getElementById('cc-pa-inline');
     if (!wrap) return;
+    var control = document.getElementById('cc-pa-control');
     var dropdown = document.getElementById('cc-pa-dropdown');
     var pills = document.getElementById('cc-pa-pills');
     var isOpen = false;
@@ -1054,6 +1057,13 @@
     function toggle(open) {
       isOpen = typeof open === 'boolean' ? open : !isOpen;
       dropdown.style.display = isOpen ? 'block' : 'none';
+      if (isOpen) {
+        control.style.borderRadius = '6px 6px 0 0';
+        control.style.borderBottomColor = 'transparent';
+      } else {
+        control.style.borderRadius = '';
+        control.style.borderBottomColor = '';
+      }
     }
 
     function refreshPills() {
@@ -1066,19 +1076,31 @@
           html += '<span class="cc-ms-pill">' + escapeHtml(opt ? opt.label : v) + '</span>';
         });
       } else {
-        html += '<span class="cc-text-muted">— Select —</span>';
+        html += '<span class="cc-ms-placeholder" style="color:#9CA3AF;font-size:0.85rem;">Select practice areas...</span>';
       }
       pills.innerHTML = html;
     }
 
-    wrap.addEventListener('click', function(e) {
-      if (e.target.classList.contains('cc-pa-cb')) return;
+    // Update option highlight state
+    function refreshOptions() {
+      dropdown.querySelectorAll('.cc-ms-option').forEach(function(opt) {
+        var cb = opt.querySelector('.cc-pa-cb');
+        if (cb && cb.checked) {
+          opt.classList.add('cc-ms-option-checked');
+        } else {
+          opt.classList.remove('cc-ms-option-checked');
+        }
+      });
+    }
+
+    control.addEventListener('click', function(e) {
       toggle();
     });
 
     dropdown.addEventListener('change', function(e) {
       if (e.target.classList.contains('cc-pa-cb')) {
         refreshPills();
+        refreshOptions();
         var checked = [];
         dropdown.querySelectorAll('.cc-pa-cb:checked').forEach(function(cb) { checked.push(cb.value); });
         state.lead.Practice_Area = checked;
@@ -1088,6 +1110,11 @@
           ccToast('Failed to update practice area.', 'error');
         });
       }
+    });
+
+    // Prevent clicks inside dropdown from closing it
+    dropdown.addEventListener('click', function(e) {
+      e.stopPropagation();
     });
 
     document.addEventListener('click', function(e) {
