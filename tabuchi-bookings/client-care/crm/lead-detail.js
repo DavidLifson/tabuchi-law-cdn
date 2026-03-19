@@ -121,11 +121,12 @@
     if (container) container.classList.add('cc-loading-state');
 
     try {
-      var [leadResult, actResult, taskResult, usersResult] = await Promise.all([
+      var [leadResult, actResult, taskResult, usersResult, paResult] = await Promise.all([
         API.leads.get(leadId),
         API.activities.list(leadId),
         API.tasks.list({ lead_id: leadId }),
-        API.admin.listUsers().catch(function() { return { users: [] }; })
+        API.admin.listUsers().catch(function() { return { users: [] }; }),
+        API.admin.config.list('practice_area').catch(function() { return { data: [] }; })
       ]);
 
       if (leadResult.success && leadResult.lead) {
@@ -138,6 +139,8 @@
       state.activities = (actResult.success && actResult.activities) || [];
       state.tasks = (taskResult.success && taskResult.tasks) || [];
       state.crmUsers = (usersResult.users || []).filter(function(u) { return u.is_active; });
+      // Populate practice area options from config
+      PA_OPTIONS = (paResult.data || []).filter(function(i) { return i.Is_Active !== false; }).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); }).map(function(i) { return { key: i.Label, label: i.Label }; });
 
       render();
     } catch (err) {
@@ -1003,16 +1006,18 @@
     });
   }
 
-  var PA_OPTIONS = [
-    { key: 'ESTATE_PLANNING_WILL_POA', label: 'Estate Planning (Will & POA)' },
-    { key: 'TRUSTS_HENSON_SPOUSAL', label: 'Trusts (Henson/Spousal)' },
-    { key: 'GUARDIANSHIP_MINORS', label: 'Guardianship (Minors)' },
-    { key: 'PROBATE_ESTATE_ADMIN', label: 'Probate & Estate Admin' },
-    { key: 'BUSINESS_SUCCESSION', label: 'Business Succession' },
-    { key: 'REAL_ESTATE', label: 'Real Estate' },
-    { key: 'CORPORATE', label: 'Corporate' },
-    { key: 'FAMILY_LAW', label: 'Family Law' }
-  ];
+  // Practice Areas — loaded dynamically from config API
+  var PA_OPTIONS = [];
+
+  async function loadPracticeAreas() {
+    try {
+      var result = await API.admin.config.list('practice_area');
+      var items = (result.data || []).filter(function(i) { return i.Is_Active !== false; }).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); });
+      PA_OPTIONS = items.map(function(i) { return { key: i.Label, label: i.Label }; });
+    } catch (e) {
+      PA_OPTIONS = [];
+    }
+  }
 
   function renderPracticeAreaField(l) {
     var vals = Array.isArray(l.Practice_Area) ? l.Practice_Area : (l.Practice_Area ? [l.Practice_Area] : []);
@@ -1248,6 +1253,7 @@
 
     // ── Lead details (read-only) ──
     var detailFields = [
+      { label: 'Practice Area', html: renderPracticeAreaField(l) },
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
       { label: 'Lead Source', html: renderLeadSourceField(l) },
       { label: 'Owner', value: l.Lead_Owner_Name || '—' },
@@ -1285,6 +1291,7 @@
     bindLeadSourceField();
     bindConsentField();
     bindResponsibleLawyerField();
+    bindPracticeAreaField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────

@@ -130,7 +130,8 @@
         API.tasks.list({ lead_id: contactId }),
         API.admin.config.list('tag').catch(function() { return { data: [] }; }),
         API.priceBook.list(true).catch(function() { return { items: [] }; }),
-        API.admin.listUsers().catch(function() { return { users: [] }; })
+        API.admin.listUsers().catch(function() { return { users: [] }; }),
+        API.admin.config.list('practice_area').catch(function() { return { data: [] }; })
       ]);
 
       var leadResult = results[0];
@@ -139,6 +140,7 @@
       var tagResult = results[3];
       var priceBookResult = results[4];
       var usersResult = results[5];
+      var paResult = results[6];
 
       if (leadResult.success && leadResult.lead) {
         state.contact = leadResult.lead;
@@ -159,11 +161,8 @@
       // Tags from config (store full objects for category grouping)
       state.tagConfig = (tagResult.data || []).filter(function(t) { return t.Label || t.label; });
       state.availableTags = state.tagConfig.map(function(t) { return t.Label || t.label || ''; }).filter(Boolean);
-      // Practice area options from tag config (tags with category "Practice Area")
-      state.practiceAreaOptions = state.tagConfig.filter(function(t) {
-        var meta = {}; try { meta = JSON.parse(t.Meta || '{}'); } catch(e) {}
-        return meta.category === 'Practice Area';
-      }).map(function(t) { var label = t.Label || t.label || ''; return { key: label, label: label }; });
+      // Practice area options from practice_area config list
+      state.practiceAreaOptions = (paResult.data || []).filter(function(i) { return i.Is_Active !== false; }).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); }).map(function(i) { return { key: i.Label, label: i.Label }; });
       // Price book items for Service Package dropdown
       state.priceBookItems = (priceBookResult.items || []).filter(function(i) { return i.Is_Active !== false; });
       state.crmUsers = (usersResult.users || []).filter(function(u) { return u.is_active; });
