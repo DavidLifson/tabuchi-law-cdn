@@ -955,7 +955,7 @@
   }
 
   function renderProvinceField(l) {
-    var val = l.Province || '';
+    var val = l.Province || 'ON';
     var allOpts = CA_PROVINCES.concat(US_STATES);
     var isOther = val && !allOpts.some(function(o) { return o.v === val || o.l === val; });
     var selectVal = isOther ? 'Other' : val;
