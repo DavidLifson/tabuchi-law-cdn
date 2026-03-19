@@ -988,8 +988,8 @@
     sel.addEventListener('change', function() {
       if (sel.value === 'Other') {
         other.style.display = 'block';
-        other.focus();
         other.value = '';
+        other.focus({ preventScroll: true });
       } else {
         other.style.display = 'none';
         other.value = '';
