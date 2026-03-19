@@ -966,6 +966,28 @@
     return html;
   }
 
+  function renderResponsibleLawyerField(l) {
+    var currentId = (l.Responsible_Lawyer && l.Responsible_Lawyer[0]) || '';
+    var lawyers = (state.crmUsers || []).filter(function(u) { return (u.role || '').toUpperCase() === 'LAWYER'; });
+    var html = '<select class="cc-info-input cc-select" id="cc-lawyer-select" data-field="Responsible_Lawyer" data-original="' + escapeAttr(currentId) + '" autocomplete="off">';
+    html += '<option value="">— Select —</option>';
+    lawyers.forEach(function(u) {
+      html += '<option value="' + escapeAttr(u.id) + '"' + (u.id === currentId ? ' selected' : '') + '>' + escapeHtml(u.name) + '</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+
+  function bindResponsibleLawyerField() {
+    var sel = document.getElementById('cc-lawyer-select');
+    if (!sel) return;
+    sel.addEventListener('change', function() {
+      sel.classList.add('cc-field-dirty');
+      var saveBar = document.getElementById('cc-info-save-bar');
+      if (saveBar) saveBar.style.display = 'flex';
+    });
+  }
+
   function bindConsentField() {
     var sel = document.getElementById('cc-consent-select');
     if (!sel) return;
@@ -1229,7 +1251,7 @@
       { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
       { label: 'Lead Source', html: renderLeadSourceField(l) },
       { label: 'Owner', value: l.Lead_Owner_Name || '—' },
-      { label: 'Responsible Lawyer', value: l.Responsible_Lawyer_Name || '—' },
+      { label: 'Responsible Lawyer', html: renderResponsibleLawyerField(l) },
       { label: 'Created', value: API.util.formatDateTime(l.Created_At) },
       { label: 'Last Contact', value: API.util.formatRelativeTime(l.Last_Contacted_At) || '—' },
       { label: 'Next Action', value: API.util.formatDateTime(l.Next_Action_At) || '—' },
@@ -1262,6 +1284,7 @@
     bindLanguageField();
     bindLeadSourceField();
     bindConsentField();
+    bindResponsibleLawyerField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────
@@ -1716,6 +1739,10 @@
               updates[field] = current;
             }
           });
+          // Responsible_Lawyer must be sent as an array of record IDs
+          if (updates.Responsible_Lawyer !== undefined) {
+            updates.Responsible_Lawyer = updates.Responsible_Lawyer ? [updates.Responsible_Lawyer] : [];
+          }
           if (Object.keys(updates).length === 0) {
             saveBtn.disabled = false;
             saveBtn.textContent = 'Save Changes';

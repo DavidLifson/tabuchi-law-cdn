@@ -159,6 +159,11 @@
       // Tags from config (store full objects for category grouping)
       state.tagConfig = (tagResult.data || []).filter(function(t) { return t.Label || t.label; });
       state.availableTags = state.tagConfig.map(function(t) { return t.Label || t.label || ''; }).filter(Boolean);
+      // Practice area options from tag config (tags with category "Practice Area")
+      state.practiceAreaOptions = state.tagConfig.filter(function(t) {
+        var meta = {}; try { meta = JSON.parse(t.Meta || '{}'); } catch(e) {}
+        return meta.category === 'Practice Area';
+      }).map(function(t) { var label = t.Label || t.label || ''; return { key: label, label: label }; });
       // Price book items for Service Package dropdown
       state.priceBookItems = (priceBookResult.items || []).filter(function(i) { return i.Is_Active !== false; });
       state.crmUsers = (usersResult.users || []).filter(function(u) { return u.is_active; });
@@ -455,6 +460,7 @@
       { label: 'Marital Status', value: c.Marital_Status },
       { label: 'Preferred Language', value: c.Preferred_Language },
       { label: 'Referred By', value: c.Referral_Source },
+      { label: 'Practice Area', value: formatPracticeArea(c.Practice_Area) },
       { label: 'Service Package', value: formatPracticeArea(c.Service_Package) },
       { label: 'Lead Source', value: c.Source },
       { label: 'Lead Stage', value: API.util.stageLabel(c.Lead_Stage) },
@@ -781,6 +787,11 @@
     var currentSPs = Array.isArray(c.Service_Package) ? c.Service_Package : (c.Service_Package ? [c.Service_Package] : []);
     html += buildMultiSelect('cc-ms-sp', 'Service Package', spOptions, currentSPs, { placeholder: 'Select service packages...' });
 
+    // Practice Area multi-select from admin config
+    var paOptions = state.practiceAreaOptions || [];
+    var currentPAs = Array.isArray(c.Practice_Area) ? c.Practice_Area : (c.Practice_Area ? [c.Practice_Area] : []);
+    html += buildMultiSelect('cc-ms-pa', 'Practice Area', paOptions, currentPAs, { placeholder: 'Select practice areas...' });
+
     // Lead Source dropdown with Other
     var srcVal = c.Source || '';
     var srcIsOther = srcVal && LEAD_SOURCE_OPTIONS.indexOf(srcVal) === -1;
@@ -915,21 +926,21 @@
   function renderHistory(container) {
     var html = '';
 
+    // Log activity form placeholder
+    html += '<div id="cc-log-activity-form" class="cc-section"></div>';
+
     // Unified timeline
     html += '<div class="cc-section"><h3 class="cc-section-title">Activity Timeline</h3>';
     html += buildTimeline();
     html += '</div>';
 
+    // Add task form placeholder
+    html += '<div id="cc-add-task-form" class="cc-section"></div>';
+
     // Task list
     html += '<div class="cc-section"><h3 class="cc-section-title">Tasks</h3>';
     html += buildTaskList();
     html += '</div>';
-
-    // Log activity form placeholder
-    html += '<div id="cc-log-activity-form" class="cc-section"></div>';
-
-    // Add task form placeholder
-    html += '<div id="cc-add-task-form" class="cc-section"></div>';
 
     container.innerHTML = html;
 
@@ -1305,6 +1316,7 @@
           Preferred_Language: document.getElementById('cc-edit-language').value,
           Referral_Source: document.getElementById('cc-edit-referral').value.trim(),
           Service_Package: (function() { var w = document.querySelector('[data-ms-id="cc-ms-sp"]'); return w && w._getValues ? w._getValues() : []; })(),
+          Practice_Area: (function() { var w = document.querySelector('[data-ms-id="cc-ms-pa"]'); return w && w._getValues ? w._getValues() : []; })(),
           Source: (function() { var sel = document.getElementById('cc-edit-source'); var oth = document.getElementById('cc-edit-source-other'); return sel && sel.value === 'Other' && oth ? oth.value.trim() : (sel ? sel.value.trim() : ''); })(),
           Lead_Stage: document.getElementById('cc-edit-stage').value,
           Disposition: document.getElementById('cc-edit-disposition').value,
