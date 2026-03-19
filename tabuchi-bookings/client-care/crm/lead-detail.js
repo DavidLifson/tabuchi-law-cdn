@@ -919,6 +919,92 @@
     return html;
   }
 
+  // ─── Country & Province/State Dropdowns ─────────────────────
+  var COUNTRIES = ['Canada','United States','Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo','Costa Rica','Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic','Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati','Kosovo','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia','Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles','Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda','Ukraine','United Arab Emirates','United Kingdom','Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe'];
+
+  var CA_PROVINCES = [
+    {v:'AB',l:'Alberta'},{v:'BC',l:'British Columbia'},{v:'MB',l:'Manitoba'},
+    {v:'NB',l:'New Brunswick'},{v:'NL',l:'Newfoundland and Labrador'},{v:'NS',l:'Nova Scotia'},
+    {v:'NT',l:'Northwest Territories'},{v:'NU',l:'Nunavut'},{v:'ON',l:'Ontario'},
+    {v:'PE',l:'Prince Edward Island'},{v:'QC',l:'Quebec'},{v:'SK',l:'Saskatchewan'},{v:'YT',l:'Yukon'}
+  ];
+  var US_STATES = [
+    {v:'AL',l:'Alabama'},{v:'AK',l:'Alaska'},{v:'AZ',l:'Arizona'},{v:'AR',l:'Arkansas'},
+    {v:'CA',l:'California'},{v:'CO',l:'Colorado'},{v:'CT',l:'Connecticut'},{v:'DE',l:'Delaware'},
+    {v:'FL',l:'Florida'},{v:'GA',l:'Georgia'},{v:'HI',l:'Hawaii'},{v:'ID',l:'Idaho'},
+    {v:'IL',l:'Illinois'},{v:'IN',l:'Indiana'},{v:'IA',l:'Iowa'},{v:'KS',l:'Kansas'},
+    {v:'KY',l:'Kentucky'},{v:'LA',l:'Louisiana'},{v:'ME',l:'Maine'},{v:'MD',l:'Maryland'},
+    {v:'MA',l:'Massachusetts'},{v:'MI',l:'Michigan'},{v:'MN',l:'Minnesota'},{v:'MS',l:'Mississippi'},
+    {v:'MO',l:'Missouri'},{v:'MT',l:'Montana'},{v:'NE',l:'Nebraska'},{v:'NV',l:'Nevada'},
+    {v:'NH',l:'New Hampshire'},{v:'NJ',l:'New Jersey'},{v:'NM',l:'New Mexico'},{v:'NY',l:'New York'},
+    {v:'NC',l:'North Carolina'},{v:'ND',l:'North Dakota'},{v:'OH',l:'Ohio'},{v:'OK',l:'Oklahoma'},
+    {v:'OR',l:'Oregon'},{v:'PA',l:'Pennsylvania'},{v:'RI',l:'Rhode Island'},{v:'SC',l:'South Carolina'},
+    {v:'SD',l:'South Dakota'},{v:'TN',l:'Tennessee'},{v:'TX',l:'Texas'},{v:'UT',l:'Utah'},
+    {v:'VT',l:'Vermont'},{v:'VA',l:'Virginia'},{v:'WA',l:'Washington'},{v:'WV',l:'West Virginia'},
+    {v:'WI',l:'Wisconsin'},{v:'WY',l:'Wyoming'},{v:'DC',l:'District of Columbia'}
+  ];
+
+  function renderCountryField(l) {
+    var val = l.Country || 'Canada';
+    var html = '<select class="cc-info-input cc-select" id="cc-country-select" data-field="Country" data-original="' + escapeAttr(val) + '" autocomplete="off">';
+    COUNTRIES.forEach(function(c) {
+      html += '<option value="' + escapeAttr(c) + '"' + (c === val ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+
+  function renderProvinceField(l) {
+    var val = l.Province || '';
+    var allOpts = CA_PROVINCES.concat(US_STATES);
+    var isOther = val && !allOpts.some(function(o) { return o.v === val || o.l === val; });
+    var selectVal = isOther ? 'Other' : val;
+    var html = '<div class="cc-province-wrap">';
+    html += '<select class="cc-info-input cc-select" id="cc-province-select" data-field="Province" data-original="' + escapeAttr(val) + '" autocomplete="off">';
+    html += '<option value="">— Select —</option>';
+    html += '<optgroup label="Canada">';
+    CA_PROVINCES.forEach(function(p) {
+      html += '<option value="' + escapeAttr(p.v) + '"' + (p.v === selectVal || p.l === selectVal ? ' selected' : '') + '>' + escapeHtml(p.l) + '</option>';
+    });
+    html += '</optgroup>';
+    html += '<optgroup label="United States">';
+    US_STATES.forEach(function(s) {
+      html += '<option value="' + escapeAttr(s.v) + '"' + (s.v === selectVal || s.l === selectVal ? ' selected' : '') + '>' + escapeHtml(s.l) + '</option>';
+    });
+    html += '</optgroup>';
+    html += '<option value="Other"' + (isOther ? ' selected' : '') + '>Other</option>';
+    html += '</select>';
+    html += '<input type="text" class="cc-info-input" id="cc-province-other" data-field="Province" ' +
+      'placeholder="Enter province/state" value="' + escapeAttr(isOther ? val : '') + '" ' +
+      'autocomplete="off" style="margin-top:6px;display:' + (isOther ? 'block' : 'none') + '">';
+    html += '</div>';
+    return html;
+  }
+
+  function bindProvinceField() {
+    var sel = document.getElementById('cc-province-select');
+    var other = document.getElementById('cc-province-other');
+    if (!sel || !other) return;
+    sel.addEventListener('change', function() {
+      if (sel.value === 'Other') {
+        other.style.display = 'block';
+        other.focus();
+        other.value = '';
+      } else {
+        other.style.display = 'none';
+        other.value = '';
+      }
+      sel.classList.add('cc-field-dirty');
+      var saveBar = document.getElementById('cc-info-save-bar');
+      if (saveBar) saveBar.style.display = 'flex';
+    });
+    other.addEventListener('input', function() {
+      other.classList.add('cc-field-dirty');
+      var saveBar = document.getElementById('cc-info-save-bar');
+      if (saveBar) saveBar.style.display = 'flex';
+    });
+  }
+
   var LANGUAGE_OPTIONS = ['', 'English', 'French', 'Mandarin', 'Cantonese', 'Hindi', 'Italian', 'Other'];
 
   // Lead Sources — loaded from config API (for Lead Source dropdown)
@@ -1201,9 +1287,9 @@
       { label: 'Address', html: editableInput('Client_Address', l.Client_Address, 'text', 'Enter address') },
       { label: 'Address 2', html: editableInput('Address_2', l.Address_2, 'text', 'Unit, suite, etc.') },
       { label: 'City', html: editableInput('City', l.City, 'text', 'Enter city') },
-      { label: 'Province', html: editableInput('Province', l.Province, 'text', 'Enter province') },
+      { label: 'Province / State', html: renderProvinceField(l) },
       { label: 'Postal Code', html: editableInput('Postal_Code', l.Postal_Code, 'text', 'Enter postal code') },
-      { label: 'Country', html: editableInput('Country', l.Country || 'Canada', 'text', 'Enter country') },
+      { label: 'Country', html: renderCountryField(l) },
       { label: 'Company', html: editableInput('Company', l.Company, 'text', 'Enter company') },
       { label: 'Occupation', html: editableInput('Occupation', l.Occupation, 'text', 'Enter occupation') },
       { label: 'Date of Birth', html: editableInput('Date_of_Birth', l.Date_of_Birth, 'date', '') },
@@ -1319,6 +1405,7 @@
     bindConsentField();
     bindResponsibleLawyerField();
     bindPracticeAreaField();
+    bindProvinceField();
   }
 
   // ─── Activity Timeline ──────────────────────────────────────
@@ -1782,6 +1869,8 @@
           var langOther = document.getElementById('cc-lang-other');
           var srcSelect = document.getElementById('cc-leadsrc-select');
           var srcOther = document.getElementById('cc-leadsrc-other');
+          var provSelect = document.getElementById('cc-province-select');
+          var provOther = document.getElementById('cc-province-other');
           document.querySelectorAll('.cc-info-input').forEach(function(inp) {
             // Skip hidden language "Other" text input when a standard language is selected
             if (inp.id === 'cc-lang-other' && langSelect && langSelect.value !== 'Other') return;
@@ -1791,6 +1880,10 @@
             if (inp.id === 'cc-leadsrc-other' && srcSelect && srcSelect.value !== 'Other') return;
             // Skip lead source select when "Other" is chosen (use text input value instead)
             if (inp.id === 'cc-leadsrc-select' && srcSelect && srcSelect.value === 'Other') return;
+            // Skip hidden province "Other" text input when a standard option is selected
+            if (inp.id === 'cc-province-other' && provSelect && provSelect.value !== 'Other') return;
+            // Skip province select when "Other" is chosen (use text input value instead)
+            if (inp.id === 'cc-province-select' && provSelect && provSelect.value === 'Other') return;
             var field = inp.getAttribute('data-field');
             var original = inp.getAttribute('data-original');
             var current = inp.value.trim();
