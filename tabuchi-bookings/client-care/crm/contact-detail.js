@@ -291,6 +291,7 @@
           '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-call" title="Call Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg> Call</button>' +
           '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-email" title="Email Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</button>' +
           '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-sms" title="Send SMS"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> SMS</button>' +
+          '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-send-form" title="Send Intake Form"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Send Intake</button>' +
         '</span>' +
       '</div>' +
       (tagPills ? '<div class="cc-contact-tags-inline">' + tagPills + '</div>' : '');
@@ -346,6 +347,11 @@
     if (smsBtn) smsBtn.addEventListener('click', function() {
       if (!state.contact.Client_Phone) { ccToast('No phone number on file. Add a phone number first.', 'error'); return; }
       showSmsModal(state.contact);
+    });
+    var formBtn = document.getElementById('cc-action-send-form');
+    if (formBtn) formBtn.addEventListener('click', function() {
+      if (!state.contact.Client_Email) { ccToast('No email address on file. Add an email first.', 'error'); return; }
+      showSendFormModal(state.contact);
     });
   }
 
@@ -1656,6 +1662,114 @@
     sms: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'
   };
 
+  // ── Send Intake Form Modal ──────────────────────────────
+  async function showSendFormModal(record) {
+    var formsList = [];
+    try {
+      var result = await API.forms.list({ is_active: true });
+      formsList = (result && result.data) || [];
+    } catch (e) {
+      ccToast('Could not load forms list.', 'error');
+      return;
+    }
+    if (formsList.length === 0) {
+      ccToast('No active forms available. Create forms in Admin > Forms first.', 'error');
+      return;
+    }
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'cc-modal';
+    var optionsHtml = '<option value="">Select a form...</option>';
+    formsList.forEach(function(f) {
+      optionsHtml += '<option value="' + escapeAttr(f.Form_ID) + '">' + escapeHtml(f.Name) + '</option>';
+    });
+    modal.innerHTML =
+      '<div class="cc-modal-header">' +
+        '<h3>Send Form to ' + escapeHtml(record.Client_Name || 'Client') + '</h3>' +
+        '<button class="cc-modal-close">&times;</button>' +
+      '</div>' +
+      '<div class="cc-modal-body">' +
+        '<div class="cc-form-group" style="margin-bottom:1rem;">' +
+          '<label class="cc-label">Form</label>' +
+          '<select id="cc-send-form-select" class="cc-select" style="width:100%;">' + optionsHtml + '</select>' +
+        '</div>' +
+        '<div class="cc-form-group" style="margin-bottom:1rem;">' +
+          '<label class="cc-label">Custom Message (optional)</label>' +
+          '<textarea id="cc-send-form-message" class="cc-textarea" rows="3" placeholder="Add a personal message to include in the email..."></textarea>' +
+        '</div>' +
+        '<div class="cc-form-group" style="margin-bottom:1rem;">' +
+          '<label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.9rem;">' +
+            '<input type="checkbox" id="cc-send-form-followup" class="cc-checkbox">' +
+            ' Create follow-up task' +
+          '</label>' +
+        '</div>' +
+        '<div id="cc-send-form-followup-config" style="display:none;margin-bottom:1rem;padding-left:1.5rem;">' +
+          '<label class="cc-label">Follow up in (days)</label>' +
+          '<input type="number" id="cc-send-form-followup-days" class="cc-input" value="3" min="1" max="30" style="width:80px;">' +
+        '</div>' +
+        '<div id="cc-send-form-preview" style="display:none;margin-bottom:0.5rem;font-size:0.8rem;color:#6B7280;">' +
+          'Form URL: <span id="cc-send-form-url" style="color:#2563EB;word-break:break-all;"></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cc-modal-footer">' +
+        '<button class="cc-btn cc-btn-outline cc-modal-cancel-btn">Cancel</button>' +
+        '<button class="cc-btn cc-btn-primary" id="cc-send-form-btn" disabled>Send Form</button>' +
+      '</div>';
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    overlay.querySelector('.cc-modal-close').addEventListener('click', function() { overlay.remove(); });
+    overlay.querySelector('.cc-modal-cancel-btn').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    var formSelect = document.getElementById('cc-send-form-select');
+    var sendBtn = document.getElementById('cc-send-form-btn');
+    var previewDiv = document.getElementById('cc-send-form-preview');
+    var urlSpan = document.getElementById('cc-send-form-url');
+    formSelect.addEventListener('change', function() {
+      if (formSelect.value) {
+        var url = 'https://clientcare.tabuchilaw.com/intake?form=' + encodeURIComponent(formSelect.value) + '&lead=' + encodeURIComponent(record.id);
+        urlSpan.textContent = url;
+        previewDiv.style.display = '';
+        sendBtn.disabled = false;
+      } else {
+        previewDiv.style.display = 'none';
+        sendBtn.disabled = true;
+      }
+    });
+    var followupCheck = document.getElementById('cc-send-form-followup');
+    var followupConfig = document.getElementById('cc-send-form-followup-config');
+    followupCheck.addEventListener('change', function() {
+      followupConfig.style.display = followupCheck.checked ? '' : 'none';
+    });
+    sendBtn.addEventListener('click', async function() {
+      if (sendBtn.disabled) return;
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending...';
+      try {
+        var payload = {
+          lead_id: record.id,
+          form_id: formSelect.value,
+          custom_message: document.getElementById('cc-send-form-message').value.trim(),
+          create_followup_task: followupCheck.checked,
+          followup_days: followupCheck.checked ? parseInt(document.getElementById('cc-send-form-followup-days').value, 10) || 3 : undefined
+        };
+        var result = await API.forms.sendLink(payload);
+        if (result && result.success) {
+          ccToast('Form link sent to ' + escapeHtml(record.Client_Name || record.Client_Email) + '.', 'success');
+          overlay.remove();
+        } else {
+          ccToast('Failed to send form: ' + (result && result.error || 'Unknown error'), 'error');
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send Form';
+        }
+      } catch (err) {
+        ccToast('Failed to send form: ' + (err.error || err.message || 'Unknown error'), 'error');
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send Form';
+      }
+    });
+  }
+
   // ── RingCentral Embeddable Integration ────────────────────
   function showCallDialog(record) {
     if (!record.Client_Phone) { ccToast('No phone number available.', 'error'); return; }
@@ -2143,3 +2257,4 @@
     init();
   }
 })();
+/* 1774050373 */
