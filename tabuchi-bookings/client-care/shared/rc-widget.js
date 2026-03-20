@@ -55,7 +55,9 @@
       '&disableMessages=true' +
       '&disableGlip=true' +
       '&disableConferenceInvite=true' +
-      '&disableConferenceCall=true';
+      '&disableConferenceCall=true' +
+      '&defaultCallWith=ringout' +
+      '&enableWebphone=false';
     s.async = true;
     document.body.appendChild(s);
 
