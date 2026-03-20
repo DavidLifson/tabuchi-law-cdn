@@ -241,6 +241,10 @@
       }
       html += '<button class="' + cls + '" data-tab="' + tab.key + '">' + tab.label + badge + '</button>';
     });
+    // Refresh button for recordings tab
+    if (state.activeTab === 'recordings') {
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-recordings-refresh" title="Refresh recordings" style="margin-left:auto;padding:4px 10px;font-size:0.8rem;">&#8635; Refresh</button>';
+    }
     el.innerHTML = html;
 
     el.querySelectorAll('.cc-lead-tab').forEach(function(btn) {
@@ -248,18 +252,25 @@
         switchTab(btn.dataset.tab);
       });
     });
+
+    // Bind recordings refresh button
+    var refreshBtn = document.getElementById('cc-recordings-refresh');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async function() {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+        await reloadRecordings();
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '&#8635; Refresh';
+      });
+    }
   }
 
   function switchTab(tabKey) {
     state.activeTab = tabKey;
 
-    // Update tab buttons
-    var tabEl = $el('cc-lead-tabs');
-    if (tabEl) {
-      tabEl.querySelectorAll('.cc-lead-tab').forEach(function(btn) {
-        btn.classList.toggle('cc-tab-active', btn.dataset.tab === tabKey);
-      });
-    }
+    // Re-render tabs to update refresh button visibility
+    renderTabs();
 
     // Show/hide panels
     var actPanel = $el('cc-tab-activity-tasks');
@@ -738,7 +749,7 @@
           '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-call" title="Call Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg> Call</button>' +
           '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-email" title="Email Now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</button>' +
           '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-sms" title="Send SMS"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> SMS</button>' +
-          '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-send-form" title="Send Form"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Form</button>' +
+          '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-action-send-form" title="Send Intake Form"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Send Intake</button>' +
         '</span>' +
       '</div>';
 
@@ -1114,6 +1125,44 @@
     });
   }
 
+  function renderOwnerField(l) {
+    var currentId = (l.Owner && l.Owner[0]) || '';
+    var currentName = l.Lead_Owner_Name || '—';
+    var users = state.crmUsers || [];
+    var html = '<select class="cc-info-input cc-select" id="cc-owner-select" autocomplete="off">';
+    html += '<option value="">— Unassigned —</option>';
+    users.forEach(function(u) {
+      var selected = (u.id === currentId || u.name === currentName) ? ' selected' : '';
+      html += '<option value="' + escapeAttr(u.id) + '"' + selected + '>' + escapeHtml(u.name) + ' (' + escapeHtml(u.role || '') + ')</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+
+  function bindOwnerField() {
+    var sel = document.getElementById('cc-owner-select');
+    if (!sel) return;
+    sel.addEventListener('change', async function() {
+      var newOwnerId = sel.value;
+      sel.disabled = true;
+      try {
+        var updatePayload = { Owner: newOwnerId ? [newOwnerId] : [] };
+        var res = await API.leads.update(leadId, updatePayload);
+        if (res.success) {
+          state.lead.Owner = newOwnerId ? [newOwnerId] : [];
+          var selectedUser = (state.crmUsers || []).find(function(u) { return u.id === newOwnerId; });
+          state.lead.Lead_Owner_Name = selectedUser ? selectedUser.name : '';
+          ccToast('Owner updated.', 'success');
+        } else {
+          ccToast('Failed to update owner: ' + (res.error || 'Unknown error'), 'error');
+        }
+      } catch (err) {
+        ccToast('Failed to update owner: ' + (err.error || 'Network error'), 'error');
+      }
+      sel.disabled = false;
+    });
+  }
+
   function bindConsentField() {
     var sel = document.getElementById('cc-consent-select');
     if (!sel) return;
@@ -1401,16 +1450,29 @@
       return;
     }
 
+    // ── Compute Next Action from earliest pending task ──
+    var nextActionDisplay = '—';
+    var nextActionDate = l.Next_Action_At || l.Next_Action_Date || null;
+    var earliestTaskDate = null;
+    (state.tasks || []).forEach(function(t) {
+      if (t.Status === 'DONE' || !t.Due_At) return;
+      var d = new Date(t.Due_At);
+      if (!earliestTaskDate || d < earliestTaskDate) earliestTaskDate = d;
+    });
+    if (earliestTaskDate) {
+      nextActionDisplay = API.util.formatDateTime(earliestTaskDate.toISOString());
+    } else if (nextActionDate) {
+      nextActionDisplay = API.util.formatDateTime(nextActionDate);
+    }
+
     // ── Lead details (read-only) ──
     var detailFields = [
       { label: 'Practice Area', html: renderPracticeAreaField(l) },
-      { label: 'Service Package', value: formatPracticeArea(l.Service_Package) },
       { label: 'Lead Source', html: renderLeadSourceField(l) },
-      { label: 'Owner', value: l.Lead_Owner_Name || '—' },
-      { label: 'Responsible Lawyer', html: renderResponsibleLawyerField(l) },
+      { label: 'Owner', html: renderOwnerField(l) },
       { label: 'Created', value: API.util.formatDateTime(l.Created_At) },
       { label: 'Last Contact', value: API.util.formatRelativeTime(l.Last_Contacted_At) || '—' },
-      { label: 'Next Action', value: API.util.formatDateTime(l.Next_Action_At) || '—' },
+      { label: 'Next Action', value: nextActionDisplay },
       { label: 'Est. Closing Date', html: renderClosingDateField(l) },
       { label: 'Services Required', html: renderServicesField(l) },
       { label: 'Subscribed', html: renderConsentField(l) }
@@ -1440,7 +1502,7 @@
     bindLanguageField();
     bindLeadSourceField();
     bindConsentField();
-    bindResponsibleLawyerField();
+    bindOwnerField();
     bindPracticeAreaField();
     bindProvinceField();
   }
@@ -1479,7 +1541,20 @@
       }
       // Collapsible detail section
       html += '<div class="cc-timeline-details" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #E5E7EB;">';
-      if (a.Body) html += '<div class="cc-timeline-body">' + escapeHtml(a.Body) + '</div>';
+      if (a.Type === 'EMAIL' || a.Type === 'SMS') {
+        // Show full message body prominently for EMAIL/SMS
+        if (a.Body) {
+          html += '<div class="cc-timeline-body" style="white-space:pre-wrap;background:#F9FAFB;padding:10px;border-radius:6px;font-size:0.85rem;color:#1F2937;max-height:300px;overflow-y:auto;">' + escapeHtml(a.Body) + '</div>';
+        }
+        if (a.Type === 'EMAIL' && a.Campaign_ID) {
+          html += '<div style="margin-top:6px;"><a href="/crm/campaigns?id=' + escapeAttr(a.Campaign_ID) + '" style="color:#2563EB;font-size:0.8rem;text-decoration:underline;">View Campaign</a></div>';
+        }
+        if (a.Type === 'SMS') {
+          html += '<div style="margin-top:6px;"><button class="cc-btn cc-btn-sm cc-btn-outline cc-sms-thread-btn" data-lead-id="' + escapeAttr(leadId) + '" style="font-size:0.78rem;">Open SMS Thread</button></div>';
+        }
+      } else {
+        if (a.Body) html += '<div class="cc-timeline-body">' + escapeHtml(a.Body) + '</div>';
+      }
       if (a.Duration_Minutes) html += '<div class="cc-timeline-meta">' + escapeHtml(String(a.Duration_Minutes)) + ' min</div>';
       if (a.Outcome) html += '<div class="cc-timeline-meta">Outcome: ' + escapeHtml(a.Outcome) + '</div>';
       html += '</div>'; // end cc-timeline-details
@@ -1490,7 +1565,9 @@
 
     // Bind click-to-expand on timeline items
     el.querySelectorAll('.cc-timeline-clickable').forEach(function(item) {
-      item.addEventListener('click', function() {
+      item.addEventListener('click', function(e) {
+        // Don't toggle if clicking a link or button inside details
+        if (e.target.closest('a') || e.target.closest('.cc-sms-thread-btn')) return;
         var details = item.querySelector('.cc-timeline-details');
         var chevron = item.querySelector('.cc-timeline-chevron');
         if (!details) return;
@@ -1498,6 +1575,14 @@
         details.style.display = isOpen ? 'none' : 'block';
         item.setAttribute('aria-expanded', String(!isOpen));
         if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+      });
+    });
+
+    // Bind SMS thread open buttons in activity timeline
+    el.querySelectorAll('.cc-sms-thread-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (state.lead) showSmsModal(state.lead);
       });
     });
   }
