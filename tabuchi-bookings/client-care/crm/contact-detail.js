@@ -1653,7 +1653,7 @@
     if (window.ClientCareRC && window.ClientCareRC.isLoaded()) { cb(true); return; }
     if (!window.ClientCareRC) {
       var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/gh/DavidLifson/tabuchi-law-cdn@143aa23/tabuchi-bookings/client-care/shared/rc-widget.js';
+      s.src = 'https://cdn.jsdelivr.net/gh/DavidLifson/tabuchi-law-cdn@5f2ef36/tabuchi-bookings/client-care/shared/rc-widget.js';
       s.onload = function() {
         if (window.ClientCareRC) {
           window.ClientCareRC.autoInit().then(function(ok) { cb(ok); });
