@@ -108,11 +108,53 @@
     }
   }
 
+  /**
+   * Check microphone permission. Prompts user if not yet granted.
+   * Returns a Promise resolving to true (granted) or false (denied/failed).
+   */
+  function _checkMicrophone() {
+    // Try the Permissions API first (non-intrusive check)
+    if (navigator.permissions && navigator.permissions.query) {
+      return navigator.permissions.query({ name: 'microphone' }).then(function(result) {
+        if (result.state === 'granted') return true;
+        if (result.state === 'denied') {
+          _ccToast('Microphone access is blocked. Please allow microphone in your browser settings (click the lock icon in the address bar).', 'error');
+          return false;
+        }
+        // 'prompt' — trigger the permission dialog
+        return navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+          stream.getTracks().forEach(function(t) { t.stop(); }); // release immediately
+          return true;
+        }).catch(function() {
+          _ccToast('Microphone access is required for RingCentral calls. Please allow microphone access and try again.', 'error');
+          return false;
+        });
+      }).catch(function() {
+        // Permissions API not supported — try getUserMedia directly
+        return _requestMicDirect();
+      });
+    }
+    return _requestMicDirect();
+  }
+
+  function _requestMicDirect() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return Promise.resolve(true); // can't check, let the widget handle it
+    }
+    return navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      return true;
+    }).catch(function() {
+      _ccToast('Microphone access is required for RingCentral calls. Please allow microphone access and try again.', 'error');
+      return false;
+    });
+  }
+
   // ── Dial ─────────────────────────────────────────────────────
 
   /**
    * Initiate a call via the RC Embeddable widget.
-   * If user is not logged in, opens widget for login then auto-dials after.
+   * Checks microphone permission first, then dials.
    * @param {string} phoneNumber - Number to dial
    * @param {function} onCallEnd - Callback with call result object
    */
@@ -130,18 +172,24 @@
 
     var cleaned = _normalizePhone(phoneNumber);
 
-    // Wait for widget to be ready first
-    _waitForReady(function(isReady) {
-      if (!isReady) {
-        _fireCallback({ error: 'RingCentral widget did not become ready. Please try again.' });
+    // Step 1: Check microphone permission
+    _checkMicrophone().then(function(micOk) {
+      if (!micOk) {
+        _fireCallback({ error: 'Microphone access denied.' });
         return;
       }
 
-      // Always try to dial — the widget handles login internally.
-      // _state.loggedIn is unreliable (notification may fire before listener).
-      // If user isn't logged in, the widget will show its own login prompt.
-      _showWidget();
-      _executeDial(cleaned);
+      // Step 2: Wait for widget to be ready
+      _waitForReady(function(isReady) {
+        if (!isReady) {
+          _fireCallback({ error: 'RingCentral widget did not become ready. Please try again.' });
+          return;
+        }
+
+        // Step 3: Show widget and dial with retry
+        _showWidget();
+        _executeDialWithRetry(cleaned, 0);
+      });
     });
   }
 
@@ -161,18 +209,33 @@
     check();
   }
 
-  function _executeDial(cleaned) {
+  /**
+   * Send the dial command, retrying a few times with delay to handle
+   * widget timing issues (widget may report ready before fully initialized).
+   */
+  function _executeDialWithRetry(cleaned, attempt) {
     var frame = document.querySelector('#rc-widget-adapter-frame');
     if (!frame) {
       _fireCallback({ error: 'RingCentral widget not found.' });
       return;
     }
-    console.log('[RC Widget] Dialing:', cleaned);
+    console.log('[RC Widget] Dialing (attempt ' + (attempt + 1) + '):', cleaned);
     frame.contentWindow.postMessage({
       type: 'rc-adapter-new-call',
       phoneNumber: cleaned,
       toCall: true
     }, '*');
+
+    // Retry up to 3 times with increasing delay — the widget sometimes
+    // needs extra time after reporting "ready" before it processes dial commands
+    if (attempt < 3) {
+      setTimeout(function() {
+        // Only retry if no call has started yet
+        if (!_state.callActive) {
+          _executeDialWithRetry(cleaned, attempt + 1);
+        }
+      }, 1500 * (attempt + 1));
+    }
   }
 
   function _ccToast(msg, type) {
