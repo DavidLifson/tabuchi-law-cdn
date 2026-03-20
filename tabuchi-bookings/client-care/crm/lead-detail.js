@@ -2166,6 +2166,9 @@
           data.Services_Required = _newLeadServiceIds;
         }
 
+        // Auto-tag new leads with "Lead"
+        data.Tags = ['Lead'];
+
         createBtn.disabled = true;
         createBtn.textContent = 'Creating...';
         try {
@@ -3146,3 +3149,4 @@
     init();
   }
 })();
+/* 1774050520 */
