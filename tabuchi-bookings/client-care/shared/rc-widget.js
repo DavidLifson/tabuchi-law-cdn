@@ -137,24 +137,11 @@
         return;
       }
 
-      if (_state.loggedIn) {
-        // Already logged in — dial immediately
-        _executeDial(cleaned);
-      } else {
-        // Not logged in — open widget, queue the dial, wait for login
-        console.log('[RC Widget] Not logged in. Opening widget for login. Will auto-dial after login.');
-        _state.pendingDial = cleaned;
-        _showWidget();
-        _ccToast('Please log in to RingCentral in the widget (bottom-right), then the call will start automatically.', 'info');
-
-        // Set a timeout so we don't wait forever
-        setTimeout(function() {
-          if (_state.pendingDial) {
-            _state.pendingDial = null;
-            _fireCallback({ error: 'RingCentral login timed out. Please log in and try again.' });
-          }
-        }, LOGIN_WAIT_TIMEOUT);
-      }
+      // Always try to dial — the widget handles login internally.
+      // _state.loggedIn is unreliable (notification may fire before listener).
+      // If user isn't logged in, the widget will show its own login prompt.
+      _showWidget();
+      _executeDial(cleaned);
     });
   }
 
