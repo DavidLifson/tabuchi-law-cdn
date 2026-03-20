@@ -965,7 +965,8 @@
         time: a.created_at,
         duration: a.duration_minutes,
         outcome: a.outcome,
-        loggedBy: a.logged_by
+        loggedBy: a.logged_by,
+        recording_url: a.recording_url || ''
       });
     });
 
@@ -1027,6 +1028,13 @@
       if (hasDetails) html += '<span class="cc-timeline-chevron" style="margin-left:auto;font-size:0.7rem;color:#9CA3AF;transition:transform .2s;">&#9660;</span>';
       html += '</div>';
       html += '<div class="cc-timeline-subject">' + escapeHtml(item.subject) + '</div>';
+      // Recording badge
+      if (item.recording_url) {
+        html += '<a href="' + escapeAttr(item.recording_url) + '" target="_blank" rel="noopener" ' +
+          'style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 8px;background:#EEF2FF;color:#4F46E5;border-radius:4px;font-size:0.75rem;text-decoration:none;font-weight:500;" ' +
+          'onclick="event.stopPropagation();">' +
+          '&#9654; Play Recording</a>';
+      }
       // Collapsible detail section
       html += '<div class="cc-timeline-details" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #E5E7EB;">';
       if (item.body) html += '<div class="cc-timeline-body">' + escapeHtml(item.body) + '</div>';
