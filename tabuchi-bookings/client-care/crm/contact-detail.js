@@ -1649,58 +1649,33 @@
   };
 
   // ── RingCentral Embeddable Integration ────────────────────
-  function _ensureRCWidget(cb) {
-    if (window.ClientCareRC && window.ClientCareRC.isLoaded()) { cb(true); return; }
-    if (!window.ClientCareRC) {
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/gh/DavidLifson/tabuchi-law-cdn@2d9c307/tabuchi-bookings/client-care/shared/rc-widget.js';
-      s.onload = function() {
-        if (window.ClientCareRC) {
-          window.ClientCareRC.autoInit().then(function(ok) { cb(ok); });
-        } else { cb(false); }
-      };
-      s.onerror = function() { cb(false); };
-      document.body.appendChild(s);
-    } else {
-      window.ClientCareRC.autoInit().then(function(ok) { cb(ok); });
-    }
-  }
-
   function showCallDialog(record) {
     if (!record.Client_Phone) { ccToast('No phone number available.', 'error'); return; }
 
-    _ensureRCWidget(function(rcAvailable) {
-      if (rcAvailable) {
-        ccToast('Dialing ' + escapeHtml(record.Client_Phone) + ' via RingCentral...', 'info');
-        window.ClientCareRC.dial(record.Client_Phone, function(result) {
-          if (result.error) {
-            ccToast(result.error, 'error');
-            _fallbackCall(record);
-            return;
-          }
-          showCallLogModal({
-            lead_id: contactId,
-            duration_minutes: result.duration_minutes || 0,
-            outcome: result.outcome || 'COMPLETED',
-            recording_url: result.recording_url || '',
-            rc_call_id: result.session_id || '',
-            fromRC: true
-          });
-        });
-      } else {
-        _fallbackCall(record);
-      }
-    });
-  }
+    // Normalize phone number for dialing
+    var phone = record.Client_Phone.replace(/[\s\-\(\)\.]/g, '');
+    if (/^\d{10}$/.test(phone)) phone = '+1' + phone;
+    else if (/^1\d{10}$/.test(phone)) phone = '+' + phone;
 
-  function _fallbackCall(record) {
-    var a = document.createElement('a');
-    a.href = 'tel:' + encodeURIComponent(record.Client_Phone);
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    ccToast('Opening phone app for ' + escapeHtml(record.Client_Phone) + '...', 'info');
+    // Launch call via RC URI scheme (opens RC desktop app) with tel: fallback
+    var rcUri = 'rcmobile://call?number=' + encodeURIComponent(phone);
+    var telUri = 'tel:' + encodeURIComponent(phone);
+
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = rcUri;
+    document.body.appendChild(iframe);
+    setTimeout(function() {
+      document.body.removeChild(iframe);
+      var a = document.createElement('a');
+      a.href = telUri;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }, 500);
+
+    ccToast('Opening RingCentral for ' + escapeHtml(record.Client_Phone) + '...', 'info');
     showCallLogModal({ lead_id: contactId });
   }
 
