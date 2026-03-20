@@ -17,6 +17,7 @@
   var RECORDING_FETCH_TIMEOUT = 12000;
   var DIAL_RETRY_INTERVAL = 500;
   var DIAL_MAX_RETRIES = 40; // 20 seconds
+  var LOGIN_WAIT_TIMEOUT = 120000; // 2 minutes max wait for login
 
   var _clientId = '';
   var _state = {
@@ -26,7 +27,8 @@
     callActive: false,
     callEndCb: null,
     callStartTime: null,
-    recordingUri: null
+    recordingUri: null,
+    pendingDial: null  // queued phone number to dial after login
   };
 
   // ── Initialization ──────────────────────────────────────────
@@ -90,10 +92,27 @@
     }).catch(function() { return false; });
   }
 
+  // ── Helpers ────────────────────────────────────────────────
+
+  function _normalizePhone(phoneNumber) {
+    var cleaned = phoneNumber.replace(/[\s\-\(\)\.]/g, '');
+    if (/^\d{10}$/.test(cleaned)) cleaned = '+1' + cleaned;
+    else if (/^1\d{10}$/.test(cleaned)) cleaned = '+' + cleaned;
+    return cleaned;
+  }
+
+  function _showWidget() {
+    var frame = document.querySelector('#rc-widget-adapter-frame');
+    if (frame) {
+      frame.contentWindow.postMessage({ type: 'rc-adapter-set-minimized', minimized: false }, '*');
+    }
+  }
+
   // ── Dial ─────────────────────────────────────────────────────
 
   /**
    * Initiate a call via the RC Embeddable widget.
+   * If user is not logged in, opens widget for login then auto-dials after.
    * @param {string} phoneNumber - Number to dial
    * @param {function} onCallEnd - Callback with call result object
    */
@@ -102,33 +121,79 @@
     _state.recordingUri = null;
     _state.callActive = false;
     _state.callStartTime = null;
+    _state.pendingDial = null;
 
     if (!_state.loaded) {
       onCallEnd({ error: 'RingCentral widget not loaded.' });
       return;
     }
 
-    _tryDial(phoneNumber, 0);
+    var cleaned = _normalizePhone(phoneNumber);
+
+    // Wait for widget to be ready first
+    _waitForReady(function(isReady) {
+      if (!isReady) {
+        _fireCallback({ error: 'RingCentral widget did not become ready. Please try again.' });
+        return;
+      }
+
+      if (_state.loggedIn) {
+        // Already logged in — dial immediately
+        _executeDial(cleaned);
+      } else {
+        // Not logged in — open widget, queue the dial, wait for login
+        console.log('[RC Widget] Not logged in. Opening widget for login. Will auto-dial after login.');
+        _state.pendingDial = cleaned;
+        _showWidget();
+        _ccToast('Please log in to RingCentral in the widget (bottom-right), then the call will start automatically.', 'info');
+
+        // Set a timeout so we don't wait forever
+        setTimeout(function() {
+          if (_state.pendingDial) {
+            _state.pendingDial = null;
+            _fireCallback({ error: 'RingCentral login timed out. Please log in and try again.' });
+          }
+        }, LOGIN_WAIT_TIMEOUT);
+      }
+    });
   }
 
-  function _tryDial(phoneNumber, attempts) {
-    var frame = document.querySelector('#rc-widget-adapter-frame');
-    if (frame && _state.ready) {
-      // Normalize phone number — strip spaces, dashes, parens; ensure +1 prefix for 10-digit NA numbers
-      var cleaned = phoneNumber.replace(/[\s\-\(\)\.]/g, '');
-      if (/^\d{10}$/.test(cleaned)) cleaned = '+1' + cleaned;
-      else if (/^1\d{10}$/.test(cleaned)) cleaned = '+' + cleaned;
+  function _waitForReady(cb) {
+    var attempts = 0;
+    function check() {
+      var frame = document.querySelector('#rc-widget-adapter-frame');
+      if (frame && _state.ready) {
+        cb(true);
+      } else if (attempts < DIAL_MAX_RETRIES) {
+        attempts++;
+        setTimeout(check, DIAL_RETRY_INTERVAL);
+      } else {
+        cb(false);
+      }
+    }
+    check();
+  }
 
-      console.log('[RC Widget] Dialing:', cleaned, 'loggedIn:', _state.loggedIn, 'ready:', _state.ready);
-      frame.contentWindow.postMessage({
-        type: 'rc-adapter-new-call',
-        phoneNumber: cleaned,
-        toCall: true
-      }, '*');
-    } else if (attempts < DIAL_MAX_RETRIES) {
-      setTimeout(function() { _tryDial(phoneNumber, attempts + 1); }, DIAL_RETRY_INTERVAL);
+  function _executeDial(cleaned) {
+    var frame = document.querySelector('#rc-widget-adapter-frame');
+    if (!frame) {
+      _fireCallback({ error: 'RingCentral widget not found.' });
+      return;
+    }
+    console.log('[RC Widget] Dialing:', cleaned);
+    frame.contentWindow.postMessage({
+      type: 'rc-adapter-new-call',
+      phoneNumber: cleaned,
+      toCall: true
+    }, '*');
+  }
+
+  function _ccToast(msg, type) {
+    // Use CRM toast if available, otherwise console
+    if (typeof window.ccToast === 'function') {
+      window.ccToast(msg, type || 'info');
     } else {
-      _fireCallback({ error: 'RingCentral widget did not become ready. Please log in to RingCentral and try again.' });
+      console.log('[RC Widget]', msg);
     }
   }
 
@@ -138,20 +203,33 @@
     if (!e.data || typeof e.data.type !== 'string') return;
     var data = e.data;
 
-    // Log all RC messages for debugging
-    if (data.type.indexOf('rc-') === 0) {
+    // Log RC messages for debugging
+    if (data.type.indexOf('rc-') === 0 && data.type !== 'rc-adapter-pushAdapterState') {
       console.log('[RC Widget] Message:', data.type, data.loggedIn !== undefined ? 'loggedIn=' + data.loggedIn : '');
     }
 
     switch (data.type) {
       case 'rc-adapter-pushAdapterState':
-        _state.ready = true;
-        console.log('[RC Widget] Adapter ready');
+        if (!_state.ready) {
+          _state.ready = true;
+          console.log('[RC Widget] Adapter ready');
+        }
         break;
 
       case 'rc-login-status-notify':
+        var wasLoggedIn = _state.loggedIn;
         _state.loggedIn = !!data.loggedIn;
         console.log('[RC Widget] Login status:', _state.loggedIn);
+
+        // If user just logged in and there's a pending dial, execute it
+        if (!wasLoggedIn && _state.loggedIn && _state.pendingDial) {
+          var numberToDial = _state.pendingDial;
+          _state.pendingDial = null;
+          console.log('[RC Widget] Login detected! Auto-dialing pending number:', numberToDial);
+          _ccToast('Logged in! Dialing now...', 'success');
+          // Small delay to let the widget finish initializing after login
+          setTimeout(function() { _executeDial(numberToDial); }, 1500);
+        }
         break;
 
       case 'rc-call-init-notify':
