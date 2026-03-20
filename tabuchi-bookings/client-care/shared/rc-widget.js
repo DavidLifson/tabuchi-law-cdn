@@ -214,23 +214,31 @@
    * widget timing issues (widget may report ready before fully initialized).
    */
   function _executeDialWithRetry(cleaned, attempt) {
+    console.log('[RC Widget] Dialing (attempt ' + (attempt + 1) + '):', cleaned);
+
+    // Method 1: Use RCAdapter.clickToCall if available (official adapter API)
+    if (window.RCAdapter && typeof window.RCAdapter.clickToCall === 'function') {
+      console.log('[RC Widget] Using RCAdapter.clickToCall');
+      window.RCAdapter.clickToCall(cleaned);
+      return; // no retry needed — clickToCall is reliable
+    }
+
+    // Method 2: Fall back to postMessage
     var frame = document.querySelector('#rc-widget-adapter-frame');
     if (!frame) {
       _fireCallback({ error: 'RingCentral widget not found.' });
       return;
     }
-    console.log('[RC Widget] Dialing (attempt ' + (attempt + 1) + '):', cleaned);
+    console.log('[RC Widget] Using postMessage fallback');
     frame.contentWindow.postMessage({
       type: 'rc-adapter-new-call',
       phoneNumber: cleaned,
       toCall: true
     }, '*');
 
-    // Retry up to 3 times with increasing delay — the widget sometimes
-    // needs extra time after reporting "ready" before it processes dial commands
+    // Retry up to 3 times with increasing delay
     if (attempt < 3) {
       setTimeout(function() {
-        // Only retry if no call has started yet
         if (!_state.callActive) {
           _executeDialWithRetry(cleaned, attempt + 1);
         }
