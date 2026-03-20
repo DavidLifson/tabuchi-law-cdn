@@ -13,6 +13,8 @@
  * - Recent activity feed
  * - Admin: Rep comparison table, revenue timeline, workload
  * - Auto-refresh every 5 minutes
+ * - Clickable items navigate to detail pages
+ * - Customizable tile layout (drag-to-reorder, show/hide, persisted)
  *
  * Page element IDs:
  * - #cc-dash-root          (main container)
@@ -52,11 +54,67 @@
     loading: false,
     role: (_u && _u.role) || '',
     isAdmin: false,
-    refreshTimer: null
+    refreshTimer: null,
+    customizing: false
   };
   state.isAdmin = ((state.role || '').toUpperCase() === 'ADMIN' || (state.role || '').toUpperCase() === 'MANAGER' || !!(_u && _u.is_admin));
 
   var REFRESH_INTERVAL = 300000; // 5 minutes
+  var LAYOUT_KEY = 'cc_dash_layout';
+
+  // ─── Tile Definitions ──────────────────────────────────────────
+  var TILES = [
+    { id: 'bookings', label: 'Upcoming Meetings', admin: false },
+    { id: 'tasks-pipeline', label: 'Tasks & Pipeline', admin: false },
+    { id: 'activity-sla', label: 'Activity & Service Level', admin: false },
+    { id: 'rep-comparison', label: 'Rep Comparison', admin: true },
+    { id: 'revenue-timeline', label: 'Revenue Timeline', admin: true },
+    { id: 'workload', label: 'Workload & Won/Lost', admin: true }
+  ];
+
+  function getAvailableTiles() {
+    return TILES.filter(function(t) { return !t.admin || state.isAdmin; });
+  }
+
+  function getDefaultOrder() {
+    return getAvailableTiles().map(function(t) { return t.id; });
+  }
+
+  function getLayout() {
+    try {
+      var raw = localStorage.getItem(LAYOUT_KEY);
+      if (raw) {
+        var layout = JSON.parse(raw);
+        if (layout && layout.order) return layout;
+      }
+    } catch(e) {}
+    return { order: getDefaultOrder(), hidden: [] };
+  }
+
+  function saveLayout(layout) {
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch(e) {}
+  }
+
+  function getTileRenderer(tileId) {
+    var d = state.data;
+    if (!d) return '';
+    switch (tileId) {
+      case 'bookings': return renderBookings(state.bookings);
+      case 'tasks-pipeline': return '<div class="cc-dash-grid-2">' + renderTasks(d.tasks) + renderPipeline(d.pipeline) + '</div>';
+      case 'activity-sla': return '<div class="cc-dash-grid-2">' + renderActivity(d.recent_activity) + renderSLADetail(d.sla) + '</div>';
+      case 'rep-comparison': return renderRepComparison(d.rep_comparison);
+      case 'revenue-timeline': return renderRevenueTimeline(d.revenue_timeline);
+      case 'workload': return renderWorkload(d.workload, d.pipeline);
+      default: return '';
+    }
+  }
+
+  function getTileLabel(tileId) {
+    for (var i = 0; i < TILES.length; i++) {
+      if (TILES[i].id === tileId) return TILES[i].label;
+    }
+    return tileId;
+  }
 
   // Local date helper — avoids UTC timezone mismatch from n8n Cloud
   function localToday() {
@@ -163,38 +221,38 @@
     bindEvents();
     updateProgress(6, 'Done');
 
-    // Phase 2: Bookings + Tasks/Pipeline (next frame)
+    // Phase 2+: Render tiles in order
+    var layout = getLayout();
+    var order = layout.order || getDefaultOrder();
+    var hidden = layout.hidden || [];
+    var available = getAvailableTiles().map(function(t) { return t.id; });
+
+    // Add any new tiles not in saved layout
+    for (var a = 0; a < available.length; a++) {
+      if (order.indexOf(available[a]) === -1) order.push(available[a]);
+    }
+
     requestAnimationFrame(function() {
       var frag = document.createDocumentFragment();
+      var tilesDiv = document.createElement('div');
+      tilesDiv.id = 'cc-dash-tiles';
+      tilesDiv.className = 'cc-dash-tiles';
 
-      var bookingsDiv = document.createElement('div');
-      bookingsDiv.innerHTML = renderBookings(state.bookings);
-      while (bookingsDiv.firstChild) frag.appendChild(bookingsDiv.firstChild);
+      for (var i = 0; i < order.length; i++) {
+        var tileId = order[i];
+        if (available.indexOf(tileId) === -1) continue;
+        if (hidden.indexOf(tileId) !== -1) continue;
+        var content = getTileRenderer(tileId);
+        if (!content) continue;
+        var wrapper = document.createElement('div');
+        wrapper.className = 'cc-dash-tile';
+        wrapper.setAttribute('data-tile-id', tileId);
+        wrapper.innerHTML = content;
+        tilesDiv.appendChild(wrapper);
+      }
 
-      var gridDiv = document.createElement('div');
-      gridDiv.innerHTML = '<div class="cc-dash-grid-2">' + renderTasks(d.tasks) + renderPipeline(d.pipeline) + '</div>';
-      while (gridDiv.firstChild) frag.appendChild(gridDiv.firstChild);
-
+      frag.appendChild(tilesDiv);
       root.appendChild(frag);
-
-      // Phase 3: Activity + SLA + Admin (next frame)
-      requestAnimationFrame(function() {
-        var frag2 = document.createDocumentFragment();
-
-        var actDiv = document.createElement('div');
-        actDiv.innerHTML = '<div class="cc-dash-grid-2">' + renderActivity(d.recent_activity) + renderSLADetail(d.sla) + '</div>';
-        while (actDiv.firstChild) frag2.appendChild(actDiv.firstChild);
-
-        if (state.isAdmin) {
-          var adminDiv = document.createElement('div');
-          adminDiv.innerHTML = renderRepComparison(d.rep_comparison) +
-            renderRevenueTimeline(d.revenue_timeline) +
-            renderWorkload(d.workload, d.pipeline);
-          while (adminDiv.firstChild) frag2.appendChild(adminDiv.firstChild);
-        }
-
-        root.appendChild(frag2);
-      });
     });
   }
 
@@ -240,33 +298,33 @@
 
     var html = '';
 
-    // Greeting
+    // Greeting (always first)
     html += renderGreeting(d.greeting);
 
-    // Stat cards
+    // Stat cards (always second)
     html += renderStatCards(d);
 
-    // Bookings — prominent position right after stats
-    html += renderBookings(state.bookings);
+    // Tiles in user-configured order
+    var layout = getLayout();
+    var order = layout.order || getDefaultOrder();
+    var hidden = layout.hidden || [];
+    var available = getAvailableTiles().map(function(t) { return t.id; });
 
-    // Two-column: Tasks + Pipeline
-    html += '<div class="cc-dash-grid-2">';
-    html += renderTasks(d.tasks);
-    html += renderPipeline(d.pipeline);
-    html += '</div>';
-
-    // Two-column: Activity + SLA detail
-    html += '<div class="cc-dash-grid-2">';
-    html += renderActivity(d.recent_activity);
-    html += renderSLADetail(d.sla);
-    html += '</div>';
-
-    // Admin sections
-    if (state.isAdmin) {
-      html += renderRepComparison(d.rep_comparison);
-      html += renderRevenueTimeline(d.revenue_timeline);
-      html += renderWorkload(d.workload, d.pipeline);
+    // Add any new tiles not in saved layout
+    for (var a = 0; a < available.length; a++) {
+      if (order.indexOf(available[a]) === -1) order.push(available[a]);
     }
+
+    html += '<div id="cc-dash-tiles" class="cc-dash-tiles">';
+    for (var i = 0; i < order.length; i++) {
+      var tileId = order[i];
+      if (available.indexOf(tileId) === -1) continue;
+      if (hidden.indexOf(tileId) !== -1) continue;
+      var content = getTileRenderer(tileId);
+      if (!content) continue;
+      html += '<div class="cc-dash-tile" data-tile-id="' + tileId + '">' + content + '</div>';
+    }
+    html += '</div>';
 
     root.innerHTML = html;
     bindEvents();
@@ -291,6 +349,7 @@
       '<div class="cc-dash-actions">' +
         '<a href="/crm/kanban" class="cc-btn cc-btn-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.35);text-decoration:none;">Kanban</a> ' +
         '<a href="/crm/reports" class="cc-btn cc-btn-sm" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.35);text-decoration:none;">Reports</a> ' +
+        '<button class="cc-btn cc-btn-sm" id="cc-dash-customize" title="Customize dashboard layout" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.35);">&#9881; Customize</button> ' +
         '<button class="cc-btn cc-btn-sm" id="cc-dash-refresh" title="Refresh" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.35);">&#8635; Refresh</button>' +
       '</div>' +
     '</div>';
@@ -323,22 +382,24 @@
     var meetingColor = todayMeetings > 0 ? 'teal' : 'gray';
 
     return '<div class="cc-dash-stats">' +
-      statCard('Open Pipeline', fmtNum(pipe.total_open), 'leads in funnel', 'blue') +
-      statCard('Weighted Revenue', fmtCurrency(rev.weighted_total), fmtNum(rev.eligible_leads) + ' eligible leads', 'purple') +
-      statCard('Today\'s Meetings', fmtNum(todayMeetings), fmtNum(totalUpcoming) + ' total upcoming', meetingColor) +
-      statCard('Service Level', fmtPct(slaPct), fmtNum(sla.within_sla) + '/' + fmtNum(sla.total) + ' within SLA', slaClass) +
-      statCard('Overdue Tasks', fmtNum(tasks.overdue), fmtNum(tasks.total_open) + ' total open', overdueClass, { id: 'cc-dash-overdue-tile', clickable: true }) +
+      statCard('Open Pipeline', fmtNum(pipe.total_open), 'leads in funnel', 'blue', { href: '/crm' }) +
+      statCard('Weighted Revenue', fmtCurrency(rev.weighted_total), fmtNum(rev.eligible_leads) + ' eligible leads', 'purple', { href: '/crm/reports' }) +
+      statCard('Today\'s Meetings', fmtNum(todayMeetings), fmtNum(totalUpcoming) + ' total upcoming', meetingColor, { scroll: 'bookings' }) +
+      statCard('Service Level', fmtPct(slaPct), fmtNum(sla.within_sla) + '/' + fmtNum(sla.total) + ' within SLA', slaClass, { scroll: 'activity-sla' }) +
+      statCard('Overdue Tasks', fmtNum(tasks.overdue), fmtNum(tasks.total_open) + ' total open', overdueClass, { scroll: 'tasks-pipeline' }) +
     '</div>';
   }
 
   function statCard(label, value, sub, color, opts) {
-    var id = (opts && opts.id) ? ' id="' + opts.id + '"' : '';
-    var clickClass = (opts && opts.clickable) ? ' cc-dash-stat-clickable' : '';
-    return '<div class="cc-rpt-stat cc-dash-stat' + clickClass + '"' + id + '>' +
+    opts = opts || {};
+    var tag = opts.href ? 'a' : 'div';
+    var hrefAttr = opts.href ? ' href="' + opts.href + '"' : '';
+    var scrollAttr = opts.scroll ? ' data-scroll-tile="' + opts.scroll + '"' : '';
+    return '<' + tag + ' class="cc-rpt-stat cc-dash-stat cc-dash-stat-clickable"' + hrefAttr + scrollAttr + '>' +
       '<div class="cc-rpt-stat-label">' + escapeHtml(label) + '</div>' +
       '<div class="cc-rpt-stat-value cc-text-' + color + '">' + escapeHtml(value) + '</div>' +
       '<div class="cc-rpt-stat-sub">' + escapeHtml(sub) + '</div>' +
-    '</div>';
+    '</' + tag + '>';
   }
 
   // ─── Tasks Widget ────────────────────────────────────────────
@@ -414,20 +475,21 @@
     }
 
     var html = '<div class="cc-dash-card">' +
-      '<h3 class="cc-dash-card-title">Pipeline <span class="cc-muted">(' + fmtNum(p.total_open) + ' open)</span></h3>' +
+      '<h3 class="cc-dash-card-title"><a href="/crm" class="cc-dash-link">Pipeline</a> <span class="cc-muted">(' + fmtNum(p.total_open) + ' open)</span></h3>' +
       '<div class="cc-dash-funnel">';
 
     for (var s = 0; s < stages.length; s++) {
       var st = stages[s];
       var pct = maxCount > 0 ? Math.max((st.count / maxCount) * 100, 4) : 4;
       var color = API.util.stageColor(st.stage) || 'blue';
-      html += '<div class="cc-dash-funnel-row">' +
+      var stageParam = encodeURIComponent(st.stage || '');
+      html += '<a href="/crm?stage=' + stageParam + '" class="cc-dash-funnel-row cc-dash-funnel-clickable">' +
         '<span class="cc-dash-funnel-label">' + escapeHtml(st.label || st.stage) + '</span>' +
         '<div class="cc-dash-funnel-bar-wrap">' +
           '<div class="cc-dash-funnel-bar cc-bg-' + color + '" style="width:' + pct.toFixed(1) + '%"></div>' +
         '</div>' +
         '<span class="cc-dash-funnel-count">' + fmtNum(st.count) + '</span>' +
-      '</div>';
+      '</a>';
     }
 
     html += '</div>';
@@ -454,14 +516,17 @@
       html += '<div class="cc-dash-activity-list">';
       for (var i = 0; i < activities.length && i < 10; i++) {
         var a = activities[i];
-        html += '<div class="cc-dash-activity-row">' +
+        var leadId = a.lead_id || '';
+        var tag = leadId ? 'a' : 'div';
+        var hrefAttr = leadId ? ' href="/crm/lead?id=' + encodeURIComponent(leadId) + '"' : '';
+        html += '<' + tag + ' class="cc-dash-activity-row' + (leadId ? ' cc-dash-activity-clickable' : '') + '"' + hrefAttr + '>' +
           '<span class="cc-badge cc-badge-' + activityColor(a.type) + ' cc-badge-sm">' + escapeHtml(a.type || '?') + '</span>' +
           '<div class="cc-dash-activity-detail">' +
             '<span class="cc-dash-activity-name">' + escapeHtml(a.lead_name || '') + '</span>' +
             '<span class="cc-dash-activity-summary">' + escapeHtml(a.summary || '') + '</span>' +
           '</div>' +
           '<span class="cc-dash-activity-time">' + escapeHtml(API.util.formatRelativeTime(a.created_at)) + '</span>' +
-        '</div>';
+        '</' + tag + '>';
       }
       html += '</div>';
     }
@@ -565,16 +630,22 @@
 
   function bookingRow(b) {
     var timeStr = formatBookingTime(b.startTime || b.time);
-    var endStr = b.endTime ? ' – ' + formatBookingTime(b.endTime) : '';
+    var endStr = b.endTime ? ' \u2013 ' + formatBookingTime(b.endTime) : '';
     var dateStr = b.date ? API.util.formatDate(b.date) : '';
     var statusCls = b.status === 'confirmed' ? 'green' : b.status === 'cancelled' ? 'red' : 'yellow';
     var statusLabel = b.status === 'pending_approval' ? 'Pending' : (b.status || 'Unknown');
     statusLabel = statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1);
 
-    var html = '<div class="cc-dash-booking-row">' +
+    // Make row clickable if we have a lead_id
+    var leadId = b.lead_id || b.leadId || '';
+    var tag = leadId ? 'a' : 'div';
+    var hrefAttr = leadId ? ' href="/crm/lead?id=' + encodeURIComponent(leadId) + '"' : '';
+    var clickClass = leadId ? ' cc-dash-booking-clickable' : '';
+
+    var html = '<' + tag + ' class="cc-dash-booking-row' + clickClass + '"' + hrefAttr + '>' +
       '<div class="cc-dash-booking-time">' + escapeHtml(timeStr + endStr) + '</div>' +
       '<div class="cc-dash-booking-info">' +
-        '<span class="cc-dash-booking-client">' + escapeHtml(b.clientName || '—') + '</span>' +
+        '<span class="cc-dash-booking-client">' + escapeHtml(b.clientName || '\u2014') + '</span>' +
         '<span class="cc-dash-booking-service">' + escapeHtml(b.meetingTypeName || b.serviceName || '') +
           (dateStr && b.date !== localToday() ? ' &middot; ' + escapeHtml(dateStr) : '') +
         '</span>' +
@@ -583,10 +654,10 @@
         '<span class="cc-badge cc-badge-' + statusCls + ' cc-badge-sm">' + escapeHtml(statusLabel) + '</span>';
 
     if (b.meetingLink) {
-      html += ' <a href="' + escapeHtml(b.meetingLink) + '" target="_blank" rel="noopener" class="cc-btn cc-btn-sm cc-btn-outline" style="font-size:0.75rem;padding:0.15rem 0.5rem;">Join</a>';
+      html += ' <a href="' + escapeHtml(b.meetingLink) + '" target="_blank" rel="noopener" class="cc-btn cc-btn-sm cc-btn-outline" style="font-size:0.75rem;padding:0.15rem 0.5rem;" onclick="event.stopPropagation();">Join</a>';
     }
 
-    html += '</div></div>';
+    html += '</div></' + tag + '>';
     return html;
   }
 
@@ -617,7 +688,7 @@
       var r = reps[i];
       var slaCls = (r.sla_pct >= 90) ? 'green' : (r.sla_pct >= 75) ? 'yellow' : 'red';
       html += '<tr>' +
-        '<td>' + escapeHtml(r.rep_name || '—') + '</td>' +
+        '<td>' + escapeHtml(r.rep_name || '\u2014') + '</td>' +
         '<td>' + fmtNum(r.open_leads) + '</td>' +
         '<td>' + fmtNum(r.won_30d) + '</td>' +
         '<td>' + fmtCurrency(r.weighted_revenue) + '</td>' +
@@ -702,6 +773,181 @@
     return html;
   }
 
+  // ─── Customize Panel ─────────────────────────────────────────
+
+  function openCustomizePanel() {
+    state.customizing = true;
+    var layout = getLayout();
+    var available = getAvailableTiles();
+    var order = layout.order || getDefaultOrder();
+    var hidden = layout.hidden || [];
+
+    // Ensure all available tiles are in order
+    for (var a = 0; a < available.length; a++) {
+      if (order.indexOf(available[a].id) === -1) order.push(available[a].id);
+    }
+
+    var html = '<div class="cc-dash-customize-overlay" id="cc-dash-customize-overlay">' +
+      '<div class="cc-dash-customize-panel">' +
+        '<div class="cc-dash-customize-header">' +
+          '<h3>Customize Dashboard</h3>' +
+          '<p class="cc-muted" style="margin:0.25rem 0 0;font-size:0.8rem;">Drag to reorder. Toggle tiles on or off.</p>' +
+        '</div>' +
+        '<div class="cc-dash-customize-list" id="cc-dash-customize-list">';
+
+    for (var i = 0; i < order.length; i++) {
+      var tileId = order[i];
+      // Skip tiles not available to this user
+      var isTileAvailable = false;
+      for (var j = 0; j < available.length; j++) {
+        if (available[j].id === tileId) { isTileAvailable = true; break; }
+      }
+      if (!isTileAvailable) continue;
+
+      var isHidden = hidden.indexOf(tileId) !== -1;
+      html += '<div class="cc-dash-customize-item" draggable="true" data-tile-id="' + tileId + '">' +
+        '<span class="cc-dash-customize-handle" title="Drag to reorder">&#9776;</span>' +
+        '<span class="cc-dash-customize-label">' + escapeHtml(getTileLabel(tileId)) + '</span>' +
+        '<label class="cc-dash-toggle">' +
+          '<input type="checkbox"' + (isHidden ? '' : ' checked') + ' data-toggle-tile="' + tileId + '">' +
+          '<span class="cc-dash-toggle-slider"></span>' +
+        '</label>' +
+      '</div>';
+    }
+
+    html += '</div>' +
+        '<div class="cc-dash-customize-footer">' +
+          '<button class="cc-btn cc-btn-sm" id="cc-dash-customize-reset">Reset to Default</button>' +
+          '<div style="display:flex;gap:0.5rem;">' +
+            '<button class="cc-btn cc-btn-sm cc-btn-outline" id="cc-dash-customize-cancel">Cancel</button>' +
+            '<button class="cc-btn cc-btn-sm cc-btn-primary" id="cc-dash-customize-save">Save Layout</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    // Insert overlay
+    var overlay = document.createElement('div');
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay.firstChild);
+
+    bindCustomizeEvents();
+  }
+
+  function bindCustomizeEvents() {
+    var overlay = document.getElementById('cc-dash-customize-overlay');
+    var list = document.getElementById('cc-dash-customize-list');
+    if (!overlay || !list) return;
+
+    // Close on overlay click
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeCustomizePanel();
+    });
+
+    // Cancel
+    var cancelBtn = document.getElementById('cc-dash-customize-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', closeCustomizePanel);
+
+    // Reset
+    var resetBtn = document.getElementById('cc-dash-customize-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function() {
+        saveLayout({ order: getDefaultOrder(), hidden: [] });
+        closeCustomizePanel();
+        render();
+      });
+    }
+
+    // Save
+    var saveBtn = document.getElementById('cc-dash-customize-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function() {
+        var items = list.querySelectorAll('.cc-dash-customize-item');
+        var newOrder = [];
+        var newHidden = [];
+        for (var i = 0; i < items.length; i++) {
+          var tid = items[i].getAttribute('data-tile-id');
+          newOrder.push(tid);
+          var cb = items[i].querySelector('input[type="checkbox"]');
+          if (cb && !cb.checked) newHidden.push(tid);
+        }
+        saveLayout({ order: newOrder, hidden: newHidden });
+        closeCustomizePanel();
+        render();
+      });
+    }
+
+    // Drag and drop within the list
+    var dragItem = null;
+
+    list.addEventListener('dragstart', function(e) {
+      dragItem = e.target.closest('.cc-dash-customize-item');
+      if (dragItem) {
+        dragItem.classList.add('cc-dash-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragItem.getAttribute('data-tile-id'));
+      }
+    });
+
+    list.addEventListener('dragend', function() {
+      if (dragItem) dragItem.classList.remove('cc-dash-dragging');
+      dragItem = null;
+      // Remove all drop indicators
+      var items = list.querySelectorAll('.cc-dash-customize-item');
+      for (var i = 0; i < items.length; i++) {
+        items[i].classList.remove('cc-dash-drop-above', 'cc-dash-drop-below');
+      }
+    });
+
+    list.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      var target = e.target.closest('.cc-dash-customize-item');
+      if (!target || target === dragItem) return;
+
+      // Clear all indicators
+      var items = list.querySelectorAll('.cc-dash-customize-item');
+      for (var i = 0; i < items.length; i++) {
+        items[i].classList.remove('cc-dash-drop-above', 'cc-dash-drop-below');
+      }
+
+      // Show indicator based on cursor position
+      var rect = target.getBoundingClientRect();
+      var midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        target.classList.add('cc-dash-drop-above');
+      } else {
+        target.classList.add('cc-dash-drop-below');
+      }
+    });
+
+    list.addEventListener('drop', function(e) {
+      e.preventDefault();
+      var target = e.target.closest('.cc-dash-customize-item');
+      if (!target || !dragItem || target === dragItem) return;
+
+      var rect = target.getBoundingClientRect();
+      var midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        list.insertBefore(dragItem, target);
+      } else {
+        list.insertBefore(dragItem, target.nextSibling);
+      }
+
+      // Clear indicators
+      var items = list.querySelectorAll('.cc-dash-customize-item');
+      for (var i = 0; i < items.length; i++) {
+        items[i].classList.remove('cc-dash-drop-above', 'cc-dash-drop-below');
+      }
+    });
+  }
+
+  function closeCustomizePanel() {
+    state.customizing = false;
+    var overlay = document.getElementById('cc-dash-customize-overlay');
+    if (overlay) overlay.remove();
+  }
+
   // ─── Event Binding ───────────────────────────────────────────
 
   function bindEvents() {
@@ -713,16 +959,25 @@
       });
     }
 
-    // Overdue Tasks tile → scroll to tasks widget and highlight
-    var overdueTile = document.getElementById('cc-dash-overdue-tile');
-    if (overdueTile) {
-      overdueTile.addEventListener('click', function() {
-        var tasksWidget = document.getElementById('cc-dash-tasks-widget');
-        if (tasksWidget) {
-          tasksWidget.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          tasksWidget.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.3)';
-          tasksWidget.style.transition = 'box-shadow 0.3s ease';
-          setTimeout(function() { tasksWidget.style.boxShadow = ''; }, 2000);
+    // Customize button
+    var customizeBtn = document.getElementById('cc-dash-customize');
+    if (customizeBtn) {
+      customizeBtn.addEventListener('click', function() {
+        openCustomizePanel();
+      });
+    }
+
+    // Stat cards that scroll to tiles
+    var scrollCards = document.querySelectorAll('[data-scroll-tile]');
+    for (var i = 0; i < scrollCards.length; i++) {
+      scrollCards[i].addEventListener('click', function(e) {
+        var tileId = this.getAttribute('data-scroll-tile');
+        var tileEl = document.querySelector('[data-tile-id="' + tileId + '"]');
+        if (tileEl) {
+          tileEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          tileEl.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.3)';
+          tileEl.style.transition = 'box-shadow 0.3s ease';
+          setTimeout(function() { tileEl.style.boxShadow = ''; }, 2000);
         }
       });
     }

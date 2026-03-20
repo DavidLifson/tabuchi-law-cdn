@@ -653,6 +653,48 @@
 .cc-dash-progress-fill { height:100%;background:linear-gradient(90deg,#3B82F6,#8B5CF6);border-radius:4px;transition:width 0.4s ease;width:0; }
 .cc-dash-progress-label { color:#9CA3AF;font-size:0.85rem; }
 
+/* Dashboard Clickable Items */
+.cc-dash-stat-clickable { cursor:pointer;text-decoration:none;color:inherit; }
+.cc-dash-stat-clickable:hover { transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+.cc-dash-link { color:inherit;text-decoration:none; }
+.cc-dash-link:hover { text-decoration:underline; }
+.cc-dash-funnel-clickable { text-decoration:none;color:inherit;border-radius:6px;transition:background 0.15s; }
+.cc-dash-funnel-clickable:hover { background:#F3F4F6; }
+.cc-dash-activity-clickable { text-decoration:none;color:inherit;border-radius:6px;cursor:pointer;transition:background 0.15s; }
+.cc-dash-activity-clickable:hover { background:#F3F4F6; }
+.cc-dash-booking-clickable { text-decoration:none;color:inherit;cursor:pointer; }
+.cc-dash-booking-clickable:hover { background:#EFF6FF; }
+
+/* Dashboard Tile System */
+.cc-dash-tiles { }
+.cc-dash-tile { margin-bottom:0; }
+.cc-dash-tile + .cc-dash-tile { margin-top:0; }
+
+/* Dashboard Customize Panel */
+.cc-dash-customize-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;animation:cc-fade-in 0.15s ease; }
+@keyframes cc-fade-in { from { opacity:0; } to { opacity:1; } }
+.cc-dash-customize-panel { background:white;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.25);width:420px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden; }
+.cc-dash-customize-header { padding:1.25rem 1.5rem 0.75rem;border-bottom:1px solid #E5E7EB; }
+.cc-dash-customize-header h3 { margin:0;font-size:1.1rem;font-weight:700;color:#1F2937; }
+.cc-dash-customize-list { padding:0.75rem 1rem;overflow-y:auto;flex:1; }
+.cc-dash-customize-item { display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;border:1px solid #E5E7EB;border-radius:8px;margin-bottom:0.5rem;background:white;cursor:grab;transition:box-shadow 0.15s,border-color 0.15s; }
+.cc-dash-customize-item:hover { border-color:#93C5FD;box-shadow:0 1px 4px rgba(59,130,246,0.1); }
+.cc-dash-customize-item:active { cursor:grabbing; }
+.cc-dash-customize-handle { font-size:1rem;color:#9CA3AF;cursor:grab;user-select:none;flex-shrink:0; }
+.cc-dash-customize-label { flex:1;font-size:0.88rem;font-weight:500;color:#374151; }
+.cc-dash-dragging { opacity:0.4;border-style:dashed; }
+.cc-dash-drop-above { box-shadow:0 -2px 0 0 #3B82F6; }
+.cc-dash-drop-below { box-shadow:0 2px 0 0 #3B82F6; }
+.cc-dash-customize-footer { display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1.5rem;border-top:1px solid #E5E7EB;background:#F9FAFB; }
+
+/* Toggle Switch */
+.cc-dash-toggle { position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0; }
+.cc-dash-toggle input { opacity:0;width:0;height:0; }
+.cc-dash-toggle-slider { position:absolute;cursor:pointer;inset:0;background:#D1D5DB;border-radius:20px;transition:background 0.2s; }
+.cc-dash-toggle-slider::before { content:'';position:absolute;height:16px;width:16px;left:2px;bottom:2px;background:white;border-radius:50%;transition:transform 0.2s; }
+.cc-dash-toggle input:checked + .cc-dash-toggle-slider { background:#3B82F6; }
+.cc-dash-toggle input:checked + .cc-dash-toggle-slider::before { transform:translateX(16px); }
+
 /* Dashboard Skeleton Pulse */
 @keyframes cc-skel-pulse { 0%,100% { opacity:0.6; } 50% { opacity:0.3; } }
 .cc-skel-pulse { animation:cc-skel-pulse 1.5s ease-in-out infinite; }
