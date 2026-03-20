@@ -336,15 +336,49 @@
     var el = $el('cc-tab-recordings');
     if (!el) return;
 
-    if (state.recordings.length === 0) {
+    // Collect RC call recordings from activities
+    var rcRecordings = (state.activities || []).filter(function(a) { return a.Recording_URL; });
+
+    if (state.recordings.length === 0 && rcRecordings.length === 0) {
       el.innerHTML = '<div class="cc-empty" style="padding:2rem;text-align:center;">' +
         '<p style="margin:0 0 .5rem;font-size:1.1rem;color:#6B7280;">No recordings linked to this lead.</p>' +
-        '<p style="margin:0;font-size:.85rem;color:#9CA3AF;">Recordings from Teams/Zoom meetings will appear here automatically.</p>' +
+        '<p style="margin:0;font-size:.85rem;color:#9CA3AF;">Recordings from calls and meetings will appear here automatically.</p>' +
         '</div>';
       return;
     }
 
     var html = '';
+
+    // RC Call Recordings (from Activities with Recording_URL)
+    if (rcRecordings.length > 0) {
+      html += '<div style="margin-bottom:1rem;"><h4 style="margin:0 0 0.75rem;font-size:0.95rem;color:#374151;">Call Recordings</h4>';
+      rcRecordings.forEach(function(a) {
+        var date = API.util.formatDateTime(a.Occurred_At);
+        var duration = a.Duration_Minutes ? a.Duration_Minutes + ' min' : '';
+        var metadata = {};
+        try { metadata = JSON.parse(a.Metadata_JSON || '{}'); } catch(e) {}
+
+        html += '<div class="cc-rec-card" style="margin-bottom:0.5rem;">';
+        html += '<div class="cc-rec-card-header">';
+        html += '<span class="cc-badge cc-badge-green" style="font-size:.7rem;">RINGCENTRAL</span>';
+        html += '<span class="cc-badge cc-badge-gray">' + escapeHtml(a.Outcome || 'Completed') + '</span>';
+        html += '<span class="cc-rec-card-meta" style="margin-left:auto;">' + escapeHtml(date) + (duration ? ' &middot; ' + duration : '') + '</span>';
+        html += '</div>';
+        html += '<div style="padding:0.5rem 0;">';
+        html += '<div style="font-size:0.9rem;font-weight:500;margin-bottom:0.25rem;">' + escapeHtml(a.Subject || 'Phone Call') + '</div>';
+        if (a.Body) html += '<div style="font-size:0.85rem;color:#4B5563;margin-bottom:0.5rem;white-space:pre-wrap;">' + escapeHtml(a.Body).substring(0, 200) + '</div>';
+        html += '<a href="' + escapeAttr(a.Recording_URL) + '" target="_blank" rel="noopener" ' +
+          'style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:#4F46E5;color:white;border-radius:6px;font-size:0.8rem;text-decoration:none;font-weight:500;">' +
+          '&#9654; Play Recording</a>';
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+
+    // Meeting Recordings (Teams/Zoom)
+    if (state.recordings.length > 0) {
+      html += '<div><h4 style="margin:0 0 0.75rem;font-size:0.95rem;color:#374151;">Meeting Recordings</h4>';
+    }
 
     state.recordings.forEach(function(rec, idx) {
       var statusCls = recStatusColor(rec.Status);
@@ -426,6 +460,10 @@
     var hasWill = state.recordings.some(function(r) { return r.Will_Status === 'GENERATED' || r.Will_Status === 'UPLOADED_TO_CLIO'; });
     if (hasWill) {
       html += renderClioSection();
+    }
+
+    if (state.recordings.length > 0) {
+      html += '</div>'; // close Meeting Recordings section
     }
 
     el.innerHTML = html;
@@ -1432,6 +1470,13 @@
       if (hasDetails) html += '<span class="cc-timeline-chevron" style="margin-left:auto;font-size:0.7rem;color:#9CA3AF;transition:transform .2s;">&#9660;</span>';
       html += '</div>';
       html += '<div class="cc-timeline-subject">' + escapeHtml(a.Subject || '') + '</div>';
+      // Recording badge (shown inline, always visible)
+      if (a.Recording_URL) {
+        html += '<a href="' + escapeAttr(a.Recording_URL) + '" target="_blank" rel="noopener" ' +
+          'style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 8px;background:#EEF2FF;color:#4F46E5;border-radius:4px;font-size:0.75rem;text-decoration:none;font-weight:500;" ' +
+          'onclick="event.stopPropagation();">' +
+          '&#9654; Play Recording</a>';
+      }
       // Collapsible detail section
       html += '<div class="cc-timeline-details" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #E5E7EB;">';
       if (a.Body) html += '<div class="cc-timeline-body">' + escapeHtml(a.Body) + '</div>';
