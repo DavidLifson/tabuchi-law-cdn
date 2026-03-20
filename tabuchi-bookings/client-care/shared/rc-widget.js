@@ -119,13 +119,7 @@
       if (/^\d{10}$/.test(cleaned)) cleaned = '+1' + cleaned;
       else if (/^1\d{10}$/.test(cleaned)) cleaned = '+' + cleaned;
 
-      if (!_state.loggedIn) {
-        // Widget is loaded but user not logged in — open widget and prompt
-        frame.contentWindow.postMessage({ type: 'rc-adapter-new-call', phoneNumber: cleaned, toCall: false }, '*');
-        _fireCallback({ error: 'Please log in to RingCentral first. Click the phone icon in the bottom-right to sign in, then try calling again.' });
-        return;
-      }
-
+      console.log('[RC Widget] Dialing:', cleaned, 'loggedIn:', _state.loggedIn, 'ready:', _state.ready);
       frame.contentWindow.postMessage({
         type: 'rc-adapter-new-call',
         phoneNumber: cleaned,
@@ -144,13 +138,20 @@
     if (!e.data || typeof e.data.type !== 'string') return;
     var data = e.data;
 
+    // Log all RC messages for debugging
+    if (data.type.indexOf('rc-') === 0) {
+      console.log('[RC Widget] Message:', data.type, data.loggedIn !== undefined ? 'loggedIn=' + data.loggedIn : '');
+    }
+
     switch (data.type) {
       case 'rc-adapter-pushAdapterState':
         _state.ready = true;
+        console.log('[RC Widget] Adapter ready');
         break;
 
       case 'rc-login-status-notify':
         _state.loggedIn = !!data.loggedIn;
+        console.log('[RC Widget] Login status:', _state.loggedIn);
         break;
 
       case 'rc-call-init-notify':
