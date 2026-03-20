@@ -114,9 +114,21 @@
   function _tryDial(phoneNumber, attempts) {
     var frame = document.querySelector('#rc-widget-adapter-frame');
     if (frame && _state.ready) {
+      // Normalize phone number — strip spaces, dashes, parens; ensure +1 prefix for 10-digit NA numbers
+      var cleaned = phoneNumber.replace(/[\s\-\(\)\.]/g, '');
+      if (/^\d{10}$/.test(cleaned)) cleaned = '+1' + cleaned;
+      else if (/^1\d{10}$/.test(cleaned)) cleaned = '+' + cleaned;
+
+      if (!_state.loggedIn) {
+        // Widget is loaded but user not logged in — open widget and prompt
+        frame.contentWindow.postMessage({ type: 'rc-adapter-new-call', phoneNumber: cleaned, toCall: false }, '*');
+        _fireCallback({ error: 'Please log in to RingCentral first. Click the phone icon in the bottom-right to sign in, then try calling again.' });
+        return;
+      }
+
       frame.contentWindow.postMessage({
         type: 'rc-adapter-new-call',
-        phoneNumber: phoneNumber,
+        phoneNumber: cleaned,
         toCall: true
       }, '*');
     } else if (attempts < DIAL_MAX_RETRIES) {

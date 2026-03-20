@@ -154,7 +154,8 @@
       if (!onBookingPage) {
         meetingLink.style.color = '#9CA3AF';
         meetingLink.style.cursor = 'default';
-        meetingLink.addEventListener('click', function(e) { e.preventDefault(); });
+        meetingLink.style.pointerEvents = 'none';
+        meetingLink.title = 'Only available on Bookings pages';
       }
     }
 
