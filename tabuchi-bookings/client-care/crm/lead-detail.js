@@ -1319,7 +1319,7 @@
   }
 
   function renderLanguageField(l) {
-    var val = l.Preferred_Language || '';
+    var val = l.Preferred_Language || (isNewLead ? 'English' : '');
     var isOther = val && LANGUAGE_OPTIONS.indexOf(val) === -1;
     var selectVal = isOther ? 'Other' : val;
     var html = '<div class="cc-lang-wrap">';
@@ -1372,7 +1372,14 @@
       { label: 'Phone', html: editableInput('Client_Phone', l.Client_Phone, 'tel', 'Enter phone') },
       { label: 'Address', html: editableInput('Client_Address', l.Client_Address, 'text', 'Enter address') },
       { label: 'Address 2', html: editableInput('Address_2', l.Address_2, 'text', 'Unit, suite, etc.') },
-      { label: 'City', html: editableInput('City', l.City, 'text', 'Enter city') },
+      { label: 'City', html: (function() {
+        var cityVal = l.City || (isNewLead ? 'Mississauga' : '');
+        return '<input type="text" class="cc-info-input" data-field="City" value="' + escapeAttr(cityVal) + '" placeholder="Enter city" list="cc-city-list" autocomplete="off">' +
+          '<datalist id="cc-city-list">' +
+          ['Mississauga','Toronto','Brampton','Oakville','Burlington','Hamilton','Milton','Vaughan','Richmond Hill','Markham','Scarborough','Etobicoke','North York','Ajax','Pickering','Oshawa','Whitby','Newmarket','Aurora','Barrie','Guelph','Kitchener','Waterloo','Cambridge','London','Windsor','Ottawa','Kingston','St. Catharines','Niagara Falls','Thunder Bay','Sudbury','Peterborough','Brantford','Caledon','Halton Hills','Georgetown','Stouffville','Woodbridge','Bolton','Orangeville','Innisfil','Orillia'].map(function(c) {
+            return '<option value="' + escapeAttr(c) + '">';
+          }).join('') + '</datalist>';
+      })() },
       { label: 'Province / State', html: renderProvinceField(l) },
       { label: 'Postal Code', html: editableInput('Postal_Code', l.Postal_Code, 'text', 'Enter postal code') },
       { label: 'Country', html: renderCountryField(l) },
@@ -1407,22 +1414,6 @@
       html += '<div class="cc-info-divider"></div>';
       html += '<div class="cc-info-section-label">Lead Details</div>';
       html += '<div class="cc-info-grid">';
-      // Service Package multi-checkbox
-      html += '<div class="cc-info-item cc-info-item-full"><div class="cc-info-label">Service Package</div>';
-      html += '<div class="cc-checkbox-group" data-field="Service_Package">';
-      [
-        { key: 'SIMPLE_WILL_POA', label: 'Simple Will & POA' },
-        { key: 'COUPLES_WILLS_POA', label: 'Couples Wills & POA' },
-        { key: 'BLENDED_FAMILY_PLAN', label: 'Blended Family Plan' },
-        { key: 'MINORS_GUARDIANSHIP_PLAN', label: 'Minors Guardianship Plan' },
-        { key: 'HENSON_TRUST_PLAN', label: 'Henson Trust Plan' },
-        { key: 'SPOUSAL_TRUST_PLAN', label: 'Spousal Trust Plan' },
-        { key: 'PROBATE_APPLICATION', label: 'Probate Application' },
-        { key: 'PROBATE_FULL_ADMIN', label: 'Probate Full Admin' }
-      ].forEach(function(sp) {
-        html += '<label class="cc-checkbox-label"><input type="checkbox" class="cc-sp-check" value="' + sp.key + '"> ' + escapeHtml(sp.label) + '</label>';
-      });
-      html += '</div></div>';
       // Lead Source dropdown (from config)
       html += '<div class="cc-info-item"><div class="cc-info-label">Lead Source</div>';
       html += renderLeadSourceField({ Source: '' });
@@ -3146,8 +3137,7 @@
     // Cleanup refresh timer on page unload
     window.addEventListener('beforeunload', stopRecordingsRefresh);
 
-    loadLeadSources();
-    loadData();
+    loadLeadSources().then(function() { loadData(); });
   }
 
   if (document.readyState === 'loading') {
@@ -3156,5 +3146,4 @@
     init();
   }
 })();
-/* 1774039527 */
-/* v1774046274 */
+/* 1774049595 */
