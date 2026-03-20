@@ -961,6 +961,11 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/comms', { body: { action: 'update_user_settings', user_id: data.user_id, rc_extension: data.rc_extension, email_signature: data.email_signature, notification_prefs: data.notification_prefs } });
   }
 
+  // ─── Email Content ──────────────────────────────────────────
+  async function getEmailContent(recipientEmail, sentAfter, subject) {
+    return request('POST', '/cc/comms', { body: { action: 'get_email_content', recipient_email: recipientEmail, sent_after: sentAfter, subject: subject } });
+  }
+
   // ─── Public API ──────────────────────────────────────────────
   return {
     // Auth
@@ -1000,7 +1005,7 @@ const ClientCareAPI = (() => {
     // Admin
     admin: {
       listUsers, createUser, updateUser, listTemplates, createTemplate, updateTemplate, getSystemStats, getRecentMessages,
-      getUserSettings, updateUserSettings,
+      getUserSettings, updateUserSettings, getEmailContent,
       config: { list: listConfig, create: createConfig, update: updateConfig, delete: deleteConfig }
     },
     // Price Book

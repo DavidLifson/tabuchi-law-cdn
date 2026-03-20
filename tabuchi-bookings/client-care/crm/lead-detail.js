@@ -1546,8 +1546,15 @@
         if (a.Body) {
           html += '<div class="cc-timeline-body" style="white-space:pre-wrap;background:#F9FAFB;padding:10px;border-radius:6px;font-size:0.85rem;color:#1F2937;max-height:300px;overflow-y:auto;">' + escapeHtml(a.Body) + '</div>';
         }
-        if (a.Type === 'EMAIL' && a.Campaign_ID) {
-          html += '<div style="margin-top:6px;"><a href="/crm/campaigns?id=' + escapeAttr(a.Campaign_ID) + '" style="color:#2563EB;font-size:0.8rem;text-decoration:underline;">View Campaign</a></div>';
+        if (a.Type === 'EMAIL') {
+          if (a.Campaign_ID) {
+            html += '<div style="margin-top:6px;"><a href="/crm/campaigns?id=' + escapeAttr(a.Campaign_ID) + '" style="color:#2563EB;font-size:0.8rem;text-decoration:underline;">View Campaign</a></div>';
+          }
+          html += '<div style="margin-top:6px;"><button class="cc-btn cc-btn-sm cc-btn-outline cc-view-email-btn" ' +
+            'data-recipient="' + escapeAttr(state.lead.Client_Email || '') + '" ' +
+            'data-sent-at="' + escapeAttr(a.Occurred_At || '') + '" ' +
+            'data-subject="' + escapeAttr(a.Subject || '') + '" ' +
+            'style="font-size:0.78rem;">&#9993; View Email Content</button></div>';
         }
         if (a.Type === 'SMS') {
           html += '<div style="margin-top:6px;"><button class="cc-btn cc-btn-sm cc-btn-outline cc-sms-thread-btn" data-lead-id="' + escapeAttr(leadId) + '" style="font-size:0.78rem;">Open SMS Thread</button></div>';
@@ -1585,6 +1592,73 @@
         if (state.lead) showSmsModal(state.lead);
       });
     });
+
+    // Bind View Email Content buttons
+    el.querySelectorAll('.cc-view-email-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var recipient = btn.getAttribute('data-recipient');
+        var sentAt = btn.getAttribute('data-sent-at');
+        var subject = btn.getAttribute('data-subject');
+        btn.textContent = 'Loading...';
+        btn.disabled = true;
+        API.admin.getEmailContent(recipient, sentAt, subject).then(function(result) {
+          if (result.success && result.email) {
+            showEmailContentModal(result.email);
+          } else {
+            ccToast(result.error || 'Could not fetch email content', 'error');
+          }
+          btn.innerHTML = '&#9993; View Email Content';
+          btn.disabled = false;
+        }).catch(function(err) {
+          ccToast('Failed to fetch email: ' + (err.error || 'Network error'), 'error');
+          btn.innerHTML = '&#9993; View Email Content';
+          btn.disabled = false;
+        });
+      });
+    });
+  }
+
+  function showEmailContentModal(email) {
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    overlay.innerHTML =
+      '<div class="cc-modal" style="max-width:700px">' +
+        '<div class="cc-modal-header"><h3>Email: ' + escapeHtml(email.subject || 'No Subject') + '</h3>' +
+          '<button class="cc-modal-close" id="cc-email-modal-close">&times;</button></div>' +
+        '<div class="cc-modal-body" style="padding:0;">' +
+          '<div style="padding:0.75rem 1rem;background:#F9FAFB;border-bottom:1px solid #E5E7EB;font-size:0.8rem;color:#6B7280;">' +
+            '<div><strong>To:</strong> ' + escapeHtml(email.to || '') + '</div>' +
+            '<div><strong>From:</strong> ' + escapeHtml(email.from || '') + '</div>' +
+            '<div><strong>Sent:</strong> ' + escapeHtml(email.sent_at ? API.util.formatDateTime(email.sent_at) : '') + '</div>' +
+          '</div>' +
+          '<div style="padding:1rem;max-height:500px;overflow-y:auto;">' +
+            '<iframe id="cc-email-iframe" style="width:100%;border:none;min-height:300px;" sandbox="allow-same-origin"></iframe>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cc-modal-footer">' +
+          '<button class="cc-btn cc-btn-secondary" id="cc-email-modal-done">Close</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    // Write email HTML into sandboxed iframe
+    var iframe = document.getElementById('cc-email-iframe');
+    if (iframe && email.body_html) {
+      var doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open();
+      doc.write('<html><head><style>body{font-family:Arial,sans-serif;font-size:14px;margin:0;padding:8px;color:#1F2937;}</style></head><body>' + email.body_html + '</body></html>');
+      doc.close();
+      // Auto-resize iframe to content height
+      setTimeout(function() {
+        try { iframe.style.height = Math.min(doc.body.scrollHeight + 20, 500) + 'px'; } catch(e) {}
+      }, 200);
+    }
+
+    var close = function() { overlay.remove(); };
+    document.getElementById('cc-email-modal-close').addEventListener('click', close);
+    document.getElementById('cc-email-modal-done').addEventListener('click', close);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
   }
 
   function getActivityIcon(type) {
@@ -3082,4 +3156,3 @@
     init();
   }
 })();
-/* updated 1774036668 */
