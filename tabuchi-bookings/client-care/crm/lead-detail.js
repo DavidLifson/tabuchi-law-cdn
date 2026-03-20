@@ -2479,6 +2479,21 @@
 
     ccToast('Opening RingCentral for ' + escapeHtml(record.Client_Phone) + '...', 'info');
 
+    // Notify backend that a call was initiated — triggers recording poll
+    try {
+      fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/call-started', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead_id: state.lead.id,
+          phone: phone,
+          lead_name: record.Client_Name || '',
+          started_at: new Date().toISOString(),
+          user_id: (API.auth.getUser() || {}).id || ''
+        })
+      }).catch(function() { /* fire and forget */ });
+    } catch (e) { /* ignore */ }
+
     // Show the call log modal immediately so user can track the call
     showCallLogModal({ lead_id: state.lead.id });
   }
