@@ -177,7 +177,7 @@
     } catch (e) {}
     // 2. Call recordings (RC from CC_Activities with Recording_URL)
     try {
-      var actResult = await API.activities.list({ limit: 50, type: 'CALL' });
+      var actResult = await API.activities.list(null, { limit: 50, type: 'CALL' });
       var callActs = (actResult && actResult.activities) || [];
       callActs.forEach(function(a) {
         if (!a.Recording_URL) return;
@@ -1206,4 +1206,4 @@
   loadDashboard(true);
   startAutoRefresh();
 })();
-/* 1774053840 */
+/* 1774053977 */
