@@ -169,7 +169,7 @@
   async function fetchRecordings() {
     try {
       var result = await API.recordings.list({ limit: 50 });
-      state.recordings = (result && result.data) || [];
+      state.recordings = (result && result.recordings) || (result && result.data) || [];
     } catch (e) {
       state.recordings = [];
     }
@@ -204,9 +204,10 @@
 
       if (showSkeleton) updateProgress(4, 'Rendering dashboard\u2026');
 
-      // Wait for bookings + recordings (non-blocking)
+      // Wait for bookings (non-blocking — dashboard renders even if this is slow)
       await bookingsPromise;
-      await recordingsPromise;
+      // Recordings: wait but don't block if it fails
+      try { await recordingsPromise; } catch(e) { state.recordings = []; }
 
       if (showSkeleton) {
         updateProgress(5, 'Almost there\u2026');
@@ -1174,4 +1175,4 @@
   loadDashboard(true);
   startAutoRefresh();
 })();
-/* 1774051474 */
+/* 1774051876 */
