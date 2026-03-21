@@ -167,12 +167,43 @@
   }
 
   async function fetchRecordings() {
+    var allRecs = [];
+    // 1. Meeting recordings (Teams/Zoom from CC_Recordings)
     try {
       var result = await API.recordings.list({ limit: 50 });
-      state.recordings = (result && result.recordings) || (result && result.data) || [];
-    } catch (e) {
-      state.recordings = [];
-    }
+      var meetingRecs = (result && result.recordings) || (result && result.data) || [];
+      meetingRecs.forEach(function(r) { r._source_type = 'meeting'; });
+      allRecs = allRecs.concat(meetingRecs);
+    } catch (e) {}
+    // 2. Call recordings (RC from CC_Activities with Recording_URL)
+    try {
+      var actResult = await API.activities.list({ limit: 50, type: 'CALL' });
+      var callActs = (actResult && actResult.activities) || [];
+      callActs.forEach(function(a) {
+        if (!a.Recording_URL) return;
+        allRecs.push({
+          id: a.id,
+          _source_type: 'call',
+          Meeting_Date: a.Occurred_At,
+          Created_At: a.Occurred_At,
+          Client_Name: a.Lead_Name || '',
+          Staff_Name: a.Owner_Name || '',
+          Source: 'ringcentral',
+          Duration_Seconds: (a.Duration_Minutes || 0) * 60,
+          Status: 'completed',
+          Lead: a.Lead || [],
+          Recording_URL: a.Recording_URL,
+          Subject: a.Subject || 'Call Recording'
+        });
+      });
+    } catch (e) {}
+    // Sort by date descending
+    allRecs.sort(function(a, b) {
+      var da = new Date(a.Meeting_Date || a.Created_At || 0);
+      var db = new Date(b.Meeting_Date || b.Created_At || 0);
+      return db - da;
+    });
+    state.recordings = allRecs;
   }
 
   async function loadDashboard(showSkeleton) {
@@ -1175,4 +1206,4 @@
   loadDashboard(true);
   startAutoRefresh();
 })();
-/* 1774051876 */
+/* 1774053840 */
