@@ -65,6 +65,7 @@
   // ─── Tile Definitions ──────────────────────────────────────────
   var TILES = [
     { id: 'bookings', label: 'Upcoming Meetings', admin: false },
+    { id: 'recordings', label: 'Recordings', admin: false },
     { id: 'tasks-pipeline', label: 'Tasks & Pipeline', admin: false },
     { id: 'activity-sla', label: 'Activity & Service Level', admin: false },
     { id: 'rep-comparison', label: 'Rep Comparison', admin: true },
@@ -100,6 +101,7 @@
     if (!d) return '';
     switch (tileId) {
       case 'bookings': return renderBookings(state.bookings);
+      case 'recordings': return renderRecordingsTile(state.recordings);
       case 'tasks-pipeline': return '<div class="cc-dash-grid-2">' + renderTasks(d.tasks) + renderPipeline(d.pipeline) + '</div>';
       case 'activity-sla': return '<div class="cc-dash-grid-2">' + renderActivity(d.recent_activity) + renderSLADetail(d.sla) + '</div>';
       case 'rep-comparison': return renderRepComparison(d.rep_comparison);
@@ -164,6 +166,15 @@
     }
   }
 
+  async function fetchRecordings() {
+    try {
+      var result = await API.recordings.list({ limit: 50 });
+      state.recordings = (result && result.data) || [];
+    } catch (e) {
+      state.recordings = [];
+    }
+  }
+
   async function loadDashboard(showSkeleton) {
     if (state.loading) return;
     state.loading = true;
@@ -176,9 +187,10 @@
     }
 
     try {
-      // Fire both requests in parallel
+      // Fire all requests in parallel
       var dashPromise = API.dashboard.get();
       var bookingsPromise = fetchBookings();
+      var recordingsPromise = fetchRecordings();
 
       if (showSkeleton) updateProgress(2, 'Fetching pipeline & tasks\u2026');
 
@@ -192,8 +204,9 @@
 
       if (showSkeleton) updateProgress(4, 'Rendering dashboard\u2026');
 
-      // Wait for bookings (non-blocking — dashboard renders even if this is slow)
+      // Wait for bookings + recordings (non-blocking)
       await bookingsPromise;
+      await recordingsPromise;
 
       if (showSkeleton) {
         updateProgress(5, 'Almost there\u2026');
@@ -568,6 +581,167 @@
         '<div class="cc-dash-sla-row"><span>Total</span><span>' + fmtNum(sla.total) + '</span></div>' +
       '</div>' +
     '</div>';
+  }
+
+  // ─── Recordings Tile ────────────────────────────────────────
+
+  var _recFilter = 'all'; // 'all', 'unmatched', 'matched'
+
+  function renderRecordingsTile(recordings) {
+    if (!recordings) recordings = [];
+    var filtered = recordings;
+    if (_recFilter === 'unmatched') {
+      filtered = recordings.filter(function(r) { return !r.Lead || !r.Lead.length; });
+    } else if (_recFilter === 'matched') {
+      filtered = recordings.filter(function(r) { return r.Lead && r.Lead.length > 0; });
+    }
+    var totalCount = recordings.length;
+    var unmatchedCount = recordings.filter(function(r) { return !r.Lead || !r.Lead.length; }).length;
+
+    var html = '<div class="cc-dash-card">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+    html += '<h3 class="cc-dash-card-title" style="margin:0;">Recordings <span style="font-size:0.8rem;font-weight:400;color:#6B7280;">' + totalCount + ' total' + (unmatchedCount ? ', <span style="color:#EF4444;">' + unmatchedCount + ' unmatched</span>' : '') + '</span></h3>';
+    html += '<div style="display:flex;gap:4px;">';
+    html += '<button class="cc-btn cc-btn-sm' + (_recFilter === 'all' ? ' cc-btn-primary' : ' cc-btn-outline') + '" data-rec-filter="all">All</button>';
+    html += '<button class="cc-btn cc-btn-sm' + (_recFilter === 'unmatched' ? ' cc-btn-primary' : ' cc-btn-outline') + '" data-rec-filter="unmatched">Unmatched</button>';
+    html += '<button class="cc-btn cc-btn-sm' + (_recFilter === 'matched' ? ' cc-btn-primary' : ' cc-btn-outline') + '" data-rec-filter="matched">Matched</button>';
+    html += '</div></div>';
+
+    if (filtered.length === 0) {
+      html += '<div style="text-align:center;padding:2rem;color:#9CA3AF;">No ' + (_recFilter === 'all' ? '' : _recFilter + ' ') + 'recordings found.</div>';
+    } else {
+      html += '<div style="overflow-x:auto;max-height:400px;overflow-y:auto;">';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">';
+      html += '<thead><tr style="border-bottom:2px solid #E5E7EB;text-align:left;">' +
+        '<th style="padding:6px 8px;font-weight:600;color:#6B7280;">Date</th>' +
+        '<th style="padding:6px 8px;font-weight:600;color:#6B7280;">Client</th>' +
+        '<th style="padding:6px 8px;font-weight:600;color:#6B7280;">Source</th>' +
+        '<th style="padding:6px 8px;font-weight:600;color:#6B7280;">Duration</th>' +
+        '<th style="padding:6px 8px;font-weight:600;color:#6B7280;">Status</th>' +
+        '<th style="padding:6px 8px;font-weight:600;color:#6B7280;">Actions</th>' +
+        '</tr></thead><tbody>';
+
+      filtered.forEach(function(r) {
+        var date = r.Meeting_Date || r.Created_At || '';
+        var dateStr = date ? API.util.formatDate(date) : '—';
+        var client = r.Client_Name || '—';
+        var isMatched = r.Lead && r.Lead.length > 0;
+        var source = (r.Source || 'unknown').toLowerCase();
+        var sourceBadge = source === 'teams' ? '<span style="background:#DBEAFE;color:#1D4ED8;padding:2px 6px;border-radius:4px;font-size:0.75rem;">Teams</span>' :
+          source === 'ringcentral' ? '<span style="background:#FEF3C7;color:#92400E;padding:2px 6px;border-radius:4px;font-size:0.75rem;">RC</span>' :
+          '<span style="background:#F3E8FF;color:#6B21A8;padding:2px 6px;border-radius:4px;font-size:0.75rem;">' + escapeHtml(source) + '</span>';
+        var dur = r.Duration_Seconds ? Math.floor(r.Duration_Seconds / 60) + ':' + ('0' + (r.Duration_Seconds % 60)).slice(-2) : '—';
+        var statusColor = r.Status === 'completed' ? '#059669' : r.Status === 'failed' ? '#EF4444' : '#F59E0B';
+        var statusBadge = '<span style="color:' + statusColor + ';font-weight:500;font-size:0.8rem;">' + escapeHtml(r.Status || 'unknown') + '</span>';
+
+        // Action buttons
+        var actions = '';
+        if (!isMatched) {
+          actions += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-rec-match-btn" data-rec-id="' + escapeAttr(r.id) + '" style="font-size:0.75rem;padding:2px 8px;">Match to Lead</button> ';
+        } else {
+          actions += '<a href="/crm/lead?id=' + escapeAttr(r.Lead[0]) + '&tab=recordings" style="color:#2563EB;font-size:0.75rem;text-decoration:underline;">View Lead</a> ';
+        }
+        if (r.Status === 'completed' && r.Will_Status !== 'UPLOADED_TO_CLIO') {
+          actions += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-rec-clio-btn" data-rec-id="' + escapeAttr(r.id) + '" style="font-size:0.75rem;padding:2px 8px;">Upload to Clio</button>';
+        } else if (r.Will_Status === 'UPLOADED_TO_CLIO') {
+          actions += '<span style="color:#059669;font-size:0.75rem;">✓ In Clio</span>';
+        }
+
+        html += '<tr style="border-bottom:1px solid #F3F4F6;">' +
+          '<td style="padding:6px 8px;">' + escapeHtml(dateStr) + '</td>' +
+          '<td style="padding:6px 8px;font-weight:500;">' + escapeHtml(client) + (isMatched ? '' : ' <span style="color:#EF4444;font-size:0.7rem;">⚠ unmatched</span>') + '</td>' +
+          '<td style="padding:6px 8px;">' + sourceBadge + '</td>' +
+          '<td style="padding:6px 8px;">' + dur + '</td>' +
+          '<td style="padding:6px 8px;">' + statusBadge + '</td>' +
+          '<td style="padding:6px 8px;white-space:nowrap;">' + actions + '</td>' +
+          '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function bindRecordingsTile() {
+    // Filter buttons
+    document.querySelectorAll('[data-rec-filter]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        _recFilter = btn.getAttribute('data-rec-filter');
+        // Re-render just the recordings tile
+        var tile = document.querySelector('[data-tile-id="recordings"]');
+        if (tile) {
+          var content = tile.querySelector('.cc-dash-tile-content');
+          if (content) content.innerHTML = renderRecordingsTile(state.recordings);
+          bindRecordingsTile();
+        }
+      });
+    });
+
+    // Match to Lead buttons
+    document.querySelectorAll('.cc-rec-match-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var recId = btn.getAttribute('data-rec-id');
+        var leadId = prompt('Enter Lead ID to match this recording to:');
+        if (!leadId || !leadId.trim()) return;
+        btn.disabled = true;
+        btn.textContent = 'Matching...';
+        API.recordings.linkLead(recId, leadId.trim()).then(function(res) {
+          if (res && res.success) {
+            ccToast('Recording matched to lead.', 'success');
+            fetchRecordings().then(function() {
+              var tile = document.querySelector('[data-tile-id="recordings"]');
+              if (tile) {
+                var content = tile.querySelector('.cc-dash-tile-content');
+                if (content) content.innerHTML = renderRecordingsTile(state.recordings);
+                bindRecordingsTile();
+              }
+            });
+          } else {
+            ccToast('Match failed: ' + (res && res.error || 'Unknown error'), 'error');
+            btn.disabled = false;
+            btn.textContent = 'Match to Lead';
+          }
+        }).catch(function(err) {
+          ccToast('Match failed: ' + (err.error || 'Network error'), 'error');
+          btn.disabled = false;
+          btn.textContent = 'Match to Lead';
+        });
+      });
+    });
+
+    // Upload to Clio buttons
+    document.querySelectorAll('.cc-rec-clio-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var recId = btn.getAttribute('data-rec-id');
+        if (!confirm('Upload this recording to Clio?')) return;
+        btn.disabled = true;
+        btn.textContent = 'Uploading...';
+        API.recordings.uploadToClio(recId).then(function(res) {
+          if (res && res.success) {
+            ccToast('Recording uploaded to Clio.', 'success');
+            fetchRecordings().then(function() {
+              var tile = document.querySelector('[data-tile-id="recordings"]');
+              if (tile) {
+                var content = tile.querySelector('.cc-dash-tile-content');
+                if (content) content.innerHTML = renderRecordingsTile(state.recordings);
+                bindRecordingsTile();
+              }
+            });
+          } else {
+            ccToast('Upload failed: ' + (res && res.error || 'Unknown error'), 'error');
+            btn.disabled = false;
+            btn.textContent = 'Upload to Clio';
+          }
+        }).catch(function(err) {
+          ccToast('Upload failed: ' + (err.error || 'Network error'), 'error');
+          btn.disabled = false;
+          btn.textContent = 'Upload to Clio';
+        });
+      });
+    });
   }
 
   // ─── Bookings Widget ────────────────────────────────────────
@@ -981,6 +1155,9 @@
         }
       });
     }
+
+    // Recordings tile
+    bindRecordingsTile();
   }
 
   // ─── Auto-refresh ────────────────────────────────────────────
@@ -997,3 +1174,4 @@
   loadDashboard(true);
   startAutoRefresh();
 })();
+/* 1774051474 */

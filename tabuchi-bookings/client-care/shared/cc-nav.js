@@ -42,7 +42,6 @@
     { href: '/crm',           nav: 'leads',     label: 'Leads' },
     { href: '/crm/contacts',  nav: 'contacts',  label: 'Contacts' },
     { href: '/crm/kanban',    nav: 'kanban',     label: 'Kanban' },
-    { href: '/crm/recordings',nav: 'recordings', label: 'Recordings' },
     { href: '/crm/reports',   nav: 'reports',    label: 'Reports' },
     { href: '/crm/campaigns', nav: 'campaigns',  label: 'Campaigns' }
   ];
@@ -331,3 +330,4 @@
     });
   }
 })();
+/* 1774051474 */
