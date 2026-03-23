@@ -712,8 +712,7 @@
         // Re-render just the recordings tile
         var tile = document.querySelector('[data-tile-id="recordings"]');
         if (tile) {
-          var content = tile.querySelector('.cc-dash-tile-content');
-          if (content) content.innerHTML = renderRecordingsTile(state.recordings);
+          tile.innerHTML = renderRecordingsTile(state.recordings);
           bindRecordingsTile();
         }
       });
@@ -734,8 +733,7 @@
             fetchRecordings().then(function() {
               var tile = document.querySelector('[data-tile-id="recordings"]');
               if (tile) {
-                var content = tile.querySelector('.cc-dash-tile-content');
-                if (content) content.innerHTML = renderRecordingsTile(state.recordings);
+                tile.innerHTML = renderRecordingsTile(state.recordings);
                 bindRecordingsTile();
               }
             });
@@ -766,8 +764,7 @@
             fetchRecordings().then(function() {
               var tile = document.querySelector('[data-tile-id="recordings"]');
               if (tile) {
-                var content = tile.querySelector('.cc-dash-tile-content');
-                if (content) content.innerHTML = renderRecordingsTile(state.recordings);
+                tile.innerHTML = renderRecordingsTile(state.recordings);
                 bindRecordingsTile();
               }
             });
