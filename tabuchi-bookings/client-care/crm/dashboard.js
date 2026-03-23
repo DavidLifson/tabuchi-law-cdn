@@ -133,6 +133,10 @@
     return div.innerHTML;
   }
 
+  function escapeAttr(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   function fmtNum(n) {
     if (n == null) return '0';
     return Number(n).toLocaleString('en-CA');
