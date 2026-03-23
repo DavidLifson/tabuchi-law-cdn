@@ -277,8 +277,8 @@
       if (order.indexOf(available[a]) === -1) order.push(available[a]);
     }
 
-    requestAnimationFrame(function() {
-      var frag = document.createDocumentFragment();
+    // Render tiles synchronously (rAF was failing silently in some environments)
+    try {
       var tilesDiv = document.createElement('div');
       tilesDiv.id = 'cc-dash-tiles';
       tilesDiv.className = 'cc-dash-tiles';
@@ -287,18 +287,23 @@
         var tileId = order[i];
         if (available.indexOf(tileId) === -1) continue;
         if (hidden.indexOf(tileId) !== -1) continue;
-        var content = getTileRenderer(tileId);
-        if (!content) continue;
-        var wrapper = document.createElement('div');
-        wrapper.className = 'cc-dash-tile';
-        wrapper.setAttribute('data-tile-id', tileId);
-        wrapper.innerHTML = content;
-        tilesDiv.appendChild(wrapper);
+        try {
+          var content = getTileRenderer(tileId);
+          if (!content) continue;
+          var wrapper = document.createElement('div');
+          wrapper.className = 'cc-dash-tile';
+          wrapper.setAttribute('data-tile-id', tileId);
+          wrapper.innerHTML = content;
+          tilesDiv.appendChild(wrapper);
+        } catch(tileErr) {
+          console.error('Tile render error (' + tileId + '):', tileErr);
+        }
       }
 
-      frag.appendChild(tilesDiv);
-      root.appendChild(frag);
-    });
+      root.appendChild(tilesDiv);
+    } catch(renderErr) {
+      console.error('Dashboard tile render error:', renderErr);
+    }
   }
 
   // ─── Progress Loader ─────────────────────────────────────────
@@ -1206,4 +1211,3 @@
   loadDashboard(true);
   startAutoRefresh();
 })();
-/* 1774053977 */
