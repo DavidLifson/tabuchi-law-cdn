@@ -99,13 +99,14 @@ const TabuchiAPI = (() => {
       });
     }
 
-    const fetchOptions = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {})
-      }
-    };
+    const headers = { ...(options.headers || {}) };
+    // Only set Content-Type on requests with a body (POST/PUT/PATCH)
+    // GET requests with Content-Type: application/json trigger unnecessary CORS preflight
+    if (method !== 'GET' && method !== 'HEAD') {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    const fetchOptions = { method, headers };
 
     if (options.body && method !== 'GET') {
       fetchOptions.body = JSON.stringify(options.body);

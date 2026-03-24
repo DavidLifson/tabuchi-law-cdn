@@ -120,8 +120,9 @@
       catWrapper.innerHTML = '<label for="tb-mt-category" style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:0.3rem;">Meeting Type Category</label>' +
         '<select id="tb-mt-category" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #E5E7EB;border-radius:6px;font-size:0.95rem;box-sizing:border-box;"><option value="">\u2014 None \u2014</option></select>';
       var paEl = $el('tb-mt-practice-area');
-      var insertBefore = paEl ? paEl.closest('div[style*="margin-bottom"]').nextSibling : gridParent;
-      gridParent.parentNode.insertBefore(catWrapper, insertBefore || gridParent);
+      var paWrap = paEl ? paEl.closest('div[style*="margin-bottom"]') : null;
+      var insertBefore = (paWrap && paWrap.nextSibling) ? paWrap.nextSibling : gridParent;
+      gridParent.parentNode.insertBefore(catWrapper, insertBefore);
     }
   }
 
