@@ -2960,12 +2960,87 @@
     showModal('New Template', buildTemplateForm({}), function(form) {
       return handleCreateTemplate(form);
     });
+    initTemplateEditor('');
+    bindTokenButtons();
   }
 
   function showEditTemplateModal(tpl) {
     showModal('Edit Template', buildTemplateForm(tpl), function(form) {
       return handleUpdateTemplate(tpl.id, form);
     });
+    initTemplateEditor(tpl.body_html || '');
+    bindTokenButtons();
+  }
+
+  function bindTokenButtons() {
+    var btns = document.querySelectorAll('.cc-token-btn');
+    btns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var token = btn.getAttribute('data-token');
+        if (window.tinymce && tinymce.activeEditor) {
+          tinymce.activeEditor.insertContent(token);
+        } else {
+          // Fallback: insert into textarea
+          var ta = document.getElementById('cc-modal-tpl-body-html');
+          if (!ta) ta = document.getElementById('cc-modal-tpl-body-text');
+          if (ta) {
+            var start = ta.selectionStart || 0;
+            var end = ta.selectionEnd || 0;
+            ta.value = ta.value.substring(0, start) + token + ta.value.substring(end);
+            ta.selectionStart = ta.selectionEnd = start + token.length;
+            ta.focus();
+          }
+        }
+      });
+    });
+  }
+
+  var PRACTICE_AREA_OPTIONS = ['All', 'Estate Planning', 'Real Estate', 'Probate', 'Business Law', 'Family Law', 'Immigration', 'Litigation', 'Other'];
+  var TEMPLATE_TOKENS = [
+    { label: 'Client Name', value: '{{Client_Name}}' },
+    { label: 'Client Email', value: '{{Client_Email}}' },
+    { label: 'Practice Area', value: '{{Practice_Area}}' },
+    { label: 'Owner Name', value: '{{Lead_Owner_Name}}' },
+    { label: 'Unsubscribe URL', value: '{{Unsubscribe_URL}}' }
+  ];
+
+  function ensureTinyMCELoaded(cb) {
+    if (window.tinymce) { cb(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js';
+    s.referrerPolicy = 'origin';
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+
+  function initTemplateEditor(bodyHtml) {
+    ensureTinyMCELoaded(function() {
+      if (tinymce.get('cc-modal-tpl-body-html')) {
+        tinymce.get('cc-modal-tpl-body-html').remove();
+      }
+      tinymce.init({
+        selector: '#cc-modal-tpl-body-html',
+        plugins: 'lists link image code table paste',
+        toolbar: 'bold italic underline | formatselect | bullist numlist | link image | table | code',
+        height: 300,
+        menubar: false,
+        branding: false,
+        promotion: false,
+        statusbar: true,
+        convert_urls: false,
+        setup: function(editor) {
+          editor.on('init', function() {
+            if (bodyHtml) editor.setContent(bodyHtml);
+          });
+        }
+      });
+    });
+  }
+
+  function destroyTemplateEditor() {
+    if (window.tinymce && tinymce.get('cc-modal-tpl-body-html')) {
+      tinymce.get('cc-modal-tpl-body-html').remove();
+    }
   }
 
   function buildTemplateForm(existing) {
@@ -2987,6 +3062,15 @@
     html += '</select>';
     html += '</div>';
 
+    html += '<div class="cc-form-group">';
+    html += '<label class="cc-label">Practice Area</label>';
+    html += '<select id="cc-modal-tpl-practice-area" class="cc-input">';
+    PRACTICE_AREA_OPTIONS.forEach(function(pa) {
+      html += '<option value="' + pa + '"' + (existing.practice_area === pa ? ' selected' : '') + '>' + pa + '</option>';
+    });
+    html += '</select>';
+    html += '</div>';
+
     html += '<div id="cc-modal-tpl-email-fields"' + (isEmail ? '' : ' style="display:none"') + '>';
 
     html += '<div class="cc-form-group">';
@@ -2996,7 +3080,7 @@
 
     html += '<div class="cc-form-group">';
     html += '<label class="cc-label">Body (HTML)</label>';
-    html += '<textarea id="cc-modal-tpl-body-html" class="cc-input cc-textarea" rows="8" placeholder="HTML email body. Use {{Client_Name}}, {{Practice_Area}} etc.">' + escapeHtml(existing.body_html || '') + '</textarea>';
+    html += '<textarea id="cc-modal-tpl-body-html" class="cc-input cc-textarea" rows="8" placeholder="HTML email body">' + escapeHtml(existing.body_html || '') + '</textarea>';
     html += '</div>';
 
     html += '</div>';
@@ -3011,8 +3095,12 @@
     html += '</div>';
 
     html += '<div class="cc-form-group">';
-    html += '<label class="cc-label">Available Tokens</label>';
-    html += '<p class="cc-admin-hint">{{Client_Name}}, {{Client_Email}}, {{Practice_Area}}, {{Lead_Owner_Name}}, {{Unsubscribe_URL}}</p>';
+    html += '<label class="cc-label">Insert Token</label>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    TEMPLATE_TOKENS.forEach(function(tok) {
+      html += '<button type="button" class="cc-btn cc-btn-outline cc-token-btn" data-token="' + escapeAttr(tok.value) + '" style="font-size:12px;padding:4px 10px;border-radius:4px;">' + escapeHtml(tok.label) + '</button>';
+    });
+    html += '</div>';
     html += '</div>';
 
     html += '</div>';
@@ -3023,14 +3111,16 @@
   async function handleCreateTemplate(form) {
     var name = form.querySelector('#cc-modal-tpl-name').value.trim();
     var channel = form.querySelector('#cc-modal-tpl-channel').value;
+    var practiceArea = form.querySelector('#cc-modal-tpl-practice-area').value;
 
     if (!name) { showToast('Template name is required.', 'error'); return false; }
 
-    var data = { name: name, channel: channel };
+    var data = { name: name, channel: channel, practice_area: practiceArea };
 
     if (channel === 'EMAIL') {
       data.subject = form.querySelector('#cc-modal-tpl-subject').value.trim();
-      data.body_html = form.querySelector('#cc-modal-tpl-body-html').value;
+      var editor = window.tinymce && tinymce.get('cc-modal-tpl-body-html');
+      data.body_html = editor ? editor.getContent() : form.querySelector('#cc-modal-tpl-body-html').value;
     } else {
       data.body_text = form.querySelector('#cc-modal-tpl-body-text').value;
     }
@@ -3055,14 +3145,16 @@
   async function handleUpdateTemplate(templateId, form) {
     var name = form.querySelector('#cc-modal-tpl-name').value.trim();
     var channel = form.querySelector('#cc-modal-tpl-channel').value;
+    var practiceArea = form.querySelector('#cc-modal-tpl-practice-area').value;
 
     if (!name) { showToast('Template name is required.', 'error'); return false; }
 
-    var fields = { name: name, channel: channel };
+    var fields = { name: name, channel: channel, practice_area: practiceArea };
 
     if (channel === 'EMAIL') {
       fields.subject = form.querySelector('#cc-modal-tpl-subject').value.trim();
-      fields.body_html = form.querySelector('#cc-modal-tpl-body-html').value;
+      var editor = window.tinymce && tinymce.get('cc-modal-tpl-body-html');
+      fields.body_html = editor ? editor.getContent() : form.querySelector('#cc-modal-tpl-body-html').value;
     } else {
       fields.body_text = form.querySelector('#cc-modal-tpl-body-text').value;
     }
@@ -3580,6 +3672,7 @@
   }
 
   function closeModal() {
+    destroyTemplateEditor();
     if (activeModal) {
       activeModal.remove();
       activeModal = null;
