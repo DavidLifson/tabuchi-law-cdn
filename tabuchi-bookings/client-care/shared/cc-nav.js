@@ -329,16 +329,11 @@
       })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        // Filter client-side: OPEN tasks, owned by current user, due today or overdue
+        // Filter client-side: OPEN tasks due today or overdue (all users — small firm sees everything)
         var tasks = (data.tasks || []).filter(function(t) {
           if (t.Status !== 'OPEN') return false;
           if (!t.Due_At) return false;
-          if (t.Due_At.slice(0, 10) > today) return false;
-          // Filter by owner if userId is available
-          if (userId && t.Owner && t.Owner.length > 0) {
-            return t.Owner.indexOf(userId) !== -1;
-          }
-          return true;
+          return t.Due_At.slice(0, 10) <= today;
         });
         // Sort: overdue first, then today
         tasks.sort(function(a, b) {
