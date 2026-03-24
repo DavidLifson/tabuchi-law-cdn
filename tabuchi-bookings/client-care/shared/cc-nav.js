@@ -324,7 +324,7 @@
 
       fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Dashboard_Token': token },
+        headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
         body: JSON.stringify(body)
       })
       .then(function(r) { return r.json(); })
