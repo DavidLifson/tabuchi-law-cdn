@@ -966,6 +966,79 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/comms', { body: { action: 'get_email_content', recipient_email: recipientEmail, sent_after: sentAfter, subject: subject } });
   }
 
+  // ─── Escape Helpers (shared) ────────────────────────────────
+  function _escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function _escAttr(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ─── Template Accordion (shared) ─────────────────────────────
+  function buildTemplateAccordion(templates, options) {
+    options = options || {};
+    var defaultPA = options.defaultOpenPA || '';
+    var selectedId = options.selectedId || '';
+    var cardClass = options.cardClass || 'cc-tpl-accordion-card';
+
+    // Group by practice_area
+    var groups = {};
+    templates.forEach(function(t) {
+      var pa = t.practice_area || t.Practice_Area || 'General';
+      if (!groups[pa]) groups[pa] = [];
+      groups[pa].push(t);
+    });
+
+    var sortedKeys = Object.keys(groups).sort(function(a, b) {
+      if (a === 'General') return 1;
+      if (b === 'General') return -1;
+      return a.localeCompare(b);
+    });
+
+    var html = '';
+    sortedKeys.forEach(function(pa) {
+      var isOpen = pa === defaultPA || (sortedKeys.length === 1);
+      html += '<div class="cc-em-accordion" style="border:1px solid #E5E7EB;border-radius:6px;margin-bottom:8px;">';
+      html += '<div class="cc-em-accordion-header" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;background:' + (isOpen ? '#EFF6FF' : '#F9FAFB') + ';border-radius:6px;font-weight:600;font-size:0.85rem;color:#374151;">';
+      html += '<span>' + _escHtml(pa) + ' <span style="font-weight:400;color:#9CA3AF;">(' + groups[pa].length + ')</span></span>';
+      html += '<span class="cc-em-accordion-chevron" style="transition:transform 0.2s;' + (isOpen ? 'transform:rotate(180deg);' : '') + '">&#9660;</span>';
+      html += '</div>';
+      html += '<div class="cc-em-accordion-body" style="' + (isOpen ? '' : 'display:none;') + '">';
+      groups[pa].forEach(function(t) {
+        var isSelected = t.id === selectedId;
+        var channelBadge = (t.channel || t.Channel || 'EMAIL') === 'SMS' ? '<span style="background:#7C3AED;color:white;font-size:0.65rem;padding:1px 5px;border-radius:3px;margin-left:6px;">SMS</span>' : '';
+        html += '<div class="' + cardClass + '" data-tid="' + _escAttr(t.id) + '" style="padding:10px 14px;border-bottom:1px solid #F3F4F6;cursor:pointer;' + (isSelected ? 'background:#EFF6FF;border-left:3px solid #2563EB;' : '') + '">';
+        html += '<div style="font-weight:500;font-size:0.85rem;color:#1F2937;">' + _escHtml(t.name || t.Name || '') + channelBadge + '</div>';
+        if (t.subject || t.Subject) html += '<div style="font-size:0.78rem;color:#6B7280;margin-top:2px;">' + _escHtml(t.subject || t.Subject || '') + '</div>';
+        else if (t.body_text || t.Body_Text) html += '<div style="font-size:0.78rem;color:#6B7280;margin-top:2px;">' + _escHtml((t.body_text || t.Body_Text || '').substring(0, 80)) + '</div>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+    return html;
+  }
+
+  function bindAccordionToggles(containerEl) {
+    if (!containerEl) return;
+    containerEl.querySelectorAll('.cc-em-accordion-header').forEach(function(hdr) {
+      hdr.addEventListener('click', function() {
+        var body = hdr.nextElementSibling;
+        var chevron = hdr.querySelector('.cc-em-accordion-chevron');
+        if (body.style.display === 'none') {
+          body.style.display = '';
+          hdr.style.background = '#EFF6FF';
+          if (chevron) chevron.style.transform = 'rotate(180deg)';
+        } else {
+          body.style.display = 'none';
+          hdr.style.background = '#F9FAFB';
+          if (chevron) chevron.style.transform = '';
+        }
+      });
+    });
+  }
+
   // ─── Public API ──────────────────────────────────────────────
   return {
     // Auth
@@ -1047,7 +1120,9 @@ const ClientCareAPI = (() => {
       contactStatusLabel, contactStatusColor,
       showLoading, showError, getUrlParams, getPathSegments,
       STAGE_LABELS, STAGE_COLORS,
-      CONTACT_STATUS_LABELS, CONTACT_STATUS_COLORS
+      CONTACT_STATUS_LABELS, CONTACT_STATUS_COLORS,
+      buildTemplateAccordion: buildTemplateAccordion,
+      bindAccordionToggles: bindAccordionToggles
     }
   };
 })();

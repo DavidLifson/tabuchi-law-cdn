@@ -217,9 +217,12 @@
         state.editorDirty = false;
         state.validationResult = null;
         state.recipients = [];
-        // Load templates for drip step dropdowns
+        // Load templates for drip step dropdowns (filter by is_drip)
         if (isDrip(result.campaign) && state.templatesList.length === 0) {
-          API.campaignTemplates.list().then(function(tRes) {
+          var tplParams = { is_drip: true };
+          var campaignChannel = result.campaign.channel || result.campaign.Channel || '';
+          if (campaignChannel) tplParams.channel = campaignChannel;
+          API.campaignTemplates.list(tplParams).then(function(tRes) {
             if (tRes.success) { state.templatesList = tRes.templates || []; renderDetail(); }
           }).catch(function() {});
         }
@@ -902,12 +905,12 @@
       html += '</div>';
       html += '</div>';
 
-      // Expanded editor
+      // Expanded editor — now with accordion template picker
       if (expanded) {
         html += '<div class="cc-step-editor" style="padding:0 16px 16px;border-top:1px solid #f1f5f9;">';
 
         // Delay
-        html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px;">';
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">';
         html += '<div>';
         html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Delay After Previous Step</label>';
         var unit = (delayHrs > 0 && delayHrs % 24 === 0) ? 'days' : 'hours';
@@ -936,23 +939,23 @@
         });
         html += '</select>';
         html += '</div>';
+        html += '</div>';
 
-        // Template selector
-        html += '<div>';
-        html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Template</label>';
+        // Template picker — accordion grouped by practice area
         var tid = step.template_id || step.Template_ID;
         if (Array.isArray(tid)) tid = tid[0];
-        html += '<select class="cc-input cc-step-template-select">';
-        html += '<option value="">— None (write inline) —</option>';
-        (state.templatesList || []).forEach(function(t) {
-          var tId = t.id;
-          var tN = t.name || t.Name || tId;
-          var tCat = t.category || t.Category || '';
-          if (tCat.indexOf('Confirmation') === 0) return;
-          var label = tCat ? tN + ' (' + tCat + ')' : tN;
-          html += '<option value="' + escapeAttr(tId) + '"' + (tid === tId ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
-        });
-        html += '</select>';
+        html += '<div style="margin-top:12px;">';
+        html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Template</label>';
+        html += '<div class="cc-step-tpl-picker" data-step-id="' + escapeAttr(step.id) + '">';
+        if (state.templatesList && state.templatesList.length) {
+          html += API.util.buildTemplateAccordion(state.templatesList, {
+            defaultOpenPA: '',
+            selectedId: tid || '',
+            cardClass: 'cc-drip-tpl-card'
+          });
+        } else {
+          html += '<p style="color:#94a3b8;font-size:13px;">No drip templates available. Mark templates as "Available for Drip" in Admin &rarr; Templates.</p>';
+        }
         html += '</div>';
         html += '</div>';
 
@@ -1563,7 +1566,35 @@
 
     // Steps (drip) — timeline interactions
     var addStepBtn = el.querySelector('.cc-add-step-btn');
-    if (addStepBtn) addStepBtn.addEventListener('click', showAddStepModal);
+    if (addStepBtn) addStepBtn.addEventListener('click', handleAddStepInline);
+
+    // Bind accordion toggles inside template pickers
+    el.querySelectorAll('.cc-step-tpl-picker').forEach(function(picker) {
+      API.util.bindAccordionToggles(picker);
+      // Template card selection within wizard
+      picker.querySelectorAll('.cc-drip-tpl-card').forEach(function(card) {
+        card.addEventListener('click', function() {
+          picker.querySelectorAll('.cc-drip-tpl-card').forEach(function(c) {
+            c.style.background = ''; c.style.borderLeft = '';
+          });
+          card.style.background = '#EFF6FF';
+          card.style.borderLeft = '3px solid #2563EB';
+          card.setAttribute('data-selected', 'true');
+          // Auto-fill subject from template
+          var tid = card.getAttribute('data-tid');
+          var tpl = (state.templatesList || []).find(function(t) { return t.id === tid; });
+          if (tpl) {
+            var stepCard = card.closest('.cc-step-card');
+            if (stepCard) {
+              var subjInput = stepCard.querySelector('.cc-step-subject');
+              if (subjInput && !subjInput.value) {
+                subjInput.value = tpl.subject || tpl.Subject || '';
+              }
+            }
+          }
+        });
+      });
+    });
 
     // Expand/collapse step cards
     el.querySelectorAll('.cc-step-header').forEach(function(hdr) {
@@ -2276,165 +2307,30 @@
     }
   }
 
-  // ─── Add / Edit Step Modal (Drip) ────────────────────────
+  // ─── Add Step Inline (Drip Wizard) ────────────────────────
 
-  function buildStepModalHtml(opts) {
-    opts = opts || {};
-    var stepNum = opts.step_number || 1;
-    var delayHrs = opts.delay_hours !== undefined ? opts.delay_hours : 0;
-    var unit = (delayHrs > 0 && delayHrs % 24 === 0) ? 'days' : 'hours';
-    var delayVal = unit === 'days' ? delayHrs / 24 : delayHrs;
-    var templateId = opts.template_id || '';
-    if (Array.isArray(templateId)) templateId = templateId[0] || '';
-    var condition = opts.condition || 'NONE';
-
-    var html = '<div class="cc-modal-form">';
-    html += '<div class="cc-form-group"><label class="cc-label">Step Number</label>';
-    html += '<input type="number" id="cc-modal-step-num" class="cc-input" value="' + stepNum + '" min="1" /></div>';
-
-    // Delay + Unit
-    html += '<div class="cc-form-group"><label class="cc-label">Delay</label>';
-    html += '<div style="display:flex;gap:0.5rem">';
-    html += '<input type="number" id="cc-modal-delay" class="cc-input" value="' + delayVal + '" min="0" style="flex:1" />';
-    html += '<select id="cc-modal-delay-unit" class="cc-input" style="width:100px">';
-    html += '<option value="hours"' + (unit === 'hours' ? ' selected' : '') + '>Hours</option>';
-    html += '<option value="days"' + (unit === 'days' ? ' selected' : '') + '>Days</option>';
-    html += '</select></div>';
-    html += '<div style="margin-top:0.25rem;display:flex;gap:0.25rem;flex-wrap:wrap">';
-    [0, 1, 24, 48, 72, 168].forEach(function(h) {
-      var label = h === 0 ? '0h' : h < 24 ? h + 'h' : (h / 24) + 'd';
-      html += '<button type="button" class="cc-btn cc-btn-sm cc-btn-outline cc-delay-quick" data-hours="' + h + '">' + label + '</button>';
-    });
-    html += '</div></div>';
-
-    // Template dropdown
-    html += '<div class="cc-form-group"><label class="cc-label">Template</label>';
-    html += '<select id="cc-modal-template" class="cc-input">';
-    html += '<option value="">— None —</option>';
-    (state.templatesList || []).forEach(function(t) {
-      var tId = t.id;
-      var tName = t.name || t.Name || tId;
-      var tCat = t.category || t.Category || '';
-      // Skip confirmation templates — those are for meeting reminders, not campaigns
-      if (tCat.indexOf('Confirmation') === 0) return;
-      var label = tCat ? tName + ' (' + tCat + ')' : tName;
-      html += '<option value="' + escapeAttr(tId) + '"' + (templateId === tId ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
-    });
-    html += '</select></div>';
-
-    // Condition
-    html += '<div class="cc-form-group"><label class="cc-label">Condition</label>';
-    html += '<select id="cc-modal-condition" class="cc-input">';
-    ['NONE', 'OPENED', 'CLICKED', 'NO_RESPONSE'].forEach(function(cond) {
-      html += '<option value="' + cond + '"' + (condition === cond ? ' selected' : '') + '>' + cond + '</option>';
-    });
-    html += '</select></div>';
-
-    html += '</div>';
-    return html;
-  }
-
-  function bindStepModalQuickPicks() {
-    document.querySelectorAll('.cc-delay-quick').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var h = parseInt(btn.dataset.hours, 10);
-        var delayInput = document.querySelector('#cc-modal-delay');
-        var unitSelect = document.querySelector('#cc-modal-delay-unit');
-        if (delayInput && unitSelect) {
-          if (h >= 24 && h % 24 === 0) {
-            unitSelect.value = 'days';
-            delayInput.value = h / 24;
-          } else {
-            unitSelect.value = 'hours';
-            delayInput.value = h;
-          }
-        }
-      });
-    });
-  }
-
-  function getModalDelayHours() {
-    var val = parseInt(document.querySelector('#cc-modal-delay').value, 10);
-    var unit = document.querySelector('#cc-modal-delay-unit').value;
-    if (isNaN(val) || val < 0) return -1;
-    return unit === 'days' ? val * 24 : val;
-  }
-
-  function showAddStepModal() {
+  async function handleAddStepInline() {
     if (!state.activeCampaign) return;
     var nextNum = 1;
     if (state.steps && state.steps.length > 0) {
       var maxNum = Math.max.apply(null, state.steps.map(function(s) { return s.step_number || 0; }));
       nextNum = maxNum + 1;
     }
-    var html = buildStepModalHtml({ step_number: nextNum, delay_hours: 0 });
-    showModal('Add Step', html, handleAddStep);
-    bindStepModalQuickPicks();
-  }
 
-  async function handleAddStep(form) {
-    var stepNumber = parseInt(form.querySelector('#cc-modal-step-num').value, 10);
-    var delayHours = getModalDelayHours();
-    var templateId = form.querySelector('#cc-modal-template').value.trim();
-    var condition = form.querySelector('#cc-modal-condition').value;
-
-    if (isNaN(stepNumber) || stepNumber < 1) { showToast('Valid step number required.', 'error'); return; }
-    if (delayHours < 0) { showToast('Valid delay required.', 'error'); return; }
-
-    var data = { campaign_id: state.activeCampaign.id, step_number: stepNumber, delay_hours: delayHours, condition: condition };
-    if (templateId) data.template_id = templateId;
+    var data = { campaign_id: state.activeCampaign.id, step_number: nextNum, delay_hours: 0, condition: 'NONE' };
 
     try {
       var result = await API.campaigns.createStep(data);
       if (result.success) {
         showToast('Step added.', 'success');
-        closeModal();
+        // Auto-expand the new step
+        state.expandedStepId = result.step_id || null;
         fetchDetail(state.activeCampaign.id);
       } else {
         showToast(result.error || 'Failed to add step.', 'error');
       }
     } catch (err) {
       showToast(err.error || 'Error adding step.', 'error');
-    }
-  }
-
-  function showEditStepModal(step) {
-    var delayHrs = getStepDelayHours(step);
-    var tid = step.template_id || step.Template_ID;
-    if (Array.isArray(tid)) tid = tid[0];
-    var html = buildStepModalHtml({
-      step_number: step.step_number,
-      delay_hours: delayHrs,
-      template_id: tid || '',
-      condition: step.condition || 'NONE'
-    });
-    showModal('Edit Step', html, function(form) { handleEditStep(step.id, form); }, { submitLabel: 'Save' });
-    bindStepModalQuickPicks();
-  }
-
-  async function handleEditStep(stepId, form) {
-    var stepNumber = parseInt(form.querySelector('#cc-modal-step-num').value, 10);
-    var delayHours = getModalDelayHours();
-    var templateId = form.querySelector('#cc-modal-template').value.trim();
-    var condition = form.querySelector('#cc-modal-condition').value;
-
-    if (isNaN(stepNumber) || stepNumber < 1) { showToast('Valid step number required.', 'error'); return; }
-    if (delayHours < 0) { showToast('Valid delay required.', 'error'); return; }
-
-    var fields = { step_number: stepNumber, delay_hours: delayHours, condition: condition };
-    if (templateId) fields.template_id = templateId;
-
-    try {
-      var result = await API.campaigns.updateStep(stepId, fields);
-      if (result.success) {
-        showToast('Step updated.', 'success');
-        closeModal();
-        fetchDetail(state.activeCampaign.id);
-      } else {
-        showToast(result.error || 'Failed to update step.', 'error');
-      }
-    } catch (err) {
-      showToast(err.error || 'Error updating step.', 'error');
     }
   }
 
@@ -2453,7 +2349,15 @@
     var delayUnit = card.querySelector('.cc-step-delay-unit').value;
     var delayHours = delayUnit === 'days' ? delayVal * 24 : delayVal;
     var condition = card.querySelector('.cc-step-condition').value;
-    var templateSelect = card.querySelector('.cc-step-template-select').value;
+    // Read template from accordion picker (selected card) or fallback to dropdown
+    var templateSelect = '';
+    var selectedTplCard = card.querySelector('.cc-drip-tpl-card[data-selected="true"]');
+    if (selectedTplCard) {
+      templateSelect = selectedTplCard.getAttribute('data-tid') || '';
+    } else {
+      var tplSelectEl = card.querySelector('.cc-step-template-select');
+      if (tplSelectEl) templateSelect = tplSelectEl.value;
+    }
     var subject = card.querySelector('.cc-step-subject').value.trim();
     var bodyHtml = card.querySelector('.cc-step-body').value;
 

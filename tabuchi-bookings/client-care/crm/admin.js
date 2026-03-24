@@ -2926,7 +2926,9 @@
 
       html += '<tr data-template-id="' + escapeAttr(t.id) + '">';
       html += '<td class="cc-template-name-cell">' + escapeHtml(t.name || 'Untitled') + '</td>';
-      html += '<td><span class="cc-badge cc-badge-' + channelCls + '">' + escapeHtml(t.channel || '') + '</span></td>';
+      html += '<td><span class="cc-badge cc-badge-' + channelCls + '">' + escapeHtml(t.channel || '') + '</span>';
+      if (t.is_drip) html += '<span style="background:#7C3AED;color:white;font-size:0.65rem;padding:1px 5px;border-radius:3px;margin-left:4px;">Drip</span>';
+      html += '</td>';
       html += '<td>' + escapeHtml(t.subject || '\u2014') + '</td>';
       html += '<td class="cc-template-preview-cell">' + escapeHtml(bodyPreview || '\u2014') + '</td>';
       html += '<td>';
@@ -3115,6 +3117,13 @@
     html += '</select>';
     html += '</div>';
 
+    html += '<div class="cc-form-group">';
+    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
+    html += '<input type="checkbox" id="cc-modal-tpl-is-drip"' + (existing.is_drip ? ' checked' : '') + '>';
+    html += '<span>Available for Drip Campaigns</span>';
+    html += '</label>';
+    html += '</div>';
+
     html += '<div id="cc-modal-tpl-email-fields"' + (isEmail ? '' : ' style="display:none"') + '>';
 
     html += '<div class="cc-form-group">';
@@ -3160,6 +3169,7 @@
     if (!name) { showToast('Template name is required.', 'error'); return false; }
 
     var data = { name: name, channel: channel, practice_area: practiceArea };
+    data.is_drip = !!form.querySelector('#cc-modal-tpl-is-drip').checked;
 
     if (channel === 'EMAIL') {
       data.subject = form.querySelector('#cc-modal-tpl-subject').value.trim();
@@ -3194,6 +3204,7 @@
     if (!name) { showToast('Template name is required.', 'error'); return false; }
 
     var fields = { name: name, channel: channel, practice_area: practiceArea };
+    fields.is_drip = !!form.querySelector('#cc-modal-tpl-is-drip').checked;
 
     if (channel === 'EMAIL') {
       fields.subject = form.querySelector('#cc-modal-tpl-subject').value.trim();
