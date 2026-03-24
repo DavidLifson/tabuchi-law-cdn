@@ -45,7 +45,7 @@
     { key: 'staff-users', label: 'Users' },
     { key: 'templates', label: 'Templates' },
     { key: 'forms', label: 'Forms' },
-    { key: 'categories', label: 'Categories' },
+    { key: 'categories', label: 'Meeting Type Categories' },
     { key: 'practice-areas', label: 'Practice Areas' },
     { key: 'lead-sources', label: 'Lead Sources' },
     { key: 'stages', label: 'Stages' },
