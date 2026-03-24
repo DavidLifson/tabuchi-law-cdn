@@ -54,7 +54,8 @@
     { key: 'entity-types', label: 'Entity Types' },
     { key: 'tags', label: 'Tags' },
     { key: 'price-book', label: 'Price Books' },
-    { key: 'assignment-rules', label: 'Assignment Rules' }
+    { key: 'assignment-rules', label: 'Assignment Rules' },
+    { key: 'documents', label: 'Documents' }
   ];
 
   // Tabs grouped under the "Options Lists" dropdown in the tab bar
@@ -185,7 +186,11 @@
     formDetailLoading: false,
     formEditorMode: null, // null | 'list' | 'edit' | 'create'
     formEditorData: null,
-    formSectionExpanded: {}
+    formSectionExpanded: {},
+    // Documents
+    documents: [],
+    documentsLoading: false,
+    documentAccordionOpen: {}
   };
 
   // ─── Role Gate ─────────────────────────────────────────────
@@ -213,7 +218,8 @@
       // Skip tabs that belong to the Options Lists dropdown
       if (OPTIONS_LIST_TABS.indexOf(tab.key) !== -1) return;
       var cls = 'cc-admin-tab' + (state.activeTab === tab.key ? ' cc-admin-tab-active' : '');
-      html += '<button class="' + cls + '" data-tab="' + tab.key + '">' + tab.label + '</button>';
+      var badge = tab.key === 'documents' ? ' <span style="font-size:9px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-left:3px;">Beta</span>' : '';
+      html += '<button class="' + cls + '" data-tab="' + tab.key + '">' + tab.label + badge + '</button>';
     });
 
     // Options Lists dropdown button
@@ -282,6 +288,7 @@
       case 'categories':     renderCategoriesTab(); break;
       case 'price-book':     renderPriceBookTab(); break;
       case 'assignment-rules': renderAssignmentRulesTab(); break;
+      case 'documents':        renderDocumentsTab(); break;
       case 'drip-enrollment': renderDripTab(); break;
       case 'lead-sources':
       case 'stages':
@@ -300,6 +307,7 @@
       case 'categories':    fetchCategories(); break;
       case 'price-book':    fetchPriceBookItems(); break;
       case 'assignment-rules': fetchAssignmentRulesData(); break;
+      case 'documents':        loadDocumentsSampleData(); break;
       case 'drip-enrollment': fetchDripData(); break;
       default:
         var ck = tabToConfigKey(state.activeTab);
@@ -4309,6 +4317,551 @@
         showToast(err.error || 'Failed to save task.', 'error');
       }
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // DOCUMENTS TAB
+  // ═══════════════════════════════════════════════════════════
+
+  var SAMPLE_DOCUMENTS = [
+    {
+      id: 'doc_1', name: 'Simple Will - Individual', practice_area: 'Estate Planning',
+      description: 'Standard simple will for individual clients without complex estate needs.',
+      data_sources: ['Lead Profile', 'Intake Form'],
+      merge_field_count: 18, updated_at: '2026-03-20T14:00:00Z',
+      body_html: '<h1>LAST WILL AND TESTAMENT</h1><p>I, {{client_name}}, of {{client_address}}, {{city}}, {{province}}, {{postal_code}}, hereby declare this to be my Last Will and Testament...</p>'
+    },
+    {
+      id: 'doc_2', name: 'Couples Will Package', practice_area: 'Estate Planning',
+      description: 'Mirror wills for married or common-law couples.',
+      data_sources: ['Lead Profile', 'Intake Form', 'Meeting Transcript'],
+      merge_field_count: 32, updated_at: '2026-03-18T10:00:00Z',
+      body_html: ''
+    },
+    {
+      id: 'doc_3', name: 'Power of Attorney - Property', practice_area: 'Estate Planning',
+      description: 'Continuing power of attorney for property under Ontario law.',
+      data_sources: ['Lead Profile', 'Intake Form'],
+      merge_field_count: 15, updated_at: '2026-03-15T09:00:00Z',
+      body_html: ''
+    },
+    {
+      id: 'doc_4', name: 'Power of Attorney - Personal Care', practice_area: 'Estate Planning',
+      description: 'Power of attorney for personal care decisions.',
+      data_sources: ['Lead Profile', 'Intake Form'],
+      merge_field_count: 12, updated_at: '2026-03-15T09:00:00Z',
+      body_html: ''
+    },
+    {
+      id: 'doc_5', name: 'Probate Application', practice_area: 'Probate',
+      description: 'Certificate of appointment of estate trustee with a will.',
+      data_sources: ['Lead Profile', 'Intake Form', 'Meeting Transcript'],
+      merge_field_count: 28, updated_at: '2026-03-10T11:00:00Z',
+      body_html: ''
+    },
+    {
+      id: 'doc_6', name: 'Real Estate Purchase Agreement', practice_area: 'Real Estate',
+      description: 'Standard agreement of purchase and sale for Ontario residential property.',
+      data_sources: ['Lead Profile', 'Intake Form'],
+      merge_field_count: 22, updated_at: '2026-03-08T15:00:00Z',
+      body_html: ''
+    }
+  ];
+
+  var DOC_PRACTICE_AREAS = [
+    { key: 'Estate Planning', label: 'Estate Planning' },
+    { key: 'Probate', label: 'Probate' },
+    { key: 'Real Estate', label: 'Real Estate' },
+    { key: 'Corporate', label: 'Corporate Law' },
+    { key: 'Family Law', label: 'Family Law' },
+    { key: 'Other', label: 'Other' }
+  ];
+
+  var DOC_MERGE_FIELDS = {
+    'Lead Profile': [
+      { token: '{{client_name}}', label: 'Client Name' },
+      { token: '{{client_email}}', label: 'Client Email' },
+      { token: '{{client_phone}}', label: 'Client Phone' },
+      { token: '{{client_address}}', label: 'Client Address' },
+      { token: '{{city}}', label: 'City' },
+      { token: '{{province}}', label: 'Province' },
+      { token: '{{postal_code}}', label: 'Postal Code' },
+      { token: '{{date_of_birth}}', label: 'Date of Birth' },
+      { token: '{{marital_status}}', label: 'Marital Status' },
+      { token: '{{spouse_name}}', label: 'Spouse Name' },
+      { token: '{{occupation}}', label: 'Occupation' }
+    ],
+    'Intake Form': [
+      { token: '{{beneficiary_1_name}}', label: 'Beneficiary 1 Name' },
+      { token: '{{beneficiary_1_share}}', label: 'Beneficiary 1 Share' },
+      { token: '{{executor_name}}', label: 'Executor Name' },
+      { token: '{{executor_phone}}', label: 'Executor Phone' },
+      { token: '{{alternate_executor}}', label: 'Alternate Executor' },
+      { token: '{{specific_gifts}}', label: 'Specific Gifts' },
+      { token: '{{residual_estate}}', label: 'Residual Estate' }
+    ],
+    'Meeting Transcript': [
+      { token: '{{meeting_notes}}', label: 'Meeting Notes' },
+      { token: '{{action_items}}', label: 'Action Items' },
+      { token: '{{client_wishes}}', label: 'Client Wishes' },
+      { token: '{{special_instructions}}', label: 'Special Instructions' }
+    ],
+    'System': [
+      { token: '{{today_date}}', label: 'Today\'s Date' },
+      { token: '{{lawyer_name}}', label: 'Lawyer Name' },
+      { token: '{{lawyer_title}}', label: 'Lawyer Title' },
+      { token: '{{firm_name}}', label: 'Firm Name' },
+      { token: '{{firm_address}}', label: 'Firm Address' },
+      { token: '{{firm_phone}}', label: 'Firm Phone' }
+    ]
+  };
+
+  var _docQuillEditor = null;
+
+  function loadDocumentsSampleData() {
+    if (state.documents.length === 0) {
+      state.documents = SAMPLE_DOCUMENTS.slice();
+    }
+    renderDocumentsTab();
+  }
+
+  function renderDocumentsTab() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+
+    var docs = state.documents || [];
+
+    var html = '<div class="cc-admin-config">';
+
+    // Preview banner
+    html += '<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:8px;">';
+    html += '<span style="font-size:18px;">&#128203;</span>';
+    html += '<span style="color:#92400e;font-size:13px;">Document automation is in preview. Templates created here will be available for auto-fill when the feature is activated.</span>';
+    html += '</div>';
+
+    // Header
+    html += '<div class="cc-admin-section-header">';
+    html += '<div>';
+    html += '<h3 class="cc-admin-section-title">Document Templates</h3>';
+    html += '<p style="color:#6b7280;font-size:13px;margin:2px 0 0;">Manage legal document templates that auto-fill from CRM data. Documents are organized by Practice Area.</p>';
+    html += '</div>';
+    html += '<button id="cc-doc-add-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ New Document Template</button>';
+    html += '</div>';
+
+    if (state.documentsLoading) {
+      html += '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading...</p></div></div>';
+      content.innerHTML = html;
+      return;
+    }
+
+    if (docs.length === 0) {
+      html += '<div class="cc-empty"><p>No document templates yet. Click "+ New Document Template" to create one.</p></div>';
+      html += '</div>';
+      content.innerHTML = html;
+      bindDocumentTabEvents();
+      return;
+    }
+
+    // Group by practice area
+    var grouped = {};
+    DOC_PRACTICE_AREAS.forEach(function(pa) { grouped[pa.key] = []; });
+    docs.forEach(function(doc) {
+      var key = doc.practice_area || 'Other';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(doc);
+    });
+
+    // Render accordion sections
+    DOC_PRACTICE_AREAS.forEach(function(pa) {
+      var items = grouped[pa.key];
+      if (!items || items.length === 0) return;
+
+      var isOpen = state.documentAccordionOpen[pa.key] !== false; // default open
+      var chevron = isOpen ? '&#9660;' : '&#9654;';
+
+      html += '<div class="cc-doc-accordion" style="margin-bottom:12px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">';
+      html += '<div class="cc-doc-accordion-header" data-pa="' + escapeAttr(pa.key) + '" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f9fafb;cursor:pointer;user-select:none;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span class="cc-doc-chevron" style="font-size:10px;color:#6b7280;">' + chevron + '</span>';
+      html += '<span style="font-weight:600;font-size:14px;">' + escapeHtml(pa.label) + '</span>';
+      html += '<span style="background:#e5e7eb;color:#6b7280;font-size:11px;padding:1px 8px;border-radius:10px;">' + items.length + '</span>';
+      html += '</div></div>';
+
+      if (isOpen) {
+        html += '<div class="cc-doc-accordion-body" style="padding:8px 16px 16px;">';
+        items.forEach(function(doc) {
+          html += renderDocumentCard(doc);
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    html += '</div>';
+    content.innerHTML = html;
+    bindDocumentTabEvents();
+  }
+
+  function renderDocumentCard(doc) {
+    var h = '';
+    h += '<div class="cc-doc-card" data-doc-id="' + escapeAttr(doc.id) + '" style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:8px;background:#fff;transition:box-shadow 0.15s;">';
+
+    // Top row: name + practice area badge
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+    h += '<div style="display:flex;align-items:center;gap:10px;">';
+    h += '<span style="font-weight:600;font-size:14px;">' + escapeHtml(doc.name) + '</span>';
+    h += '<span style="background:#dbeafe;color:#1e40af;font-size:11px;padding:2px 8px;border-radius:10px;">' + escapeHtml(doc.practice_area) + '</span>';
+    h += '</div>';
+    // Actions
+    h += '<div style="display:flex;gap:6px;">';
+    h += '<button class="cc-btn cc-btn-outline cc-btn-xs cc-doc-edit-btn" data-doc-id="' + escapeAttr(doc.id) + '" title="Edit">Edit</button>';
+    h += '<button class="cc-btn cc-btn-outline cc-btn-xs cc-doc-preview-btn" data-doc-id="' + escapeAttr(doc.id) + '" title="Preview">Preview</button>';
+    h += '<button class="cc-btn cc-btn-outline cc-btn-xs cc-doc-dup-btn" data-doc-id="' + escapeAttr(doc.id) + '" title="Duplicate">Duplicate</button>';
+    h += '<button class="cc-btn cc-btn-outline cc-btn-xs cc-doc-del-btn" data-doc-id="' + escapeAttr(doc.id) + '" style="color:#dc2626;border-color:#fca5a5;" title="Delete">Delete</button>';
+    h += '</div></div>';
+
+    // Description
+    h += '<p style="color:#6b7280;font-size:13px;margin:0 0 10px;">' + escapeHtml(doc.description || '') + '</p>';
+
+    // Bottom row: data sources + merge fields + last updated
+    h += '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">';
+
+    // Data source pills
+    h += '<div style="display:flex;align-items:center;gap:4px;">';
+    h += '<span style="font-size:11px;color:#9ca3af;margin-right:2px;">Sources:</span>';
+    (doc.data_sources || []).forEach(function(src) {
+      var colors = {
+        'Lead Profile': 'background:#dbeafe;color:#1e40af;',
+        'Intake Form': 'background:#d1fae5;color:#065f46;',
+        'Meeting Transcript': 'background:#fef3c7;color:#92400e;'
+      };
+      h += '<span style="font-size:11px;padding:2px 8px;border-radius:10px;' + (colors[src] || 'background:#f3f4f6;color:#374151;') + '">' + escapeHtml(src) + '</span>';
+    });
+    h += '</div>';
+
+    // Merge fields count
+    h += '<span style="font-size:12px;color:#6b7280;">' + (doc.merge_field_count || 0) + ' merge fields</span>';
+
+    // Last updated
+    if (doc.updated_at) {
+      h += '<span style="font-size:12px;color:#9ca3af;">Updated ' + API.util.formatDate(doc.updated_at) + '</span>';
+    }
+
+    h += '</div></div>';
+    return h;
+  }
+
+  function bindDocumentTabEvents() {
+    // Add button
+    var addBtn = document.getElementById('cc-doc-add-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', function() {
+        openDocumentModal(null);
+      });
+    }
+
+    // Accordion toggle
+    document.querySelectorAll('.cc-doc-accordion-header').forEach(function(header) {
+      header.addEventListener('click', function() {
+        var pa = header.dataset.pa;
+        state.documentAccordionOpen[pa] = state.documentAccordionOpen[pa] === false ? true : false;
+        renderDocumentsTab();
+      });
+    });
+
+    // Card action buttons
+    document.querySelectorAll('.cc-doc-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var doc = findDocById(btn.dataset.docId);
+        if (doc) openDocumentModal(doc);
+      });
+    });
+
+    document.querySelectorAll('.cc-doc-preview-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var doc = findDocById(btn.dataset.docId);
+        if (doc) previewDocument(doc);
+      });
+    });
+
+    document.querySelectorAll('.cc-doc-dup-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var doc = findDocById(btn.dataset.docId);
+        if (doc) duplicateDocument(doc);
+      });
+    });
+
+    document.querySelectorAll('.cc-doc-del-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var doc = findDocById(btn.dataset.docId);
+        if (doc) deleteDocument(doc);
+      });
+    });
+  }
+
+  function findDocById(id) {
+    for (var i = 0; i < state.documents.length; i++) {
+      if (state.documents[i].id === id) return state.documents[i];
+    }
+    return null;
+  }
+
+  function openDocumentModal(doc) {
+    var isEdit = !!doc;
+    var title = isEdit ? 'Edit Document Template' : 'New Document Template';
+
+    var paOptions = '<option value="">-- Select --</option>';
+    DOC_PRACTICE_AREAS.forEach(function(pa) {
+      var sel = (doc && doc.practice_area === pa.key) ? ' selected' : '';
+      paOptions += '<option value="' + escapeAttr(pa.key) + '"' + sel + '>' + escapeHtml(pa.label) + '</option>';
+    });
+
+    // Data source checkboxes
+    var dsChecked = doc ? (doc.data_sources || []) : ['Lead Profile'];
+    var dsOptions = ['Lead Profile', 'Intake Form', 'Meeting Transcript'];
+    var dsHtml = '';
+    dsOptions.forEach(function(src) {
+      var checked = dsChecked.indexOf(src) !== -1 ? ' checked' : '';
+      dsHtml += '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:14px;font-size:13px;cursor:pointer;">';
+      dsHtml += '<input type="checkbox" class="cc-doc-ds-cb" value="' + escapeAttr(src) + '"' + checked + '> ' + escapeHtml(src);
+      dsHtml += '</label>';
+    });
+
+    // Merge fields reference
+    var mergeHtml = '<div id="cc-doc-merge-ref" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;max-height:220px;overflow-y:auto;font-size:12px;margin-top:4px;">';
+    Object.keys(DOC_MERGE_FIELDS).forEach(function(group) {
+      mergeHtml += '<div style="margin-bottom:8px;">';
+      mergeHtml += '<div style="font-weight:600;color:#374151;margin-bottom:4px;">From ' + escapeHtml(group) + ':</div>';
+      mergeHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+      DOC_MERGE_FIELDS[group].forEach(function(f) {
+        mergeHtml += '<span class="cc-doc-merge-token" data-token="' + escapeAttr(f.token) + '" style="background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:monospace;font-size:11px;" title="Click to copy: ' + escapeAttr(f.token) + '">' + escapeHtml(f.token) + '</span>';
+      });
+      mergeHtml += '</div></div>';
+    });
+    mergeHtml += '</div>';
+
+    var bodyHtml = '';
+    bodyHtml += '<div style="display:flex;flex-direction:column;gap:14px;">';
+
+    // Name
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Name</label>';
+    bodyHtml += '<input type="text" id="cc-doc-modal-name" class="cc-input" placeholder="e.g. Simple Will - Individual" value="' + escapeAttr(doc ? doc.name : '') + '" style="width:100%;">';
+    bodyHtml += '</div>';
+
+    // Practice Area
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Practice Area</label>';
+    bodyHtml += '<select id="cc-doc-modal-pa" class="cc-input" style="width:100%;">' + paOptions + '</select>';
+    bodyHtml += '</div>';
+
+    // Description
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Description</label>';
+    bodyHtml += '<textarea id="cc-doc-modal-desc" class="cc-input" rows="2" placeholder="Brief description..." style="width:100%;resize:vertical;">' + escapeHtml(doc ? doc.description : '') + '</textarea>';
+    bodyHtml += '</div>';
+
+    // Data Sources
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Data Sources</label>';
+    bodyHtml += dsHtml;
+    bodyHtml += '</div>';
+
+    // Merge Fields Reference
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Available Merge Fields <span style="font-weight:400;color:#9ca3af;">(click to copy)</span></label>';
+    bodyHtml += mergeHtml;
+    bodyHtml += '</div>';
+
+    // Document Body (Quill)
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Document Body (Rich Text)</label>';
+    bodyHtml += '<textarea id="cc-doc-modal-body" style="display:none;">' + escapeHtml(doc ? doc.body_html || '' : '') + '</textarea>';
+    bodyHtml += '<div id="cc-doc-quill-container"></div>';
+    bodyHtml += '</div>';
+
+    // Upload placeholder
+    bodyHtml += '<div>';
+    bodyHtml += '<label style="font-weight:600;font-size:13px;display:block;margin-bottom:4px;">Upload Template File</label>';
+    bodyHtml += '<div style="border:2px dashed #d1d5db;border-radius:8px;padding:24px;text-align:center;color:#9ca3af;font-size:13px;">';
+    bodyHtml += 'Drop .docx file or click to upload <span style="display:block;margin-top:4px;font-size:11px;color:#d1d5db;">(Coming soon)</span>';
+    bodyHtml += '</div>';
+    bodyHtml += '</div>';
+
+    bodyHtml += '</div>';
+
+    showModal(title, bodyHtml, function(formEl) {
+      var name = (document.getElementById('cc-doc-modal-name') || {}).value || '';
+      var pa = (document.getElementById('cc-doc-modal-pa') || {}).value || '';
+      var desc = (document.getElementById('cc-doc-modal-desc') || {}).value || '';
+
+      if (!name.trim()) {
+        showToast('Name is required.', 'error');
+        throw new Error('validation');
+      }
+      if (!pa) {
+        showToast('Practice Area is required.', 'error');
+        throw new Error('validation');
+      }
+
+      // Collect data sources
+      var sources = [];
+      formEl.querySelectorAll('.cc-doc-ds-cb:checked').forEach(function(cb) {
+        sources.push(cb.value);
+      });
+
+      // Get Quill HTML
+      var bodyContent = '';
+      if (_docQuillEditor) {
+        bodyContent = _docQuillEditor.root.innerHTML;
+        if (bodyContent === '<p><br></p>') bodyContent = '';
+      }
+
+      // Count merge fields in body
+      var fieldMatches = bodyContent.match(/\{\{[^}]+\}\}/g);
+      var fieldCount = fieldMatches ? fieldMatches.length : 0;
+      // Also count unique ones from data sources
+      var uniqueFields = {};
+      sources.forEach(function(src) {
+        (DOC_MERGE_FIELDS[src] || []).forEach(function(f) { uniqueFields[f.token] = true; });
+      });
+      // Add system fields always
+      (DOC_MERGE_FIELDS['System'] || []).forEach(function(f) { uniqueFields[f.token] = true; });
+      var totalFields = Math.max(fieldCount, Object.keys(uniqueFields).length);
+
+      if (isEdit) {
+        doc.name = name.trim();
+        doc.practice_area = pa;
+        doc.description = desc.trim();
+        doc.data_sources = sources;
+        doc.body_html = bodyContent;
+        doc.merge_field_count = totalFields;
+        doc.updated_at = new Date().toISOString();
+        showToast('Document template updated.', 'success');
+      } else {
+        var newDoc = {
+          id: 'doc_' + Date.now(),
+          name: name.trim(),
+          practice_area: pa,
+          description: desc.trim(),
+          data_sources: sources,
+          merge_field_count: totalFields,
+          updated_at: new Date().toISOString(),
+          body_html: bodyContent
+        };
+        state.documents.push(newDoc);
+        showToast('Document template created.', 'success');
+      }
+
+      // Cleanup Quill
+      _docQuillEditor = null;
+      var qEl = document.getElementById('cc-doc-quill-editor');
+      if (qEl) qEl.remove();
+
+      closeModal();
+      renderDocumentsTab();
+    });
+
+    // Initialize Quill in the modal
+    initDocQuillEditor(doc ? doc.body_html || '' : '');
+
+    // Bind merge token click-to-copy
+    setTimeout(function() {
+      document.querySelectorAll('.cc-doc-merge-token').forEach(function(el) {
+        el.addEventListener('click', function() {
+          var token = el.dataset.token;
+          if (_docQuillEditor) {
+            var range = _docQuillEditor.getSelection();
+            var idx = range ? range.index : _docQuillEditor.getLength() - 1;
+            _docQuillEditor.insertText(idx, token);
+            _docQuillEditor.setSelection(idx + token.length);
+            showToast('Inserted ' + token, 'info');
+          } else if (navigator.clipboard) {
+            navigator.clipboard.writeText(token);
+            showToast('Copied ' + token, 'info');
+          }
+        });
+      });
+    }, 200);
+  }
+
+  function initDocQuillEditor(bodyHtml) {
+    ensureQuillLoaded(function() {
+      var container = document.getElementById('cc-doc-quill-container');
+      if (!container) return;
+
+      var editorDiv = document.createElement('div');
+      editorDiv.id = 'cc-doc-quill-editor';
+      editorDiv.style.cssText = 'height:250px;background:white;';
+      container.appendChild(editorDiv);
+
+      _docQuillEditor = new Quill('#cc-doc-quill-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ header: [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ color: [] }, { background: [] }],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['link'],
+            [{ align: [] }],
+            ['blockquote'],
+            ['clean']
+          ]
+        }
+      });
+      if (bodyHtml) {
+        _docQuillEditor.root.innerHTML = bodyHtml;
+      }
+    });
+  }
+
+  function previewDocument(doc) {
+    var previewHtml = doc.body_html || '<p style="color:#9ca3af;font-style:italic;">No document body content yet.</p>';
+    // Simple merge field highlighting
+    previewHtml = previewHtml.replace(/\{\{([^}]+)\}\}/g, '<span style="background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;font-family:monospace;font-size:12px;">{{$1}}</span>');
+
+    var body = '<div style="max-height:500px;overflow-y:auto;">';
+    body += '<div style="margin-bottom:12px;padding:8px 12px;background:#f3f4f6;border-radius:6px;font-size:12px;color:#6b7280;">';
+    body += '<strong>' + escapeHtml(doc.name) + '</strong> &mdash; ' + escapeHtml(doc.practice_area);
+    body += ' &mdash; ' + (doc.merge_field_count || 0) + ' merge fields';
+    body += '</div>';
+    body += '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:20px;background:#fff;font-size:14px;line-height:1.7;">';
+    body += previewHtml;
+    body += '</div></div>';
+
+    showModal('Preview: ' + doc.name, body, function() { closeModal(); });
+
+    // Change Save button to Close
+    var saveBtn = document.querySelector('.cc-modal-save-btn');
+    if (saveBtn) {
+      saveBtn.textContent = 'Close';
+      saveBtn.className = 'cc-btn cc-btn-outline cc-modal-save-btn';
+    }
+    var cancelBtn = document.querySelector('.cc-modal-cancel-btn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+  }
+
+  function duplicateDocument(doc) {
+    var newDoc = JSON.parse(JSON.stringify(doc));
+    newDoc.id = 'doc_' + Date.now();
+    newDoc.name = doc.name + ' (Copy)';
+    newDoc.updated_at = new Date().toISOString();
+    state.documents.push(newDoc);
+    showToast('Document duplicated.', 'success');
+    renderDocumentsTab();
+  }
+
+  function deleteDocument(doc) {
+    if (!confirm('Delete "' + doc.name + '"? This cannot be undone.')) return;
+    state.documents = state.documents.filter(function(d) { return d.id !== doc.id; });
+    showToast('Document deleted.', 'success');
+    renderDocumentsTab();
   }
 
   // ═══════════════════════════════════════════════════════════
