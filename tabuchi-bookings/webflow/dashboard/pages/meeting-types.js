@@ -51,6 +51,8 @@
   let currentCategory = '';
   let currentSort = localStorage.getItem('tb-mt-sort') || 'category-asc';
 
+  var PA_OPTIONS = ['Estate Planning', 'Real Estate', 'Probate', 'Business Law', 'Family Law', 'Immigration', 'Litigation', 'Other'];
+
   TabuchiAPI.util.showLoading('tb-loading');
 
   try {
@@ -100,8 +102,6 @@
     if (err.status === 401) { window.location.href = '/login'; return; }
     TabuchiAPI.util.showError('tb-error', (err.error || err.message || 'Unable to load meeting types.') + ' [Debug: ' + JSON.stringify(err).substring(0, 100) + ']');
   }
-
-  var PA_OPTIONS = ['Estate Planning', 'Real Estate', 'Probate', 'Business Law', 'Family Law', 'Immigration', 'Litigation', 'Other'];
 
   function _injectFormDropdowns() {
     // Find insertion point — before the Buffer After grid (scope to _root for dual-embed safety)
