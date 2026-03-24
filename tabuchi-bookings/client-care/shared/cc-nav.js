@@ -32,8 +32,8 @@
   html += '<span style="font-weight:700;color:white;font-size:1.1rem;">Tabuchi Law</span>';
   html += '</a>';
 
-  // Nav links + dropdowns + user (all right-justified)
-  html += '<nav id="app-nav" style="display:flex;gap:0.25rem;flex-wrap:wrap;align-items:center;margin-left:auto;">';
+  // Nav links
+  html += '<nav id="app-nav" style="display:flex;gap:0.25rem;flex-wrap:wrap;align-items:center;">';
 
   // CRM links
   html += '<span id="app-crm-nav">';
@@ -42,7 +42,7 @@
     { href: '/crm',           nav: 'leads',     label: 'Leads' },
     { href: '/crm/contacts',  nav: 'contacts',  label: 'Contacts' },
     { href: '/crm/kanban',    nav: 'kanban',     label: 'Kanban' },
-    { href: '/crm/reports',   nav: 'reports',    label: 'Reports' },
+    { href: '/crm/reports',   nav: 'reports',    label: 'Reports' }
   ];
   crmLinks.forEach(function(lk) {
     html += '<a href="' + lk.href + '" data-nav="' + lk.nav + '" style="color:#D1D5DB;text-decoration:none;padding:0.3rem 0.6rem;font-size:0.9rem;border-radius:4px;">' + lk.label + '</a>';
@@ -86,18 +86,41 @@
   html += '<div style="border-top:1px solid #E5E7EB;margin:0.25rem 0;"></div>';
   html += '<a href="/login?logout" style="display:block;padding:0.5rem 1rem;color:#DC2626;text-decoration:none;font-size:0.9rem;">Logout</a>';
   html += '</div></span>';
+
   html += '</nav>';
 
   /* ── inject into bar ── */
-  // Full viewport width via vw + translateX, flex directly on bar
-  bar.style.cssText = 'background:#1F2937;padding:0.75rem 2rem;margin-top:-2rem;margin-bottom:2rem;display:flex;align-items:center;gap:0.5rem;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;overflow:visible;position:relative;width:100vw;left:50%;transform:translateX(-50%);';
-  bar.innerHTML = html;
+  // Use negative margins to break out of the parent container to full viewport width.
+  // This avoids position:relative + left which clips the logo on the left side.
+  bar.style.cssText = 'background:#1F2937;margin-top:-2rem;margin-bottom:2rem;padding:0;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;overflow:visible;';
+
+  // Inner flex container for the nav content
+  var innerNav = document.createElement('div');
+  innerNav.style.cssText = 'max-width:1100px;margin:0 auto;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
+  innerNav.innerHTML = html;
+  bar.innerHTML = '';
+  bar.appendChild(innerNav);
+
+  // Break bar out to full viewport width using negative margins (no clipping)
+  function positionNav() {
+    // Reset so getBoundingClientRect measures the natural position
+    bar.style.marginLeft = '';
+    bar.style.marginRight = '';
+    bar.style.width = '';
+
+    var rect = bar.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth;
+
+    bar.style.marginLeft = (-rect.left) + 'px';
+    bar.style.marginRight = (-(vw - rect.right)) + 'px';
+  }
+  positionNav();
+  window.addEventListener('resize', positionNav);
 
   // Enforce 1100px max-width on ALL cc-page-root elements (some pages have duplicates)
   var allRoots = document.querySelectorAll('[id="cc-page-root"]');
   for (var r = 0; r < allRoots.length; r++) {
     allRoots[r].style.maxWidth = '1100px';
-    allRoots[r].style.overflow = 'visible';
   }
 
   /* ── user info from localStorage ── */
