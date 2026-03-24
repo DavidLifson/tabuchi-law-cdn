@@ -97,6 +97,7 @@
   var allRoots = document.querySelectorAll('[id="cc-page-root"]');
   for (var r = 0; r < allRoots.length; r++) {
     allRoots[r].style.maxWidth = '1100px';
+    allRoots[r].style.overflow = 'visible';
   }
 
   /* ── user info from localStorage ── */
