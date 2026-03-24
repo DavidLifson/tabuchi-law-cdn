@@ -32,21 +32,9 @@
   setText('tb-confirm-location', params.location || '');
   setText('tb-confirm-booking-id', params.bookingId);
 
-  // Join URL — adapt label by location type and hide if no URL
-  const joinLink = document.getElementById('tb-confirm-join-link');
+  // Hide Join Meeting button on confirmation page — meeting link is sent via email
   const joinContainer = document.getElementById('tb-confirm-join-url');
-  if (joinLink && params.joinUrl && /^https?:\/\//i.test(params.joinUrl)) {
-    joinLink.href = params.joinUrl;
-    // Determine label from joinUrl or location param
-    if (params.joinUrl.includes('zoom.us')) {
-      joinLink.textContent = 'Join Zoom Meeting';
-    } else {
-      joinLink.textContent = 'Join Teams Meeting';
-    }
-  } else if (joinContainer) {
-    // No join URL (In-Office or Phone Call) — hide the join section
-    joinContainer.style.display = 'none';
-  }
+  if (joinContainer) joinContainer.style.display = 'none';
 
   // Reschedule / Cancel links — restrict to same origin to prevent open redirects
   function isSameOrigin(url) {

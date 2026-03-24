@@ -3053,15 +3053,35 @@
       document.getElementById('cc-em-template-area').style.display = 'none';
       document.getElementById('cc-em-preview').style.display = 'none';
       document.getElementById('cc-em-footer').style.display = 'none';
+      var hint = document.getElementById('cc-em-confirm-hint');
+      if (hint) hint.remove();
+      var sendBtn = document.getElementById('cc-em-send');
+      if (sendBtn) { sendBtn.textContent = 'Send Email'; sendBtn.style.background = ''; }
+      sendConfirmed = false;
       var choiceBtns = overlay.querySelectorAll('.cc-email-choice-btn');
       for (var i = 0; i < choiceBtns.length; i++) choiceBtns[i].style.display = '';
       selectedTemplateId = null;
     });
 
-    // Send button
+    // Send button — two-step: first click shows confirm, second click sends
+    var sendConfirmed = false;
     document.getElementById('cc-em-send').addEventListener('click', async function() {
       if (!selectedTemplateId) { ccToast('Please select a template.', 'info'); return; }
       var btn = this;
+      if (!sendConfirmed) {
+        // First click: show confirmation
+        sendConfirmed = true;
+        btn.textContent = '✓ Confirm Send';
+        btn.style.background = '#DC2626';
+        var hint = document.createElement('p');
+        hint.id = 'cc-em-confirm-hint';
+        hint.style.cssText = 'color:#DC2626;font-size:0.85rem;margin:8px 0 0;font-weight:600;';
+        hint.textContent = 'Please review the email above. Click "Confirm Send" to send to ' + escapeHtml(record.Client_Email) + '.';
+        var footer = document.getElementById('cc-em-footer');
+        if (footer && !document.getElementById('cc-em-confirm-hint')) footer.appendChild(hint);
+        return;
+      }
+      // Second click: actually send
       btn.disabled = true; btn.textContent = 'Sending...';
       try {
         await API.comms.sendEmail({
@@ -3075,7 +3095,7 @@
         reloadActivities();
       } catch (err) {
         ccToast('Failed to send email: ' + (err.error || 'Network error'), 'error');
-        btn.disabled = false; btn.textContent = 'Send Email';
+        btn.disabled = false; btn.textContent = '✓ Confirm Send';
       }
     });
   }
