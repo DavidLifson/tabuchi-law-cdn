@@ -147,7 +147,7 @@
       var timeout = setTimeout(function() { controller.abort(); }, 5000);
       var resp = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/categories', {
         method: 'POST',
-        headers: { 'Dashboard_Token': t },
+        headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
         body: JSON.stringify({ action: 'list' }),
         signal: controller.signal
       });
