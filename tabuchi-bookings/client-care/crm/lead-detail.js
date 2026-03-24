@@ -1178,16 +1178,26 @@
     });
   }
 
-  // Practice Areas — loaded dynamically from config API
-  var PA_OPTIONS = [];
+  // Practice Areas — loaded dynamically from config API with hardcoded fallback
+  var PA_FALLBACK = [
+    { key: 'Estate Planning', label: 'Estate Planning' },
+    { key: 'Real Estate', label: 'Real Estate' },
+    { key: 'Probate', label: 'Probate' },
+    { key: 'Business Law', label: 'Business Law' },
+    { key: 'Family Law', label: 'Family Law' },
+    { key: 'Immigration', label: 'Immigration' },
+    { key: 'Litigation', label: 'Litigation' },
+    { key: 'Other', label: 'Other' }
+  ];
+  var PA_OPTIONS = PA_FALLBACK.slice();
 
   async function loadPracticeAreas() {
     try {
       var result = await API.admin.config.list('practice_area');
       var items = (result.data || []).filter(function(i) { return i.Is_Active !== false; }).sort(function(a, b) { return (a.Sort_Order || 0) - (b.Sort_Order || 0); });
-      PA_OPTIONS = items.map(function(i) { return { key: i.Label, label: i.Label }; });
+      PA_OPTIONS = items.length ? items.map(function(i) { return { key: i.Label, label: i.Label }; }) : PA_FALLBACK.slice();
     } catch (e) {
-      PA_OPTIONS = [];
+      PA_OPTIONS = PA_FALLBACK.slice();
     }
   }
 
