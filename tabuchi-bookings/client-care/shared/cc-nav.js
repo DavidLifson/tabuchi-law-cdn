@@ -32,8 +32,8 @@
   html += '<span style="font-weight:700;color:white;font-size:1.1rem;">Tabuchi Law</span>';
   html += '</a>';
 
-  // Nav links (left section)
-  html += '<nav id="app-nav" style="display:flex;gap:0.25rem;flex-wrap:wrap;align-items:center;">';
+  // Nav links + dropdowns + user (all right-justified)
+  html += '<nav id="app-nav" style="display:flex;gap:0.25rem;flex-wrap:wrap;align-items:center;margin-left:auto;">';
 
   // CRM links
   html += '<span id="app-crm-nav">';
@@ -69,10 +69,8 @@
   html += '<a href="/dashboard-bookings" data-nav="bk-bookings" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Bookings</a>';
   html += '</div></span>';
 
-  html += '</nav>';
-
-  // User dropdown (right-justified, outside nav)
-  html += '<span id="app-user-nav" style="position:relative;margin-left:auto;">';
+  // User dropdown
+  html += '<span id="app-user-nav" style="position:relative;margin-left:0.5rem;">';
   html += '<button id="app-user-btn" data-nav="bk-settings,admin-crm" style="display:flex;align-items:center;gap:0.4rem;padding:0.2rem 0.5rem;border-radius:4px;background:none;border:none;cursor:pointer;font-family:inherit;">';
   html += '<span id="app-user-avatar" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#4B5563;color:white;font-size:0.7rem;font-weight:600;overflow:hidden;">';
   html += '<img id="app-user-avatar-img" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">';
@@ -88,6 +86,7 @@
   html += '<div style="border-top:1px solid #E5E7EB;margin:0.25rem 0;"></div>';
   html += '<a href="/login?logout" style="display:block;padding:0.5rem 1rem;color:#DC2626;text-decoration:none;font-size:0.9rem;">Logout</a>';
   html += '</div></span>';
+  html += '</nav>';
 
   /* ── inject into bar ── */
   // Use negative margins to break out of the parent container to full viewport width.
