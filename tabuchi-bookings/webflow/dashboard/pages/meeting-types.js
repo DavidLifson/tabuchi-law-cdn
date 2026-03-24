@@ -57,16 +57,24 @@
     let staffCache = null;
     try { staffCache = JSON.parse(localStorage.getItem('app_user') || 'null'); } catch(e) {}
 
+    // Use bare fetch (no Content-Type header) to avoid CORS preflight on GET
+    async function _bareGet(url) {
+      var r = await fetch(url);
+      if (!r.ok) throw { status: r.status, error: 'Request failed' };
+      return r.json();
+    }
+    var _wh = 'https://tabuchilaw.app.n8n.cloud/webhook';
+
     if (staffCache && staffCache.slug) {
-      const result = await TabuchiAPI.getStaff(staffCache.slug);
+      const result = await _bareGet(_wh + '/api/staff?slug=' + encodeURIComponent(staffCache.slug));
       staffData = result.staff;
       meetingTypes = result.meetingTypes || [];
     } else {
-      const bookingsResult = await TabuchiAPI.dashboard.getBookings('upcoming');
+      const bookingsResult = await _bareGet(_wh + '/api/dashboard/bookings?scope=upcoming');
       if (bookingsResult.staff) {
         staffData = bookingsResult.staff;
         localStorage.setItem('app_user', JSON.stringify(staffData));
-        const result = await TabuchiAPI.getStaff(staffData.slug);
+        const result = await _bareGet(_wh + '/api/staff?slug=' + encodeURIComponent(staffData.slug));
         meetingTypes = result.meetingTypes || [];
       }
     }
