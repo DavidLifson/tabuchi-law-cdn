@@ -96,8 +96,9 @@
 
   } catch (err) {
     hideEl('tb-loading');
+    console.error('[MeetingTypes] Init error:', err, err && err.stack ? err.stack : '');
     if (err.status === 401) { window.location.href = '/login'; return; }
-    TabuchiAPI.util.showError('tb-error', err.error || 'Unable to load meeting types.');
+    TabuchiAPI.util.showError('tb-error', (err.error || err.message || 'Unable to load meeting types.') + ' [Debug: ' + JSON.stringify(err).substring(0, 100) + ']');
   }
 
   var PA_OPTIONS = ['Estate Planning', 'Real Estate', 'Probate', 'Business Law', 'Family Law', 'Immigration', 'Litigation', 'Other'];
