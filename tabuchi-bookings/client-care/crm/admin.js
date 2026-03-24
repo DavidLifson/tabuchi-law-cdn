@@ -2240,10 +2240,10 @@
     meta[metaKey] = value;
     try {
       if (item) {
-        await API.admin.config.update(item.id, { Label: roleName, Config_Key: 'role', Meta: JSON.stringify(meta) });
+        await API.admin.config.update(item.id, { label: roleName, config_key: 'role', meta: JSON.stringify(meta) });
         item.Meta = JSON.stringify(meta);
       } else {
-        var res = await API.admin.config.create({ Label: roleName, Config_Key: 'role', Sort_Order: 0, Is_Active: true, Meta: JSON.stringify(meta) });
+        var res = await API.admin.config.create({ label: roleName, config_key: 'role', sort_order: 0, is_active: true, meta: JSON.stringify(meta) });
         if (res && res.id) {
           state.roleConfigItems.push({ id: res.id, Label: roleName, Config_Key: 'role', Sort_Order: 0, Is_Active: true, Meta: JSON.stringify(meta) });
         }
@@ -2277,7 +2277,7 @@
       var roleCls = ROLE_COLORS[role] || 'gray';
       html += '<tr data-role-row="' + escapeAttr(role) + '">';
       html += '<td><span class="cc-badge cc-badge-' + roleCls + '">' + escapeHtml(role) + '</span></td>';
-      html += '<td><input type="number" class="cc-input cc-role-priority-input" data-role="' + escapeAttr(role) + '" value="' + escapeAttr(String(val)) + '" style="width:80px;padding:4px 8px;" min="0" /></td>';
+      html += '<td><input type="number" class="cc-input cc-role-priority-input" data-role="' + escapeAttr(role) + '" value="' + escapeAttr(String(val)) + '" style="width:80px;padding:4px 8px;" min="1" max="5" /></td>';
       html += '<td style="text-align:center;">';
       html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-role-btn" data-role="' + escapeAttr(role) + '" style="margin-right:6px;">Edit</button>';
       html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-delete-role-priority-btn" data-role="' + escapeAttr(role) + '">Delete</button>';
@@ -2298,7 +2298,7 @@
     html += '</div>';
     html += '<div style="margin-bottom:20px;">';
     html += '<label class="cc-label">Booking Priority</label>';
-    html += '<input id="cc-edit-role-priority" type="number" class="cc-input" min="0" style="max-width:120px;" />';
+    html += '<input id="cc-edit-role-priority" type="number" class="cc-input" min="1" max="5" style="max-width:120px;" />';
     html += '</div>';
     html += '<div style="margin-bottom:0;">';
     html += '<label class="cc-label">Badge Color</label>';
@@ -2376,6 +2376,7 @@
       inp.addEventListener('change', function() {
         var role = inp.dataset.role;
         var val = inp.value.trim() === '' ? '' : parseInt(inp.value, 10);
+        if (val !== '' && (val < 1 || val > 5)) { showToast('Priority must be between 1 and 5.', 'error'); inp.value = ''; return; }
         saveRoleConfigValue(role, 'booking_priority', val);
       });
     });
