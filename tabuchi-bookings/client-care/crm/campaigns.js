@@ -47,8 +47,8 @@
   // ─── Constants ─────────────────────────────────────────────
   var STATUS_OPTIONS = ['draft', 'scheduled', 'sending', 'sent', 'paused', 'cancelled', 'failed'];
   var LEGACY_STATUSES = ['DRAFT', 'ACTIVE', 'PAUSED', 'ENDED'];
-  var TYPE_OPTIONS = ['email', 'automation_email', 'test'];
-  var LEGACY_TYPES = ['DRIP', 'NEWSLETTER'];
+  var TYPE_OPTIONS = ['email', 'automation_email', 'DRIP', 'test'];
+  var LEGACY_TYPES = ['NEWSLETTER'];
 
   var STATUS_COLORS = {
     draft: 'gray', DRAFT: 'gray',
