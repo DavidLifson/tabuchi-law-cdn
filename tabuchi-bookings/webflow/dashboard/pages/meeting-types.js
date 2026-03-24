@@ -92,31 +92,52 @@
     TabuchiAPI.util.showError('tb-error', err.error || 'Unable to load meeting types.');
   }
 
-  function populateCategoryDropdown() {
-    var sel = $el('tb-mt-category');
-    // Dynamically inject category dropdown if it doesn't exist in the HTML
-    if (!sel) {
-      var bufferLabel = document.querySelector('label[for="tb-mt-buffer-after"]');
-      if (bufferLabel) {
-        var gridParent = bufferLabel.closest('div[style*="grid"]');
-        if (gridParent) {
-          var wrapper = document.createElement('div');
-          wrapper.style.cssText = 'margin-bottom:1rem;';
-          wrapper.innerHTML = '<label for="tb-mt-category" style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:0.3rem;">Meeting Type Category</label>' +
-            '<select id="tb-mt-category" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #E5E7EB;border-radius:6px;font-size:0.95rem;box-sizing:border-box;"><option value="">— None —</option></select>';
-          gridParent.parentNode.insertBefore(wrapper, gridParent);
-          sel = $el('tb-mt-category');
-        }
-      }
+  var PA_OPTIONS = ['Estate Planning', 'Real Estate', 'Probate', 'Business Law', 'Family Law', 'Immigration', 'Litigation', 'Other'];
+
+  function _injectFormDropdowns() {
+    // Find insertion point — before the Buffer After grid
+    var bufferLabel = document.querySelector('label[for="tb-mt-buffer-after"]');
+    if (!bufferLabel) return;
+    var gridParent = bufferLabel.closest('div[style*="grid"]');
+    if (!gridParent) return;
+
+    // Inject Practice Area if missing
+    if (!$el('tb-mt-practice-area')) {
+      var paWrapper = document.createElement('div');
+      paWrapper.style.cssText = 'margin-bottom:1rem;';
+      paWrapper.innerHTML = '<label for="tb-mt-practice-area" style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:0.3rem;">Practice Area</label>' +
+        '<select id="tb-mt-practice-area" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #E5E7EB;border-radius:6px;font-size:0.95rem;box-sizing:border-box;">' +
+        '<option value="">\u2014 None \u2014</option>' +
+        PA_OPTIONS.map(function(p) { return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join('') +
+        '</select>';
+      gridParent.parentNode.insertBefore(paWrapper, gridParent);
     }
+
+    // Inject Category if missing
+    if (!$el('tb-mt-category')) {
+      var catWrapper = document.createElement('div');
+      catWrapper.style.cssText = 'margin-bottom:1rem;';
+      catWrapper.innerHTML = '<label for="tb-mt-category" style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:0.3rem;">Meeting Type Category</label>' +
+        '<select id="tb-mt-category" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #E5E7EB;border-radius:6px;font-size:0.95rem;box-sizing:border-box;"><option value="">\u2014 None \u2014</option></select>';
+      var paEl = $el('tb-mt-practice-area');
+      var insertBefore = paEl ? paEl.closest('div[style*="margin-bottom"]').nextSibling : gridParent;
+      gridParent.parentNode.insertBefore(catWrapper, insertBefore || gridParent);
+    }
+  }
+
+  function populateCategoryDropdown() {
+    _injectFormDropdowns();
+    var sel = $el('tb-mt-category');
     if (!sel) return;
-    let cats = [];
+    // Fetch categories from API
+    var t = localStorage.getItem('app_token') || '';
+    var cats = [];
     try {
-      const cached = JSON.parse(localStorage.getItem('app_user') || '{}');
+      var cached = JSON.parse(localStorage.getItem('app_user') || '{}');
       cats = cached.categories || [];
     } catch (e) {}
     if (typeof cats === 'string') { try { cats = JSON.parse(cats); } catch (e) { cats = []; } }
-    if (cats.length > 0 && typeof cats[0] === 'object') cats = cats.map(c => c.name || c);
+    if (cats.length > 0 && typeof cats[0] === 'object') cats = cats.map(function(c) { return c.name || c; });
     sel.innerHTML = '<option value="">\u2014 None \u2014</option>'
       + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
   }
@@ -422,6 +443,7 @@
     setVal('tb-mt-max-per-day', '0');
     setVal('tb-mt-slot-interval', '30');
     setVal('tb-mt-category', '');
+    setVal('tb-mt-practice-area', '');
     setVal('tb-mt-required-witnesses', '0');
     updateWitnessState('Teams Video Call');
     setVal('tb-mt-time-block', '0');
@@ -448,6 +470,7 @@
     setVal('tb-mt-id', mt.id);
     setVal('tb-mt-name', mt.name);
     setVal('tb-mt-category', mt.category || '');
+    setVal('tb-mt-practice-area', mt.practice_area || mt.practiceArea || '');
     setVal('tb-mt-duration', mt.duration || 30);
     setVal('tb-mt-description', mt.description || '');
     setVal('tb-mt-location', mt.location || 'Teams Video Call');
@@ -556,6 +579,7 @@
     var data = {
       name: getVal('tb-mt-name'),
       category: getVal('tb-mt-category'),
+      practice_area: getVal('tb-mt-practice-area'),
       duration: parseInt(getVal('tb-mt-duration')) || 30,
       description: getVal('tb-mt-description'),
       location: getVal('tb-mt-location'),
