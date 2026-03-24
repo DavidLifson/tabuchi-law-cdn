@@ -147,6 +147,7 @@
     templatesSortKey: 'name',
     templatesSortDir: 'asc',
     templateFilterChannel: '',
+    templateSubTab: sessionStorage.getItem('cc_tpl_subtab') || 'email',
     // Clio sync failures
     clioFailures: [],
     clioLoading: false,
@@ -2858,121 +2859,140 @@
     var content = $el('cc-admin-content');
     if (!content) return;
 
-    // Filter by channel
-    var filtered = state.templates;
-    if (state.templateFilterChannel) {
-      filtered = filtered.filter(function(t) { return t.channel === state.templateFilterChannel; });
-    }
+    var subTab = state.templateSubTab || 'email';
 
-    // Sort
-    var sorted = filtered.slice().sort(function(a, b) {
-      var av = String(a[state.templatesSortKey] || '');
-      var bv = String(b[state.templatesSortKey] || '');
-      return state.templatesSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-    });
-
+    // ── Sub-tab bar ──
     var html = '<div class="cc-admin-templates">';
-    html += '<div class="cc-admin-section-header">';
-    html += '<h3 class="cc-admin-section-title">Email & SMS Templates</h3>';
-    html += '<div class="cc-admin-template-actions">';
-
-    // Channel filter
-    html += '<select id="cc-filter-template-channel" class="cc-input cc-input-sm">';
-    html += '<option value="">All Channels</option>';
-    CHANNEL_OPTIONS.forEach(function(ch) {
-      html += '<option value="' + ch + '"' + (state.templateFilterChannel === ch ? ' selected' : '') + '>' + ch + '</option>';
-    });
-    html += '</select>';
-
-    html += '<button id="cc-create-template-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ New Template</button>';
-    html += '</div>';
+    html += '<div class="cc-admin-section-header" style="margin-bottom:0;">';
+    html += '<h3 class="cc-admin-section-title">Templates</h3>';
     html += '</div>';
 
-    if (sorted.length === 0 && !state.templatesLoading) {
-      html += '<div class="cc-empty"><p>No templates found.' +
-        (state.templates.length ? ' Try adjusting the filter.' : ' Create your first template.') + '</p></div>';
-      html += '</div>';
-      content.innerHTML = html;
-      bindTemplateFilterEvents();
-      return;
-    }
-
-    var columns = [
-      { key: 'name', label: 'Template Name' },
-      { key: 'channel', label: 'Channel' },
-      { key: 'subject', label: 'Subject' }
-    ];
-
-    html += '<table class="cc-table cc-admin-templates-table">';
-    html += '<thead><tr>';
-    columns.forEach(function(col) {
-      var arrow = '';
-      var cls = 'cc-th cc-th-sortable';
-      if (state.templatesSortKey === col.key) {
-        cls += ' cc-th-sorted';
-        arrow = state.templatesSortDir === 'asc' ? ' &#9650;' : ' &#9660;';
-      }
-      html += '<th class="' + cls + '" data-col="' + col.key + '">' + col.label + arrow + '</th>';
+    html += '<div style="display:flex;gap:0;border-bottom:2px solid #E5E7EB;margin-bottom:1.5rem;">';
+    [
+      { key: 'email', label: 'Email' },
+      { key: 'sms',   label: 'SMS'   },
+      { key: 'drip',  label: 'Drip'  }
+    ].forEach(function(tab) {
+      var isActive = subTab === tab.key;
+      html += '<button class="cc-tpl-subtab" data-subtab="' + tab.key + '" style="padding:8px 20px;font-size:0.9rem;font-weight:' + (isActive ? '600' : '400') + ';color:' + (isActive ? '#2563EB' : '#6B7280') + ';border:none;background:none;cursor:pointer;border-bottom:2px solid ' + (isActive ? '#2563EB' : 'transparent') + ';margin-bottom:-2px;">' + tab.label + '</button>';
     });
-    html += '<th class="cc-th">Preview</th>';
-    html += '<th class="cc-th">Actions</th>';
-    html += '</tr></thead><tbody>';
-
-    sorted.forEach(function(t) {
-      var channelCls = t.channel === 'EMAIL' ? 'blue' : 'green';
-      var bodyPreview = t.channel === 'EMAIL'
-        ? truncate(stripHtml(t.body_html || ''), 60)
-        : truncate(t.body_text || '', 60);
-
-      html += '<tr data-template-id="' + escapeAttr(t.id) + '">';
-      html += '<td class="cc-template-name-cell">' + escapeHtml(t.name || 'Untitled') + '</td>';
-      html += '<td><span class="cc-badge cc-badge-' + channelCls + '">' + escapeHtml(t.channel || '') + '</span>';
-      if (t.is_drip) html += '<span style="background:#7C3AED;color:white;font-size:0.65rem;padding:1px 5px;border-radius:3px;margin-left:4px;">Drip</span>';
-      html += '</td>';
-      html += '<td>' + escapeHtml(t.subject || '\u2014') + '</td>';
-      html += '<td class="cc-template-preview-cell">' + escapeHtml(bodyPreview || '\u2014') + '</td>';
-      html += '<td>';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-template-btn" data-template-id="' + escapeAttr(t.id) + '">Edit</button>';
-      html += '</td>';
-      html += '</tr>';
-    });
-
-    html += '</tbody></table>';
     html += '</div>';
-    content.innerHTML = html;
 
-    bindTemplateEvents();
-    bindTemplateFilterEvents();
-  }
+    // ── Filter templates by sub-tab ──
+    var filtered = (state.templates || []).filter(function(t) {
+      var ch = t.channel || 'EMAIL';
+      if (subTab === 'email') return ch === 'EMAIL' && !t.is_drip;
+      if (subTab === 'sms')   return ch === 'SMS'   && !t.is_drip;
+      if (subTab === 'drip')  return !!t.is_drip;
+      return true;
+    });
 
-  function bindTemplateFilterEvents() {
-    var channelEl = $el('cc-filter-template-channel');
-    if (channelEl) {
-      channelEl.addEventListener('change', function() {
-        state.templateFilterChannel = channelEl.value;
-        renderTemplatesTab();
+    // Sort alphabetically by practice area then name
+    filtered.sort(function(a, b) {
+      var pa = (a.practice_area || 'zzz').localeCompare(b.practice_area || 'zzz');
+      return pa !== 0 ? pa : (a.name || '').localeCompare(b.name || '');
+    });
+
+    // ── "+ New" button ──
+    var btnLabel = subTab === 'email' ? '+ New Email Template' : subTab === 'sms' ? '+ New SMS Template' : '+ New Drip Template';
+    html += '<div style="margin-bottom:1rem;"><button id="cc-tpl-new-btn" class="cc-btn cc-btn-primary cc-btn-sm">' + btnLabel + '</button></div>';
+
+    // ── Group by practice area ──
+    if (filtered.length === 0 && !state.templatesLoading) {
+      html += '<div class="cc-empty"><p>No ' + subTab + ' templates found. Create your first one above.</p></div>';
+    } else {
+      var groups = {};
+      filtered.forEach(function(t) {
+        var pa = t.practice_area || 'General';
+        if (!groups[pa]) groups[pa] = [];
+        groups[pa].push(t);
+      });
+
+      var paKeys = Object.keys(groups).sort(function(a, b) {
+        if (a === 'All') return -1;
+        if (b === 'All') return 1;
+        if (a === 'General') return 1;
+        if (b === 'General') return -1;
+        return a.localeCompare(b);
+      });
+
+      paKeys.forEach(function(pa) {
+        var items = groups[pa];
+        var accordionId = 'cc-tpl-acc-' + pa.replace(/\s+/g, '-').toLowerCase();
+        html += '<div class="cc-tpl-accordion" style="border:1px solid #E5E7EB;border-radius:8px;margin-bottom:0.75rem;overflow:hidden;">';
+        html += '<button class="cc-tpl-acc-toggle" data-target="' + accordionId + '" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 14px;background:#F9FAFB;border:none;cursor:pointer;font-size:0.9rem;font-weight:600;color:#374151;">';
+        html += '<span>' + escapeHtml(pa) + ' <span style="font-weight:400;color:#9CA3AF;">(' + items.length + ')</span></span>';
+        html += '<span class="cc-tpl-acc-arrow" style="transition:transform 0.2s;">&#9660;</span>';
+        html += '</button>';
+        html += '<div id="' + accordionId + '" class="cc-tpl-acc-body" style="display:block;">';
+
+        items.forEach(function(t) {
+          var preview = '';
+          if (subTab === 'email' || (subTab === 'drip' && (t.channel || 'EMAIL') === 'EMAIL')) {
+            preview = escapeHtml(t.subject || '\u2014');
+          } else {
+            preview = escapeHtml(truncate(t.body_text || '', 80) || '\u2014');
+          }
+
+          html += '<div class="cc-tpl-card" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid #F3F4F6;">';
+          html += '<div style="flex:1;min-width:0;">';
+          html += '<div style="font-weight:500;color:#111827;margin-bottom:2px;">' + escapeHtml(t.name || 'Untitled') + '</div>';
+          html += '<div style="font-size:0.8rem;color:#6B7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">';
+          if (subTab === 'drip') {
+            var channelCls = (t.channel || 'EMAIL') === 'EMAIL' ? 'blue' : 'green';
+            html += '<span class="cc-badge cc-badge-' + channelCls + '" style="font-size:0.65rem;margin-right:6px;">' + escapeHtml(t.channel || 'EMAIL') + '</span>';
+          }
+          html += preview;
+          html += '</div>';
+          html += '</div>';
+          html += '<div style="display:flex;gap:6px;flex-shrink:0;margin-left:12px;">';
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-edit-template-btn" data-template-id="' + escapeAttr(t.id) + '">Edit</button>';
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-delete-template-btn" data-template-id="' + escapeAttr(t.id) + '" data-template-name="' + escapeAttr(t.name || '') + '" style="color:#DC2626;border-color:#FECACA;">Delete</button>';
+          html += '</div>';
+          html += '</div>';
+        });
+
+        html += '</div></div>';
       });
     }
 
-    var createBtn = $el('cc-create-template-btn');
-    if (createBtn) createBtn.addEventListener('click', showCreateTemplateModal);
+    html += '</div>';
+    content.innerHTML = html;
+    bindTemplateSubTabEvents(content);
   }
 
-  function bindTemplateEvents() {
-    var content = $el('cc-admin-content');
+  function bindTemplateSubTabEvents(content) {
+    if (!content) content = $el('cc-admin-content');
     if (!content) return;
 
-    // Sort headers
-    content.querySelectorAll('.cc-admin-templates-table .cc-th-sortable').forEach(function(th) {
-      th.addEventListener('click', function() {
-        var col = th.dataset.col;
-        if (state.templatesSortKey === col) {
-          state.templatesSortDir = state.templatesSortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-          state.templatesSortKey = col;
-          state.templatesSortDir = 'asc';
-        }
+    // Sub-tab switching
+    content.querySelectorAll('.cc-tpl-subtab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        state.templateSubTab = btn.dataset.subtab;
+        sessionStorage.setItem('cc_tpl_subtab', state.templateSubTab);
         renderTemplatesTab();
+      });
+    });
+
+    // Accordion toggles
+    content.querySelectorAll('.cc-tpl-acc-toggle').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var target = document.getElementById(btn.dataset.target);
+        if (!target) return;
+        var isOpen = target.style.display !== 'none';
+        target.style.display = isOpen ? 'none' : 'block';
+        var arrow = btn.querySelector('.cc-tpl-acc-arrow');
+        if (arrow) arrow.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+      });
+    });
+
+    // New template button — pre-fill based on sub-tab
+    var newBtn = $el('cc-tpl-new-btn');
+    if (newBtn) newBtn.addEventListener('click', function() {
+      var sub = state.templateSubTab || 'email';
+      showCreateTemplateModal({
+        channel: sub === 'sms' ? 'SMS' : 'EMAIL',
+        is_drip: sub === 'drip'
       });
     });
 
@@ -2984,10 +3004,40 @@
         if (tpl) showEditTemplateModal(tpl);
       });
     });
+
+    // Delete buttons
+    content.querySelectorAll('.cc-delete-template-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var tid = btn.dataset.templateId;
+        var tName = btn.dataset.templateName || 'this template';
+        if (!confirm('Delete "' + tName + '"? This cannot be undone.')) return;
+        handleDeleteTemplate(tid);
+      });
+    });
   }
 
-  function showCreateTemplateModal() {
-    showModal('New Template', buildTemplateForm({}), function(form) {
+  async function handleDeleteTemplate(templateId) {
+    try {
+      var result = await API.campaignTemplates.delete(templateId);
+      if (result.success) {
+        showToast('Template deleted.', 'success');
+        state.templates = state.templates.filter(function(t) { return t.id !== templateId; });
+        renderTemplatesTab();
+      } else {
+        showToast(result.error || 'Failed to delete template.', 'error');
+      }
+    } catch (err) {
+      showToast(err.error || 'Error deleting template.', 'error');
+    }
+  }
+
+  function showCreateTemplateModal(prefill) {
+    prefill = prefill || {};
+    var defaults = {
+      channel: prefill.channel || 'EMAIL',
+      is_drip: !!prefill.is_drip
+    };
+    showModal('New Template', buildTemplateForm(defaults), function(form) {
       return handleCreateTemplate(form);
     });
     initTemplateEditor('');
