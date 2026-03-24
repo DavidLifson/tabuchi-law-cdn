@@ -3364,11 +3364,16 @@
 
   async function handleEditCategory(id, newName) {
     try {
-      var result = await categoriesApiFetch('update', { id: id, name: newName });
+      // API doesn't support update — delete old + add new, then re-fetch
+      await categoriesApiFetch('delete', { id: id });
+      await categoriesApiFetch('add', { name: newName });
+      var result = await categoriesApiFetch('list');
       state.categories = result.categories || [];
       renderCategoriesTab();
       showToast('Category renamed.', 'success');
     } catch (err) {
+      // Re-fetch in case partial success
+      try { var r = await categoriesApiFetch('list'); state.categories = r.categories || []; renderCategoriesTab(); } catch(e) {}
       showToast(err.error || 'Failed to rename category.', 'error');
     }
   }
