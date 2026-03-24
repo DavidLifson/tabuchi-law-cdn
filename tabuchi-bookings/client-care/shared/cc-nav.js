@@ -98,14 +98,15 @@
   var navEl = document.getElementById('app-nav');
   if (navEl) navEl.style.marginLeft = 'auto';
 
-  // Stretch bar to full viewport width
+  // Stretch bar to full viewport width — set actual width so flex layout uses it
   function positionNav() {
     bar.style.marginLeft = '';
     bar.style.marginRight = '';
+    bar.style.width = '';
     var rect = bar.getBoundingClientRect();
     var vw = document.documentElement.clientWidth;
+    bar.style.width = vw + 'px';
     bar.style.marginLeft = (-rect.left) + 'px';
-    bar.style.marginRight = (-(vw - rect.right)) + 'px';
   }
   positionNav();
   window.addEventListener('resize', positionNav);
