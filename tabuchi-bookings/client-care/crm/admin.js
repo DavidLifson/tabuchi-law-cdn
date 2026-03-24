@@ -2977,8 +2977,9 @@
     btns.forEach(function(btn) {
       btn.addEventListener('click', function() {
         var token = btn.getAttribute('data-token');
-        if (window.tinymce && tinymce.activeEditor) {
-          tinymce.activeEditor.insertContent(token);
+        if (_quillEditor) {
+          var range = _quillEditor.getSelection(true);
+          _quillEditor.insertText(range.index, token);
         } else {
           // Fallback: insert into textarea
           var ta = document.getElementById('cc-modal-tpl-body-html');
@@ -3004,43 +3005,58 @@
     { label: 'Unsubscribe URL', value: '{{Unsubscribe_URL}}' }
   ];
 
-  function ensureTinyMCELoaded(cb) {
-    if (window.tinymce) { cb(); return; }
+  var _quillEditor = null;
+
+  function ensureQuillLoaded(cb) {
+    if (window.Quill) { cb(); return; }
+    // Load Quill CSS
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css';
+    document.head.appendChild(link);
+    // Load Quill JS
     var s = document.createElement('script');
-    s.src = 'https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js';
-    s.referrerPolicy = 'origin';
+    s.src = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js';
     s.onload = cb;
     document.head.appendChild(s);
   }
 
   function initTemplateEditor(bodyHtml) {
-    ensureTinyMCELoaded(function() {
-      if (tinymce.get('cc-modal-tpl-body-html')) {
-        tinymce.get('cc-modal-tpl-body-html').remove();
-      }
-      tinymce.init({
-        selector: '#cc-modal-tpl-body-html',
-        plugins: 'lists link image code table paste',
-        toolbar: 'bold italic underline | formatselect | bullist numlist | link image | table | code',
-        height: 300,
-        menubar: false,
-        branding: false,
-        promotion: false,
-        statusbar: true,
-        convert_urls: false,
-        setup: function(editor) {
-          editor.on('init', function() {
-            if (bodyHtml) editor.setContent(bodyHtml);
-          });
+    ensureQuillLoaded(function() {
+      var container = document.getElementById('cc-modal-tpl-body-html');
+      if (!container) return;
+      // Replace textarea with a div for Quill
+      var editorDiv = document.createElement('div');
+      editorDiv.id = 'cc-quill-editor';
+      editorDiv.style.cssText = 'height:250px;background:white;';
+      container.style.display = 'none';
+      container.parentNode.insertBefore(editorDiv, container.nextSibling);
+
+      _quillEditor = new Quill('#cc-quill-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ header: [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ color: [] }, { background: [] }],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['link', 'image'],
+            [{ align: [] }],
+            ['blockquote', 'code-block'],
+            ['clean']
+          ]
         }
       });
+      if (bodyHtml) {
+        _quillEditor.root.innerHTML = bodyHtml;
+      }
     });
   }
 
   function destroyTemplateEditor() {
-    if (window.tinymce && tinymce.get('cc-modal-tpl-body-html')) {
-      tinymce.get('cc-modal-tpl-body-html').remove();
-    }
+    _quillEditor = null;
+    var editorDiv = document.getElementById('cc-quill-editor');
+    if (editorDiv) editorDiv.remove();
   }
 
   function buildTemplateForm(existing) {
@@ -3119,8 +3135,8 @@
 
     if (channel === 'EMAIL') {
       data.subject = form.querySelector('#cc-modal-tpl-subject').value.trim();
-      var editor = window.tinymce && tinymce.get('cc-modal-tpl-body-html');
-      data.body_html = editor ? editor.getContent() : form.querySelector('#cc-modal-tpl-body-html').value;
+      var editor = _quillEditor;
+      data.body_html = editor ? editor.root.innerHTML : form.querySelector('#cc-modal-tpl-body-html').value;
     } else {
       data.body_text = form.querySelector('#cc-modal-tpl-body-text').value;
     }
@@ -3153,8 +3169,8 @@
 
     if (channel === 'EMAIL') {
       fields.subject = form.querySelector('#cc-modal-tpl-subject').value.trim();
-      var editor = window.tinymce && tinymce.get('cc-modal-tpl-body-html');
-      fields.body_html = editor ? editor.getContent() : form.querySelector('#cc-modal-tpl-body-html').value;
+      var editor = _quillEditor;
+      fields.body_html = editor ? editor.root.innerHTML : form.querySelector('#cc-modal-tpl-body-html').value;
     } else {
       fields.body_text = form.querySelector('#cc-modal-tpl-body-text').value;
     }
