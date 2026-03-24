@@ -32,7 +32,7 @@
   html += '<span style="font-weight:700;color:white;font-size:1.1rem;">Tabuchi Law</span>';
   html += '</a>';
 
-  // Nav links
+  // Nav links (left section)
   html += '<nav id="app-nav" style="display:flex;gap:0.25rem;flex-wrap:wrap;align-items:center;">';
 
   // CRM links
@@ -43,11 +43,20 @@
     { href: '/crm/contacts',  nav: 'contacts',  label: 'Contacts' },
     { href: '/crm/kanban',    nav: 'kanban',     label: 'Kanban' },
     { href: '/crm/reports',   nav: 'reports',    label: 'Reports' },
-    { href: '/crm/campaigns', nav: 'campaigns',  label: 'Campaigns' }
   ];
   crmLinks.forEach(function(lk) {
     html += '<a href="' + lk.href + '" data-nav="' + lk.nav + '" style="color:#D1D5DB;text-decoration:none;padding:0.3rem 0.6rem;font-size:0.9rem;border-radius:4px;">' + lk.label + '</a>';
   });
+
+  // Campaigns dropdown
+  html += '<span id="app-camp-nav" style="position:relative;">';
+  html += '<button id="app-camp-btn" data-nav="campaigns,campaign-templates,drip-enrollment" style="color:#D1D5DB;padding:0.3rem 0.6rem;font-size:0.9rem;border-radius:4px;background:none;border:none;cursor:pointer;font-family:inherit;">Campaigns &#9662;</button>';
+  html += '<div id="app-camp-dropdown" style="display:none;position:absolute;left:0;top:100%;background:white;border:1px solid #E5E7EB;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:170px;z-index:100;margin-top:0.25rem;">';
+  html += '<a href="/crm/campaigns" data-nav="campaigns" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Campaigns</a>';
+  html += '<a href="/crm/campaign-templates" data-nav="campaign-templates" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Templates</a>';
+  html += '<a href="/crm/admin#drip-enrollment" data-nav="drip-enrollment" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Drip Enrollment</a>';
+  html += '</div></span>';
+
   html += '</span>';
 
   // Bookings dropdown
@@ -60,8 +69,10 @@
   html += '<a href="/dashboard-bookings" data-nav="bk-bookings" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Bookings</a>';
   html += '</div></span>';
 
-  // User dropdown
-  html += '<span id="app-user-nav" style="position:relative;margin-left:0.5rem;">';
+  html += '</nav>';
+
+  // User dropdown (right-justified, outside nav)
+  html += '<span id="app-user-nav" style="position:relative;margin-left:auto;">';
   html += '<button id="app-user-btn" data-nav="bk-settings,admin-crm" style="display:flex;align-items:center;gap:0.4rem;padding:0.2rem 0.5rem;border-radius:4px;background:none;border:none;cursor:pointer;font-family:inherit;">';
   html += '<span id="app-user-avatar" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#4B5563;color:white;font-size:0.7rem;font-weight:600;overflow:hidden;">';
   html += '<img id="app-user-avatar-img" style="display:none;width:100%;height:100%;object-fit:cover;" alt="">';
@@ -77,8 +88,6 @@
   html += '<div style="border-top:1px solid #E5E7EB;margin:0.25rem 0;"></div>';
   html += '<a href="/login?logout" style="display:block;padding:0.5rem 1rem;color:#DC2626;text-decoration:none;font-size:0.9rem;">Logout</a>';
   html += '</div></span>';
-
-  html += '</nav>';
 
   /* ── inject into bar ── */
   // Use negative margins to break out of the parent container to full viewport width.
@@ -205,6 +214,7 @@
       dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
     });
   }
+  setupToggle('app-camp-btn', 'app-camp-dropdown');
   setupToggle('app-bk-btn', 'app-bk-dropdown');
   setupToggle('app-user-btn', 'app-user-dropdown');
 
