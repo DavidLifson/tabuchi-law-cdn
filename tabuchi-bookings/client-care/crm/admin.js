@@ -112,7 +112,7 @@
     var t = localStorage.getItem('app_token') || '';
     var r = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/categories', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Dashboard-Token': t },
+      headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
       body: JSON.stringify(Object.assign({ action: action }, data || {}))
     });
     var j;
@@ -3313,13 +3313,16 @@
     html += '<table class="cc-table">';
     html += '<thead><tr>';
     html += '<th class="cc-th">Name</th>';
-    html += '<th class="cc-th" style="width:80px;">Actions</th>';
+    html += '<th class="cc-th" style="width:140px;">Actions</th>';
     html += '</tr></thead><tbody>';
 
     state.categories.forEach(function(cat) {
       html += '<tr>';
       html += '<td>' + escapeHtml(cat.name || '') + '</td>';
-      html += '<td><button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-cat-delete-btn" data-cat-id="' + cat.id + '" data-cat-name="' + escapeAttr(cat.name) + '">Delete</button></td>';
+      html += '<td style="display:flex;gap:4px;">';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-cat-edit-btn" data-cat-id="' + cat.id + '" data-cat-name="' + escapeAttr(cat.name) + '">Edit</button>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-cat-delete-btn" data-cat-id="' + cat.id + '" data-cat-name="' + escapeAttr(cat.name) + '">Delete</button>';
+      html += '</td>';
       html += '</tr>';
     });
 
@@ -3341,6 +3344,15 @@
 
     var content = $el('cc-admin-content');
     if (!content) return;
+    content.querySelectorAll('.cc-cat-edit-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var newName = prompt('Rename category:', btn.dataset.catName);
+        if (newName && newName.trim() && newName.trim() !== btn.dataset.catName) {
+          handleEditCategory(btn.dataset.catId, newName.trim());
+        }
+      });
+    });
+
     content.querySelectorAll('.cc-cat-delete-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         if (confirm('Delete category "' + btn.dataset.catName + '"?')) {
@@ -3348,6 +3360,17 @@
         }
       });
     });
+  }
+
+  async function handleEditCategory(id, newName) {
+    try {
+      var result = await categoriesApiFetch('update', { id: id, name: newName });
+      state.categories = result.categories || [];
+      renderCategoriesTab();
+      showToast('Category renamed.', 'success');
+    } catch (err) {
+      showToast(err.error || 'Failed to rename category.', 'error');
+    }
   }
 
   async function handleAddCategory() {
