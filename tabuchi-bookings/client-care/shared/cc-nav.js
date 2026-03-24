@@ -69,6 +69,17 @@
   html += '<a href="/dashboard-bookings" data-nav="bk-bookings" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Bookings</a>';
   html += '</div></span>';
 
+  // Notification bell
+  html += '<span id="app-notif-nav" style="position:relative;margin-left:0.5rem;">';
+  html += '<button id="app-notif-btn" style="position:relative;background:none;border:none;cursor:pointer;padding:0.3rem 0.5rem;font-size:1.1rem;line-height:1;" title="Task Notifications">';
+  html += '<span style="color:#D1D5DB;">&#128276;</span>';
+  html += '<span id="app-notif-badge" style="display:none;position:absolute;top:0;right:0;background:#EF4444;color:white;font-size:0.6rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;text-align:center;line-height:16px;padding:0 3px;"></span>';
+  html += '</button>';
+  html += '<div id="app-notif-dropdown" style="display:none;position:absolute;right:0;top:100%;background:white;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.18);width:340px;max-height:420px;overflow-y:auto;z-index:110;margin-top:0.25rem;">';
+  html += '<div style="padding:0.75rem 1rem;border-bottom:1px solid #E5E7EB;font-weight:600;color:#1F2937;font-size:0.9rem;">Task Notifications</div>';
+  html += '<div id="app-notif-list" style="padding:0.5rem 0;"><div style="padding:1rem;color:#9CA3AF;font-size:0.85rem;text-align:center;">Loading...</div></div>';
+  html += '</div></span>';
+
   // User dropdown
   html += '<span id="app-user-nav" style="position:relative;margin-left:0.5rem;">';
   html += '<button id="app-user-btn" data-nav="bk-settings,admin-crm" style="display:flex;align-items:center;gap:0.4rem;padding:0.2rem 0.5rem;border-radius:4px;background:none;border:none;cursor:pointer;font-family:inherit;">';
@@ -211,6 +222,7 @@
   }
   setupToggle('app-camp-btn', 'app-camp-dropdown');
   setupToggle('app-bk-btn', 'app-bk-dropdown');
+  setupToggle('app-notif-btn', 'app-notif-dropdown');
   setupToggle('app-user-btn', 'app-user-dropdown');
 
   document.addEventListener('click', function() {
@@ -236,6 +248,122 @@
   }
 
   function escapeHtml(str) { return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  /* ── Notification Bell: fetch overdue + due-today tasks ── */
+  (function initNotifBell() {
+    var CACHE_KEY = 'cc_notif_tasks';
+    var CACHE_TS_KEY = 'cc_notif_tasks_ts';
+    var CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+    var badge = bar.querySelector('#app-notif-badge');
+    var listEl = bar.querySelector('#app-notif-list');
+    if (!badge || !listEl) return;
+
+    var token = '';
+    var userId = '';
+    try {
+      token = localStorage.getItem('app_token') || '';
+      var usr = JSON.parse(localStorage.getItem('app_user') || '{}');
+      userId = usr.id || '';
+    } catch (e) { /* ignore */ }
+    if (!token || !userId) {
+      listEl.innerHTML = '<div style="padding:1rem;color:#9CA3AF;font-size:0.85rem;text-align:center;">Not authenticated</div>';
+      return;
+    }
+
+    function todayStr() {
+      var d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function renderTasks(tasks) {
+      if (!tasks || tasks.length === 0) {
+        listEl.innerHTML = '<div style="padding:1rem;color:#9CA3AF;font-size:0.85rem;text-align:center;">No overdue or due-today tasks</div>';
+        badge.style.display = 'none';
+        return;
+      }
+      badge.style.display = '';
+      badge.textContent = tasks.length > 99 ? '99+' : tasks.length;
+      var today = todayStr();
+      var html = '';
+      tasks.forEach(function(t) {
+        var isOverdue = t.Due_At && t.Due_At.slice(0, 10) < today;
+        var tagColor = isOverdue ? '#EF4444' : '#F59E0B';
+        var tagLabel = isOverdue ? 'Overdue' : 'Today';
+        var dueLabel = t.Due_At ? t.Due_At.slice(0, 10) : 'No due date';
+        var leadId = (t.Lead && t.Lead[0]) || '';
+        var href = leadId ? '/crm/lead?id=' + leadId : '#';
+        html += '<a href="' + href + '" style="display:block;padding:0.6rem 1rem;text-decoration:none;border-bottom:1px solid #F3F4F6;transition:background 0.15s;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'transparent\'">';
+        html += '<div style="display:flex;align-items:center;gap:0.5rem;">';
+        html += '<span style="font-size:0.85rem;color:#1F2937;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(t.Title) + '</span>';
+        html += '<span style="font-size:0.65rem;font-weight:600;color:white;background:' + tagColor + ';padding:1px 6px;border-radius:4px;white-space:nowrap;">' + tagLabel + '</span>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:0.75rem;margin-top:0.2rem;font-size:0.75rem;color:#6B7280;">';
+        html += '<span>' + escapeHtml(dueLabel) + '</span>';
+        if (t.Lead_Name) html += '<span>' + escapeHtml(t.Lead_Name) + '</span>';
+        html += '</div>';
+        html += '</a>';
+      });
+      listEl.innerHTML = html;
+    }
+
+    function fetchAndRender() {
+      // Check cache
+      var cached = sessionStorage.getItem(CACHE_KEY);
+      var cachedTs = parseInt(sessionStorage.getItem(CACHE_TS_KEY) || '0', 10);
+      if (cached && (Date.now() - cachedTs) < CACHE_TTL) {
+        try {
+          var cachedTasks = JSON.parse(cached);
+          renderTasks(cachedTasks);
+          return;
+        } catch (e) { /* fall through to fetch */ }
+      }
+
+      var today = todayStr();
+      var body = {
+        action: 'list',
+        status: 'OPEN',
+        owner: userId,
+        due_end: today + 'T23:59:59.999Z'
+      };
+
+      fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Dashboard-Token': token },
+        body: JSON.stringify(body)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var tasks = (data.tasks || []).filter(function(t) {
+          if (!t.Due_At) return false;
+          return t.Due_At.slice(0, 10) <= today;
+        });
+        // Sort: overdue first, then today
+        tasks.sort(function(a, b) {
+          if (a.Due_At < b.Due_At) return -1;
+          if (a.Due_At > b.Due_At) return 1;
+          return 0;
+        });
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(tasks));
+        sessionStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+        renderTasks(tasks);
+      })
+      .catch(function() {
+        listEl.innerHTML = '<div style="padding:1rem;color:#9CA3AF;font-size:0.85rem;text-align:center;">Failed to load</div>';
+      });
+    }
+
+    // Fetch on first click, then periodically refresh
+    var notifBtn = bar.querySelector('#app-notif-btn');
+    var loaded = false;
+    if (notifBtn) {
+      notifBtn.addEventListener('click', function() {
+        if (!loaded) { fetchAndRender(); loaded = true; }
+      });
+    }
+    // Also fetch badge count eagerly (lightweight)
+    fetchAndRender();
+  })();
 
   function showMySettingsModal() {
     var API = window.ClientCareAPI;
