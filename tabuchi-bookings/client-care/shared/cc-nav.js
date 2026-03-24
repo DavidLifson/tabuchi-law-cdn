@@ -95,7 +95,7 @@
 
   // Inner flex container for the nav content
   var innerNav = document.createElement('div');
-  innerNav.style.cssText = 'max-width:1100px;margin:0 auto;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
+  innerNav.style.cssText = 'width:100%;padding:0.75rem 2rem;display:flex;align-items:center;gap:0.5rem;';
   innerNav.innerHTML = html;
   bar.innerHTML = '';
   bar.appendChild(innerNav);
