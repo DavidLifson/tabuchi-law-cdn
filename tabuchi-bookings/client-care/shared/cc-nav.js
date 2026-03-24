@@ -90,37 +90,31 @@
   html += '</nav>';
 
   /* ── inject into bar ── */
-  // Use negative margins to break out of the parent container to full viewport width.
-  // This avoids position:relative + left which clips the logo on the left side.
-  bar.style.cssText = 'background:#1F2937;margin-top:-2rem;margin-bottom:2rem;padding:0;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;overflow:visible;';
+  // Flex on bar directly — logo left, nav right via margin-left:auto
+  bar.style.cssText = 'background:#1F2937;padding:0.75rem 2rem;margin-top:-2rem;margin-bottom:2rem;display:flex;align-items:center;gap:0.5rem;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;overflow:visible;';
+  bar.innerHTML = html;
 
-  // Inner flex container for the nav content
-  var innerNav = document.createElement('div');
-  innerNav.style.cssText = 'max-width:1100px;margin:0 auto;padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;';
-  innerNav.innerHTML = html;
-  bar.innerHTML = '';
-  bar.appendChild(innerNav);
+  // Ensure nav is pushed right
+  var navEl = document.getElementById('app-nav');
+  if (navEl) navEl.style.marginLeft = 'auto';
 
-  // Break bar out to full viewport width using negative margins (no clipping)
+  // Stretch bar to full viewport width
   function positionNav() {
-    // Reset so getBoundingClientRect measures the natural position
     bar.style.marginLeft = '';
     bar.style.marginRight = '';
-    bar.style.width = '';
-
     var rect = bar.getBoundingClientRect();
     var vw = document.documentElement.clientWidth;
-
     bar.style.marginLeft = (-rect.left) + 'px';
     bar.style.marginRight = (-(vw - rect.right)) + 'px';
   }
   positionNav();
   window.addEventListener('resize', positionNav);
 
-  // Enforce 1100px max-width on ALL cc-page-root elements (some pages have duplicates)
+  // Enforce layout on page root — overflow visible so bar isn't clipped
   var allRoots = document.querySelectorAll('[id="cc-page-root"]');
   for (var r = 0; r < allRoots.length; r++) {
     allRoots[r].style.maxWidth = '1100px';
+    allRoots[r].style.overflow = 'visible';
   }
 
   /* ── user info from localStorage ── */
