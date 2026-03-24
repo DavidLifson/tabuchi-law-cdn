@@ -686,6 +686,9 @@
       html += renderTriggerSection(c);
       html += renderStopConditionsSection(c);
 
+      // Visual flow diagram
+      html += renderDripFlowDiagram(st, c);
+
       html += '<div class="cc-card" style="grid-column:1/-1">';
       html += '<div class="cc-detail-section-header"><h4>Sequence</h4>';
       html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-add-step-btn">+ Add Step</button>';
@@ -840,6 +843,118 @@
     if (tpl && Array.isArray(tpl) && tpl.length) return tpl[0];
     if (tpl && typeof tpl === 'string') return tpl;
     return 'None';
+  }
+
+  // ─── Visual Drip Flow Diagram ─────────────────────────────
+  function renderDripFlowDiagram(campaignStatus, campaign) {
+    var steps = state.steps;
+    var channel = (campaign.channel || campaign.Channel || 'EMAIL').toUpperCase();
+
+    var html = '<div class="cc-card" style="grid-column:1/-1">';
+    html += '<div class="cc-detail-section-header"><h4>Campaign Flow</h4></div>';
+
+    if (!steps || steps.length === 0) {
+      html += '<div style="text-align:center;padding:2.5rem 1rem;color:#64748b;">';
+      html += '<div style="font-size:32px;margin-bottom:8px;opacity:0.5;">&#128233;</div>';
+      html += '<p style="font-size:14px;margin:0 0 6px;color:#475569;">No steps configured yet.</p>';
+      html += '<p style="font-size:13px;margin:0;color:#94a3b8;">Click <strong>+ Add Step</strong> below to build your sequence.</p>';
+      html += '</div></div>';
+      return html;
+    }
+
+    var sorted = steps.slice().sort(function(a, b) {
+      return (a.step_number || 0) - (b.step_number || 0);
+    });
+
+    // Summary bar
+    var totalHours = sorted.reduce(function(sum, s) { return sum + getStepDelayHours(s); }, 0);
+    var totalDuration = totalHours === 0 ? 'Immediate' : formatDelay(totalHours);
+    html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;background:#F8FAFC;border-bottom:1px solid #E5E7EB;font-size:13px;color:#475569;flex-wrap:wrap;">';
+    html += '<span><strong>' + sorted.length + '</strong> step' + (sorted.length !== 1 ? 's' : '') + '</span>';
+    html += '<span style="color:#CBD5E1;">|</span>';
+    html += '<span>Total duration: <strong>' + escapeHtml(totalDuration) + '</strong></span>';
+    html += '<span style="color:#CBD5E1;">|</span>';
+    html += '<span>Channel: <strong>' + escapeHtml(channel.charAt(0) + channel.slice(1).toLowerCase()) + '</strong></span>';
+    html += '</div>';
+
+    // Flow diagram container
+    html += '<div style="padding:24px 16px;overflow-x:auto;">';
+    html += '<div style="display:flex;flex-direction:column;align-items:center;">';
+
+    var cumulativeHours = 0;
+
+    sorted.forEach(function(step, idx) {
+      var delayHrs = getStepDelayHours(step);
+      cumulativeHours += delayHrs;
+      var tplObj = findTemplateForStep(step);
+      var tplName = getTemplateName(step);
+      var subject = tplObj ? (tplObj.Subject || tplObj.subject || '') : '';
+      var bodyRaw = tplObj ? (tplObj.Body_HTML || tplObj.body_html || '') : '';
+      var bodyPreview = stripHtml(bodyRaw).substring(0, 60);
+      var practiceArea = tplObj ? (tplObj.Practice_Area || tplObj.practice_area || '') : '';
+      var stepChannel = (step.channel || (tplObj ? (tplObj.Channel || tplObj.channel || '') : '') || channel).toUpperCase();
+      var isEmail = stepChannel !== 'SMS';
+      var borderColor = isEmail ? '#2563EB' : '#7C3AED';
+      var icon = isEmail ? '&#128231;' : '&#128172;';
+      var channelLabel = isEmail ? 'Email' : 'SMS';
+      var stepNum = step.step_number || (idx + 1);
+
+      // Connector + delay badge between steps
+      if (idx > 0) {
+        html += '<div style="display:flex;flex-direction:column;align-items:center;">';
+        html += '<div style="width:2px;height:16px;border-left:2px dashed #D1D5DB;"></div>';
+        var delayText = delayHrs === 0 ? 'Immediate' : 'Wait ' + formatDelay(delayHrs);
+        html += '<div style="background:#F3F4F6;color:#6B7280;font-size:0.75rem;padding:3px 10px;border-radius:12px;display:inline-block;white-space:nowrap;">&#9201; ' + escapeHtml(delayText) + '</div>';
+        html += '<div style="width:2px;height:16px;border-left:2px dashed #D1D5DB;"></div>';
+        html += '</div>';
+      }
+
+      // Step node
+      html += '<div class="cc-flow-node" data-step-id="' + escapeAttr(step.id) + '" style="';
+      html += 'background:#fff;border:1px solid #E5E7EB;border-left:4px solid ' + borderColor + ';';
+      html += 'border-radius:10px;padding:14px 18px;max-width:450px;width:100%;';
+      html += 'cursor:pointer;transition:box-shadow 0.2s,transform 0.15s;"';
+      html += ' onmouseenter="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.1)\';this.style.transform=\'translateY(-1px)\'"';
+      html += ' onmouseleave="this.style.boxShadow=\'none\';this.style.transform=\'none\'">';
+
+      // Line 1: icon + template name + step badge
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+      html += '<span style="font-size:18px;">' + icon + '</span>';
+      html += '<span style="font-weight:600;color:#1E293B;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(tplName) + '</span>';
+      html += '<span style="background:#E0E7FF;color:#3730A3;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;">Step ' + stepNum + '</span>';
+      html += '</div>';
+
+      // Line 2: practice area + channel badge
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px;color:#64748B;">';
+      if (practiceArea) {
+        html += '<span>' + escapeHtml(practiceArea.replace(/_/g, ' ')) + '</span>';
+        html += '<span style="color:#CBD5E1;">&#183;</span>';
+      }
+      html += '<span style="background:' + (isEmail ? '#DBEAFE' : '#EDE9FE') + ';color:' + (isEmail ? '#1D4ED8' : '#6D28D9') + ';font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;">' + channelLabel + '</span>';
+      html += '</div>';
+
+      // Line 3: subject or body preview
+      if (isEmail && subject) {
+        html += '<div style="font-size:12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Subject: ' + escapeHtml(subject) + '</div>';
+      } else if (!isEmail && bodyPreview) {
+        html += '<div style="font-size:12px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic;">&ldquo;' + escapeHtml(bodyPreview) + '&rdquo;</div>';
+      }
+
+      // Line 4: condition badge
+      if (step.condition && step.condition !== 'NONE') {
+        var condLabel = step.condition.toLowerCase().replace(/_/g, ' ');
+        html += '<div style="margin-top:6px;">';
+        html += '<span style="background:#FEF3C7;color:#92400E;font-size:11px;font-weight:500;padding:2px 8px;border-radius:12px;">&#9889; If ' + escapeHtml(condLabel) + '</span>';
+        html += '</div>';
+      }
+
+      html += '</div>'; // end node
+    });
+
+    html += '</div>'; // end flex column
+    html += '</div>'; // end padding container
+    html += '</div>'; // end card
+    return html;
   }
 
   function renderStepsTable() {
@@ -1593,6 +1708,21 @@
             }
           }
         });
+      });
+    });
+
+    // Flow diagram node click — expand + scroll to corresponding step card
+    el.querySelectorAll('.cc-flow-node').forEach(function(node) {
+      node.addEventListener('click', function() {
+        var sid = node.dataset.stepId;
+        state.expandedStepId = sid;
+        renderDetail();
+        setTimeout(function() {
+          var detailEl = $el('cc-campaign-detail');
+          if (!detailEl) return;
+          var card = detailEl.querySelector('.cc-step-card[data-step-id="' + sid + '"]');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 80);
       });
     });
 
