@@ -2870,8 +2870,7 @@
     html += '<div style="display:flex;gap:0;border-bottom:2px solid #E5E7EB;margin-bottom:1.5rem;">';
     [
       { key: 'email', label: 'Email' },
-      { key: 'sms',   label: 'SMS'   },
-      { key: 'drip',  label: 'Drip'  }
+      { key: 'sms',   label: 'SMS'   }
     ].forEach(function(tab) {
       var isActive = subTab === tab.key;
       html += '<button class="cc-tpl-subtab" data-subtab="' + tab.key + '" style="padding:8px 20px;font-size:0.9rem;font-weight:' + (isActive ? '600' : '400') + ';color:' + (isActive ? '#2563EB' : '#6B7280') + ';border:none;background:none;cursor:pointer;border-bottom:2px solid ' + (isActive ? '#2563EB' : 'transparent') + ';margin-bottom:-2px;">' + tab.label + '</button>';
@@ -2881,9 +2880,8 @@
     // ── Filter templates by sub-tab ──
     var filtered = (state.templates || []).filter(function(t) {
       var ch = t.channel || 'EMAIL';
-      if (subTab === 'email') return ch === 'EMAIL' && !t.is_drip;
-      if (subTab === 'sms')   return ch === 'SMS'   && !t.is_drip;
-      if (subTab === 'drip')  return !!t.is_drip;
+      if (subTab === 'email') return ch === 'EMAIL';
+      if (subTab === 'sms')   return ch === 'SMS';
       return true;
     });
 
