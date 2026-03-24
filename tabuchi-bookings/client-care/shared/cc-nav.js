@@ -89,8 +89,8 @@
   html += '</nav>';
 
   /* ── inject into bar ── */
-  // Flex directly on bar — logo left, nav right. Simple negative margins for full width.
-  bar.style.cssText = 'background:#1F2937;padding:0.75rem 1.5rem;margin:-2rem -1rem 2rem;display:flex;align-items:center;gap:0.5rem;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;overflow:visible;';
+  // Full viewport width via vw + translateX, flex directly on bar
+  bar.style.cssText = 'background:#1F2937;padding:0.75rem 2rem;margin-top:-2rem;margin-bottom:2rem;display:flex;align-items:center;gap:0.5rem;border-bottom:1px solid #374151;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;overflow:visible;position:relative;width:100vw;left:50%;transform:translateX(-50%);';
   bar.innerHTML = html;
 
   // Enforce 1100px max-width on ALL cc-page-root elements (some pages have duplicates)
