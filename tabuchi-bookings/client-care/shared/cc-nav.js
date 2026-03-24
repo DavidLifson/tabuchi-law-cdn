@@ -23,7 +23,7 @@
   var activePage = bar.getAttribute('data-active-page') || '';
 
   /* ── build HTML ── */
-  var logoUrl = 'https://cdn.jsdelivr.net/gh/DavidLifson/tabuchi-law-cdn@main/tabuchi-bookings/assets/logo.png';
+  var logoUrl = 'https://davidlifson.github.io/tabuchi-law-cdn/tabuchi-bookings/assets/logo.png';
 
   var html = '';
   // Brand
