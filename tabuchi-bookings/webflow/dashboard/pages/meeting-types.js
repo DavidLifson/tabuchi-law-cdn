@@ -93,7 +93,22 @@
   }
 
   function populateCategoryDropdown() {
-    const sel = $el('tb-mt-category');
+    var sel = $el('tb-mt-category');
+    // Dynamically inject category dropdown if it doesn't exist in the HTML
+    if (!sel) {
+      var bufferLabel = document.querySelector('label[for="tb-mt-buffer-after"]');
+      if (bufferLabel) {
+        var gridParent = bufferLabel.closest('div[style*="grid"]');
+        if (gridParent) {
+          var wrapper = document.createElement('div');
+          wrapper.style.cssText = 'margin-bottom:1rem;';
+          wrapper.innerHTML = '<label for="tb-mt-category" style="display:block;font-size:0.9rem;font-weight:500;margin-bottom:0.3rem;">Meeting Type Category</label>' +
+            '<select id="tb-mt-category" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #E5E7EB;border-radius:6px;font-size:0.95rem;box-sizing:border-box;"><option value="">— None —</option></select>';
+          gridParent.parentNode.insertBefore(wrapper, gridParent);
+          sel = $el('tb-mt-category');
+        }
+      }
+    }
     if (!sel) return;
     let cats = [];
     try {
