@@ -589,6 +589,24 @@
       }).catch(function() {});
     }
 
+    // Prefetch staff users for notify_staff / assign_owner / create_task dropdowns
+    if (!state.users.length && !state._usersFetched) {
+      state._usersFetched = true;
+      API.admin.listUsers().then(function(r) {
+        state.users = r.users || [];
+        if (state.formEditorMode === 'edit' || state.formEditorMode === 'create') renderFormEditor();
+      }).catch(function() {});
+    }
+
+    // Prefetch campaign templates for send_confirmation dropdown
+    if (!state.templates.length && !state._templatesFetched) {
+      state._templatesFetched = true;
+      API.campaignTemplates.list().then(function(r) {
+        state.templates = r.templates || [];
+        if (state.formEditorMode === 'edit' || state.formEditorMode === 'create') renderFormEditor();
+      }).catch(function() {});
+    }
+
     var isNew = state.formEditorMode === 'create';
     var title = isNew ? 'New Form' : escapeHtml(fd.name || 'Edit Form');
     var sections = fd.sections || [];
@@ -835,8 +853,17 @@
         }
 
         if (at.type === 'send_confirmation') {
-          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Template ID</label>';
-          html += '<input type="text" class="cc-input cc-auto-confirm-template" value="' + escapeAttr(config.template_id || '') + '" placeholder="Email template ID or name">';
+          html += '<label style="display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;">Template</label>';
+          html += '<select class="cc-input cc-auto-confirm-template">';
+          html += '<option value="">— Select Template —</option>';
+          var confirmTpls = state.templates || [];
+          confirmTpls.forEach(function(t) {
+            var tId = t.id || '';
+            var tName = t.Name || t.name || tId;
+            var sel = config.template_id === tId ? ' selected' : '';
+            html += '<option value="' + escapeAttr(tId) + '"' + sel + '>' + escapeHtml(tName) + '</option>';
+          });
+          html += '</select>';
         }
 
         if (at.type === 'create_task') {
