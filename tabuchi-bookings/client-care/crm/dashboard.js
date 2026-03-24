@@ -305,6 +305,8 @@
       }
 
       root.appendChild(tilesDiv);
+      // Bind recordings tile after it's in the DOM
+      bindRecordingsTile();
     } catch(renderErr) {
       console.error('Dashboard tile render error:', renderErr);
     }
@@ -1212,4 +1214,3 @@
   loadDashboard(true);
   startAutoRefresh();
 })();
-/* cache-bust 1774360060 */
