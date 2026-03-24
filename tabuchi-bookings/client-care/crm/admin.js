@@ -2820,7 +2820,7 @@
       await Promise.all(promises);
       showToast('Updated successfully.', 'success');
       closeModal();
-      fetchStaffUsers();
+      await fetchStaffUsers();
       return true;
     } catch (err) {
       showToast(err.error || 'Error updating.', 'error');
