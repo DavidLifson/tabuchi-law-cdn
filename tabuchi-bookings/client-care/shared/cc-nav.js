@@ -260,13 +260,13 @@
     if (!badge || !listEl) return;
 
     var token = '';
-    var userId = '';
+    var crmUserId = '';
     try {
       token = localStorage.getItem('app_token') || '';
-      var usr = JSON.parse(localStorage.getItem('app_user') || '{}');
-      userId = usr.id || '';
+      // Try CRM user ID first (cached from previous lookup)
+      crmUserId = sessionStorage.getItem('cc_crm_user_id') || '';
     } catch (e) { /* ignore */ }
-    if (!token || !userId) {
+    if (!token) {
       listEl.innerHTML = '<div style="padding:1rem;color:#9CA3AF;font-size:0.85rem;text-align:center;">Not authenticated</div>';
       return;
     }
@@ -320,20 +320,41 @@
       }
 
       var today = todayStr();
-      var body = { action: 'list' };
 
-      fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
-        body: JSON.stringify(body)
+      // Resolve CRM user ID if not cached (maps dashboard_token → CC_Users record ID)
+      var resolveUser = crmUserId
+        ? Promise.resolve(crmUserId)
+        : fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
+            body: JSON.stringify({ action: 'list_users' })
+          }).then(function(r) { return r.json(); }).then(function(d) {
+            var users = d.users || [];
+            var me = users.find(function(u) { return u.dashboard_token === token; });
+            var id = me ? me.id : '';
+            if (id) sessionStorage.setItem('cc_crm_user_id', id);
+            return id;
+          }).catch(function() { return ''; });
+
+      resolveUser.then(function(myId) {
+        crmUserId = myId;
+        return fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
+          body: JSON.stringify({ action: 'list' })
+        });
       })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        // Filter client-side: OPEN tasks due today or overdue (all users — small firm sees everything)
+        // Filter: OPEN tasks, due today or overdue, owned by current CRM user
         var tasks = (data.tasks || []).filter(function(t) {
           if (t.Status !== 'OPEN') return false;
           if (!t.Due_At) return false;
-          return t.Due_At.slice(0, 10) <= today;
+          if (t.Due_At.slice(0, 10) > today) return false;
+          if (crmUserId && t.Owner && t.Owner.length > 0) {
+            return t.Owner.indexOf(crmUserId) !== -1;
+          }
+          return !t.Owner || t.Owner.length === 0; // include unassigned tasks
         });
         // Sort: overdue first, then today
         tasks.sort(function(a, b) {
