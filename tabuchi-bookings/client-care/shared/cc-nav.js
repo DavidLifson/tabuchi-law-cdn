@@ -292,7 +292,7 @@
         var tagLabel = isOverdue ? 'Overdue' : 'Today';
         var dueLabel = t.Due_At ? t.Due_At.slice(0, 10) : 'No due date';
         var leadId = (t.Lead && t.Lead[0]) || '';
-        var href = leadId ? '/crm/lead?id=' + leadId : '#';
+        var href = leadId ? '/crm/lead?id=' + leadId + '&tab=tasks' : '/crm/dashboard#tasks';
         html += '<a href="' + href + '" style="display:block;padding:0.6rem 1rem;text-decoration:none;border-bottom:1px solid #F3F4F6;transition:background 0.15s;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'transparent\'">';
         html += '<div style="display:flex;align-items:center;gap:0.5rem;">';
         html += '<span style="font-size:0.85rem;color:#1F2937;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(t.Title) + '</span>';
@@ -301,6 +301,7 @@
         html += '<div style="display:flex;gap:0.75rem;margin-top:0.2rem;font-size:0.75rem;color:#6B7280;">';
         html += '<span>' + escapeHtml(dueLabel) + '</span>';
         if (t.Lead_Name) html += '<span>' + escapeHtml(t.Lead_Name) + '</span>';
+        if (!leadId) html += '<span style="color:#F59E0B;font-style:italic;">No lead linked</span>';
         html += '</div>';
         html += '</a>';
       });
