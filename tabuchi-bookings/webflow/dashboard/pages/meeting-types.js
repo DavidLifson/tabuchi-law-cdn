@@ -143,11 +143,15 @@
     var t = localStorage.getItem('app_token') || '';
     var cats = [];
     try {
+      var controller = new AbortController();
+      var timeout = setTimeout(function() { controller.abort(); }, 5000);
       var resp = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/categories', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
-        body: JSON.stringify({ action: 'list' })
+        headers: { 'Dashboard_Token': t },
+        body: JSON.stringify({ action: 'list' }),
+        signal: controller.signal
       });
+      clearTimeout(timeout);
       var data = await resp.json();
       cats = (data.categories || []).map(function(c) { return typeof c === 'object' ? (c.name || '') : c; }).filter(Boolean);
     } catch (e) {
@@ -992,4 +996,3 @@
   function showEl(id) { var el = $el(id); if (el) el.style.display = ''; }
   function hideEl(id) { var el = $el(id); if (el) el.style.display = 'none'; }
 })();
-/* v1774374615 */
