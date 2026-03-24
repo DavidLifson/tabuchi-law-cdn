@@ -320,23 +320,25 @@
       }
 
       var today = todayStr();
-      var body = {
-        action: 'list',
-        status: 'OPEN',
-        owner: userId,
-        due_end: today + 'T23:59:59.999Z'
-      };
+      var body = { action: 'list' };
 
       fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Dashboard-Token': token },
+        headers: { 'Content-Type': 'application/json', 'Dashboard_Token': token },
         body: JSON.stringify(body)
       })
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        // Filter client-side: OPEN tasks, owned by current user, due today or overdue
         var tasks = (data.tasks || []).filter(function(t) {
+          if (t.Status !== 'OPEN') return false;
           if (!t.Due_At) return false;
-          return t.Due_At.slice(0, 10) <= today;
+          if (t.Due_At.slice(0, 10) > today) return false;
+          // Filter by owner if userId is available
+          if (userId && t.Owner && t.Owner.length > 0) {
+            return t.Owner.indexOf(userId) !== -1;
+          }
+          return true;
         });
         // Sort: overdue first, then today
         tasks.sort(function(a, b) {
