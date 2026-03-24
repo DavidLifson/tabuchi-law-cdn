@@ -3572,7 +3572,12 @@
     if (configKey !== 'tag') {
       html += '<div class="cc-form-group">';
       html += '<label class="cc-label">Sort Order</label>';
-      html += '<input type="number" id="cc-modal-config-sort" class="cc-input" value="' + (existing ? (existing.Sort_Order || 0) : 0) + '" />';
+      var nextSort = 0;
+      if (!existing) {
+        var items = state.configItems[configKey] || [];
+        items.forEach(function(it) { if ((it.Sort_Order || 0) >= nextSort) nextSort = (it.Sort_Order || 0) + 1; });
+      }
+      html += '<input type="number" id="cc-modal-config-sort" class="cc-input" value="' + (existing ? (existing.Sort_Order || 0) : nextSort) + '" />';
       html += '</div>';
     }
 
@@ -3623,11 +3628,11 @@
           showToast('Item updated.', 'success');
         } else {
           await API.admin.config.create({
-            Config_Key: configKey,
-            Label: labelVal,
-            Sort_Order: sortOrder,
-            Is_Active: true,
-            Meta: JSON.stringify(metaObj)
+            config_key: configKey,
+            label: labelVal,
+            sort_order: sortOrder,
+            is_active: true,
+            meta: JSON.stringify(metaObj)
           });
           showToast('Item created.', 'success');
         }

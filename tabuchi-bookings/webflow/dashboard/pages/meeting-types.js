@@ -83,7 +83,7 @@
     meetingTypes.forEach(function(mt, i) { mt._origIdx = i; });
 
     hideEl('tb-loading');
-    populateCategoryDropdown();
+    await populateCategoryDropdown();
     populateCategoryFilter();
     insertSortDropdown();
     renderMeetingTypeList();
@@ -103,8 +103,9 @@
   var PA_OPTIONS = ['Estate Planning', 'Real Estate', 'Probate', 'Business Law', 'Family Law', 'Immigration', 'Litigation', 'Other'];
 
   function _injectFormDropdowns() {
-    // Find insertion point — before the Buffer After grid
-    var bufferLabel = document.querySelector('label[for="tb-mt-buffer-after"]');
+    // Find insertion point — before the Buffer After grid (scope to _root for dual-embed safety)
+    var searchRoot = _root || document;
+    var bufferLabel = searchRoot.querySelector('label[for="tb-mt-buffer-after"]');
     if (!bufferLabel) return;
     var gridParent = bufferLabel.closest('div[style*="grid"]');
     if (!gridParent) return;
@@ -134,21 +135,32 @@
     }
   }
 
-  function populateCategoryDropdown() {
+  async function populateCategoryDropdown() {
     _injectFormDropdowns();
     var sel = $el('tb-mt-category');
     if (!sel) return;
-    // Fetch categories from API
+    // Fetch categories from the admin API
     var t = localStorage.getItem('app_token') || '';
     var cats = [];
     try {
-      var cached = JSON.parse(localStorage.getItem('app_user') || '{}');
-      cats = cached.categories || [];
-    } catch (e) {}
-    if (typeof cats === 'string') { try { cats = JSON.parse(cats); } catch (e) { cats = []; } }
-    if (cats.length > 0 && typeof cats[0] === 'object') cats = cats.map(function(c) { return c.name || c; });
+      var resp = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
+        body: JSON.stringify({ action: 'list' })
+      });
+      var data = await resp.json();
+      cats = (data.categories || []).map(function(c) { return typeof c === 'object' ? (c.name || '') : c; }).filter(Boolean);
+    } catch (e) {
+      // Fallback to localStorage cache
+      try {
+        var cached = JSON.parse(localStorage.getItem('app_user') || '{}');
+        cats = cached.categories || [];
+        if (typeof cats === 'string') { try { cats = JSON.parse(cats); } catch (e2) { cats = []; } }
+        if (cats.length > 0 && typeof cats[0] === 'object') cats = cats.map(function(c) { return c.name || c; });
+      } catch (e2) {}
+    }
     sel.innerHTML = '<option value="">\u2014 None \u2014</option>'
-      + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+      + cats.map(function(c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
   }
 
   function populateCategoryFilter() {

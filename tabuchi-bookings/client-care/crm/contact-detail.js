@@ -2053,14 +2053,81 @@
           listEl.innerHTML = '<p style="color:#9CA3AF;text-align:center;">No templates available.</p>';
           return;
         }
-        var html = '';
+        // Group templates by Practice Area as accordion
+        var groups = {};
+        var ungrouped = [];
         templates.forEach(function(t) {
-          html += '<div class="cc-email-template-card" data-tid="' + escapeAttr(t.id) + '">' +
-            '<h5>' + escapeHtml(t.Name || t.name || 'Untitled') + '</h5>' +
-            '<p>' + escapeHtml(t.Category || t.category || '') + (t.Subject ? ' — ' + escapeHtml(t.Subject) : '') + '</p>' +
-          '</div>';
+          var pa = t.Practice_Area || t.practice_area || '';
+          if (pa) {
+            if (!groups[pa]) groups[pa] = [];
+            groups[pa].push(t);
+          } else {
+            ungrouped.push(t);
+          }
         });
+
+        // Determine contact's practice area for default open
+        var contactPA = (record.Practice_Area || []);
+        if (typeof contactPA === 'string') contactPA = [contactPA];
+        var defaultOpen = contactPA.length ? contactPA[0] : '';
+
+        var html = '';
+        var groupNames = Object.keys(groups).sort();
+        // If no groups, just show flat list
+        if (!groupNames.length) {
+          templates.forEach(function(t) {
+            html += '<div class="cc-email-template-card" data-tid="' + escapeAttr(t.id) + '">' +
+              '<h5>' + escapeHtml(t.Name || t.name || 'Untitled') + '</h5>' +
+              '<p>' + escapeHtml(t.Category || t.category || '') + (t.Subject ? ' — ' + escapeHtml(t.Subject) : '') + '</p>' +
+            '</div>';
+          });
+        } else {
+          groupNames.forEach(function(pa) {
+            var isOpen = (pa === defaultOpen);
+            html += '<div class="cc-em-accordion" style="border:1px solid #E5E7EB;border-radius:6px;margin-bottom:8px;overflow:hidden;">';
+            html += '<div class="cc-em-accordion-header" style="padding:10px 14px;background:' + (isOpen ? '#EFF6FF' : '#F9FAFB') + ';cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:0.9rem;color:#1F2937;" data-pa="' + escapeAttr(pa) + '">';
+            html += escapeHtml(pa) + ' <span style="color:#9CA3AF;font-weight:400;font-size:0.8rem;">(' + groups[pa].length + ')</span>';
+            html += '<span class="cc-em-accordion-chevron" style="font-size:0.7rem;transition:transform 0.2s;transform:rotate(' + (isOpen ? '180' : '0') + 'deg);">&#9660;</span>';
+            html += '</div>';
+            html += '<div class="cc-em-accordion-body" style="' + (isOpen ? '' : 'display:none;') + '">';
+            groups[pa].forEach(function(t) {
+              html += '<div class="cc-email-template-card" data-tid="' + escapeAttr(t.id) + '" style="border-radius:0;border-bottom:1px solid #F3F4F6;">' +
+                '<h5>' + escapeHtml(t.Name || t.name || 'Untitled') + '</h5>' +
+                '<p>' + escapeHtml(t.Category || t.category || '') + (t.Subject ? ' — ' + escapeHtml(t.Subject) : '') + '</p>' +
+              '</div>';
+            });
+            html += '</div></div>';
+          });
+          // Ungrouped templates in a "General" section
+          if (ungrouped.length) {
+            html += '<div class="cc-em-accordion" style="border:1px solid #E5E7EB;border-radius:6px;margin-bottom:8px;overflow:hidden;">';
+            html += '<div class="cc-em-accordion-header" style="padding:10px 14px;background:#F9FAFB;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:0.9rem;color:#1F2937;">';
+            html += 'General <span style="color:#9CA3AF;font-weight:400;font-size:0.8rem;">(' + ungrouped.length + ')</span>';
+            html += '<span class="cc-em-accordion-chevron" style="font-size:0.7rem;transition:transform 0.2s;">&#9660;</span>';
+            html += '</div>';
+            html += '<div class="cc-em-accordion-body" style="display:none;">';
+            ungrouped.forEach(function(t) {
+              html += '<div class="cc-email-template-card" data-tid="' + escapeAttr(t.id) + '" style="border-radius:0;border-bottom:1px solid #F3F4F6;">' +
+                '<h5>' + escapeHtml(t.Name || t.name || 'Untitled') + '</h5>' +
+                '<p>' + escapeHtml(t.Category || t.category || '') + (t.Subject ? ' — ' + escapeHtml(t.Subject) : '') + '</p>' +
+              '</div>';
+            });
+            html += '</div></div>';
+          }
+        }
         listEl.innerHTML = html;
+
+        // Bind accordion toggles
+        listEl.querySelectorAll('.cc-em-accordion-header').forEach(function(hdr) {
+          hdr.addEventListener('click', function() {
+            var body = hdr.nextElementSibling;
+            var chevron = hdr.querySelector('.cc-em-accordion-chevron');
+            var isVisible = body.style.display !== 'none';
+            body.style.display = isVisible ? 'none' : '';
+            if (chevron) chevron.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(180deg)';
+            hdr.style.background = isVisible ? '#F9FAFB' : '#EFF6FF';
+          });
+        });
 
         listEl.querySelectorAll('.cc-email-template-card').forEach(function(card) {
           card.addEventListener('click', function() {
