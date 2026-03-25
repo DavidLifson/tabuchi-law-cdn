@@ -117,7 +117,8 @@
     docCreatorFieldData: null,
     recordings: [],
     recordingsLoaded: false,
-    _recRefreshTimer: null
+    _recRefreshTimer: null,
+    _pendingUploads: []
   };
 
   var TABS = [
@@ -1321,7 +1322,29 @@
     html += '</div>';
     html += '</div>';
 
-    if (state.recordings.length === 0 && rcRecordings.length === 0) {
+    // Pending uploads / processing cards
+    if (state._pendingUploads.length > 0) {
+      state._pendingUploads.forEach(function(pu) {
+        html += '<div class="cc-rec-card" style="margin-bottom:0.75rem;border-left:4px solid #3B82F6;">';
+        html += '<div class="cc-rec-card-header">';
+        html += '<span class="cc-badge cc-badge-blue" style="font-size:.7rem;">UPLOADING</span>';
+        html += '<span style="font-size:0.9rem;font-weight:600;margin-left:8px;">' + escapeHtml(pu.name) + '</span>';
+        html += '<span class="cc-rec-card-meta" style="margin-left:auto;">' + escapeHtml(pu.sizeMB + ' MB') + '</span>';
+        html += '</div>';
+        html += '<div style="padding:8px 0;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+        html += '<span id="cc-pu-status-' + pu.id + '" style="font-size:13px;color:#1D4ED8;font-weight:500;">' + escapeHtml(pu.status || 'Preparing...') + '</span>';
+        html += '<span id="cc-pu-pct-' + pu.id + '" style="font-size:13px;color:#1D4ED8;font-weight:600;">' + (pu.pct || 0) + '%</span>';
+        html += '</div>';
+        html += '<div style="background:#BFDBFE;border-radius:4px;height:8px;overflow:hidden;">';
+        html += '<div id="cc-pu-bar-' + pu.id + '" style="background:#2563EB;height:100%;width:' + (pu.pct || 0) + '%;transition:width 0.3s ease;border-radius:4px;"></div>';
+        html += '</div>';
+        html += '<div id="cc-pu-eta-' + pu.id + '" style="font-size:11px;color:#6B7280;margin-top:4px;">' + escapeHtml(pu.eta || '') + '</div>';
+        html += '</div></div>';
+      });
+    }
+
+    if (state.recordings.length === 0 && rcRecordings.length === 0 && state._pendingUploads.length === 0) {
       html += '<div class="cc-empty" style="padding:2rem;text-align:center;">';
       html += '<p style="margin:0 0 .5rem;font-size:1.1rem;color:#6B7280;">No recordings linked to this contact.</p>';
       html += '<p style="margin:0;font-size:.85rem;color:#9CA3AF;">Upload a recording or recordings from calls and meetings will appear here automatically.</p>';
@@ -1564,22 +1587,30 @@
     }
 
     submitBtn.disabled = true;
-    var statusEl = document.getElementById('cc-rec-upload-status');
-    var pctEl = document.getElementById('cc-rec-upload-pct');
-    var barEl = document.getElementById('cc-rec-upload-bar');
-    var etaEl = document.getElementById('cc-rec-upload-eta');
     var fileSizeMB = Math.round(file.size / 1024 / 1024);
+    var uploadId = 'pu-' + Date.now();
+    var subject = (subjectInput ? subjectInput.value : '') || file.name;
 
-    if (progressDiv) {
-      progressDiv.style.display = '';
+    // Add pending upload card to state and re-render
+    state._pendingUploads.push({ id: uploadId, name: subject, sizeMB: fileSizeMB, pct: 0, status: 'Creating record...', eta: '' });
+    // Hide upload form and show the card
+    if (document.getElementById('cc-rec-upload-form')) {
+      document.getElementById('cc-rec-upload-form').style.display = 'none';
     }
-    function setProgress(pct, status, eta) {
-      if (statusEl) statusEl.textContent = status;
+    renderRecordingsTab($el('cc-contact-tab-content'));
+
+    function updateUploadCard(pct, status, eta) {
+      var pu = state._pendingUploads.find(function(p) { return p.id === uploadId; });
+      if (pu) { pu.pct = pct; pu.status = status; pu.eta = eta || ''; }
+      var bar = document.getElementById('cc-pu-bar-' + uploadId);
+      var pctEl = document.getElementById('cc-pu-pct-' + uploadId);
+      var statusEl = document.getElementById('cc-pu-status-' + uploadId);
+      var etaEl = document.getElementById('cc-pu-eta-' + uploadId);
+      if (bar) bar.style.width = Math.round(pct) + '%';
       if (pctEl) pctEl.textContent = Math.round(pct) + '%';
-      if (barEl) barEl.style.width = Math.round(pct) + '%';
+      if (statusEl) statusEl.textContent = status;
       if (etaEl) etaEl.textContent = eta || '';
     }
-    setProgress(0, 'Creating record...', fileSizeMB + ' MB file');
 
     var uploadStartTime = Date.now();
     try {
@@ -1588,7 +1619,7 @@
         file: file,
         file_name: file.name,
         file_type: file.type,
-        subject: (subjectInput ? subjectInput.value : '') || file.name,
+        subject: subject,
         source: sourceSelect ? sourceSelect.value : 'upload',
         onProgress: function(pct) {
           var mins = '';
@@ -1600,27 +1631,30 @@
             else if (remaining > 5) mins = remaining + ' sec remaining';
             else mins = 'Almost done...';
           }
-          setProgress(pct, 'Uploading file (' + fileSizeMB + ' MB)...', mins);
+          updateUploadCard(pct, 'Uploading (' + fileSizeMB + ' MB)...', mins);
         }
       });
 
       if (result.success) {
-        setProgress(100, 'Upload complete!', 'Transcription is processing. You can navigate away \u2014 we\u2019ll notify you when it\u2019s done.');
-        ccToast('File uploaded! Transcription in progress. You\u2019ll be notified when done.', 'success');
+        updateUploadCard(100, 'Upload complete \u2014 transcription processing. You can navigate away.', 'You\u2019ll be notified when done.');
         requestNotificationPermission();
-        if (document.getElementById('cc-rec-upload-form')) {
-          document.getElementById('cc-rec-upload-form').style.display = 'none';
-        }
         // Reset form
         fileInput.value = '';
         if (subjectInput) subjectInput.value = '';
-        // Reload recordings and start polling with completion notifications
-        await reloadContactRecordings();
-        startRecRefreshWithNotify();
+        // Remove pending upload card after a short delay and reload
+        setTimeout(function() {
+          state._pendingUploads = state._pendingUploads.filter(function(p) { return p.id !== uploadId; });
+          reloadContactRecordings();
+          startRecRefreshWithNotify();
+        }, 3000);
       } else {
+        updateUploadCard(0, 'Upload failed: ' + (result.error || 'Unknown error'), '');
+        state._pendingUploads = state._pendingUploads.filter(function(p) { return p.id !== uploadId; });
         ccToast('Upload failed: ' + (result.error || 'Unknown error'), 'error');
       }
     } catch (err) {
+      updateUploadCard(0, 'Upload failed: ' + (err.message || err.error || 'Network error'), '');
+      state._pendingUploads = state._pendingUploads.filter(function(p) { return p.id !== uploadId; });
       ccToast('Upload failed: ' + (err.message || err.error || 'Network error'), 'error');
     }
 
