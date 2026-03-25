@@ -1188,6 +1188,70 @@
     }
   }
 
+  // ─── Notification-Aware Polling ──────────────────────────────
+  function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  function sendBrowserNotification(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        var n = new Notification(title, {
+          body: body,
+          icon: 'https://davidlifson.github.io/tabuchi-law-cdn/tabuchi-bookings/webflow/shared/logo.png',
+          tag: 'cc-recording-done'
+        });
+        n.onclick = function() { window.focus(); n.close(); };
+      } catch (e) { /* mobile/insecure context fallback */ }
+    }
+  }
+
+  function startRecRefreshWithNotify() {
+    stopRecRefresh();
+    // Track which recordings are currently pending
+    var pendingIds = {};
+    state.recordings.forEach(function(r) {
+      var st = (r.Status || '').toLowerCase();
+      if (['pending', 'downloading', 'transcribing', 'analyzing'].indexOf(st) >= 0) {
+        pendingIds[r.id] = st;
+      }
+    });
+
+    if (Object.keys(pendingIds).length === 0) return;
+
+    state._recRefreshTimer = setInterval(async function() {
+      try {
+        var result = await API.recordings.list({ lead_id: contactId });
+        if (!result.success) return;
+
+        var newRecordings = result.recordings || [];
+        // Check if any previously-pending recordings are now completed
+        newRecordings.forEach(function(r) {
+          if (pendingIds[r.id] && (r.Status === 'completed' || r.Status === 'analyzed')) {
+            delete pendingIds[r.id];
+            var subject = r.Meeting_Subject || r.File_Name || 'Recording';
+            ccToast('Transcription complete: ' + subject, 'success');
+            sendBrowserNotification('Transcription Complete', subject + ' is ready for review.');
+          } else if (pendingIds[r.id] && r.Status === 'failed') {
+            delete pendingIds[r.id];
+            ccToast('Transcription failed: ' + (r.Meeting_Subject || 'Recording'), 'error');
+          }
+        });
+
+        state.recordings = newRecordings;
+        if (state.activeTab === 'recordings') renderRecordingsTab($el('cc-contact-tab-content'));
+        renderTabs();
+
+        // Stop polling if nothing pending
+        if (Object.keys(pendingIds).length === 0) {
+          stopRecRefresh();
+        }
+      } catch (err) { /* silently fail */ }
+    }, 15000);
+  }
+
   function recStatusColor(status) {
     var map = { completed: 'green', pending: 'gray', downloading: 'blue', transcribing: 'blue', analyzing: 'blue', error: 'red' };
     return map[(status || '').toLowerCase()] || 'gray';
@@ -1541,17 +1605,18 @@
       });
 
       if (result.success) {
-        setProgress(100, 'Upload complete!', 'Transcription will begin shortly.');
-        ccToast('File uploaded! Transcription in progress.', 'success');
+        setProgress(100, 'Upload complete!', 'Transcription is processing. You can navigate away \u2014 we\u2019ll notify you when it\u2019s done.');
+        ccToast('File uploaded! Transcription in progress. You\u2019ll be notified when done.', 'success');
+        requestNotificationPermission();
         if (document.getElementById('cc-rec-upload-form')) {
           document.getElementById('cc-rec-upload-form').style.display = 'none';
         }
         // Reset form
         fileInput.value = '';
         if (subjectInput) subjectInput.value = '';
-        // Reload recordings
+        // Reload recordings and start polling with completion notifications
         await reloadContactRecordings();
-        startRecRefresh(); // Start polling for status updates
+        startRecRefreshWithNotify();
       } else {
         ccToast('Upload failed: ' + (result.error || 'Unknown error'), 'error');
       }
