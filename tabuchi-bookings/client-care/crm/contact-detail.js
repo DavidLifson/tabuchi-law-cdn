@@ -1484,37 +1484,22 @@
     }
 
     var file = fileInput.files[0];
-    // Limit to 100MB
-    if (file.size > 100 * 1024 * 1024) {
-      ccToast('File is too large. Maximum size is 100MB.', 'error');
+    // Limit to 500MB for hour-long meeting recordings
+    if (file.size > 500 * 1024 * 1024) {
+      ccToast('File is too large. Maximum size is 500MB.', 'error');
       return;
     }
 
     submitBtn.disabled = true;
     if (progressDiv) {
       progressDiv.style.display = '';
-      progressDiv.textContent = 'Reading file...';
+      progressDiv.textContent = 'Uploading (' + Math.round(file.size / 1024 / 1024) + ' MB)...';
     }
 
     try {
-      // Read file as base64
-      var base64 = await new Promise(function(resolve, reject) {
-        var reader = new FileReader();
-        reader.onload = function() {
-          var result = reader.result;
-          // Strip data URL prefix
-          var base64Data = result.split(',')[1] || result;
-          resolve(base64Data);
-        };
-        reader.onerror = function() { reject(new Error('Failed to read file')); };
-        reader.readAsDataURL(file);
-      });
-
-      if (progressDiv) progressDiv.textContent = 'Uploading and starting transcription...';
-
       var result = await API.recordings.uploadFile({
         lead_id: contactId,
-        file_base64: base64,
+        file: file,
         file_name: file.name,
         file_type: file.type,
         subject: (subjectInput ? subjectInput.value : '') || file.name,

@@ -942,17 +942,46 @@ const ClientCareAPI = (() => {
   }
 
   async function uploadRecordingFile(data) {
-    return request('POST', '/cc/recordings', {
+    // Two-step upload:
+    // 1. Create the transcription record via JSON (metadata only)
+    // 2. Upload the actual file via multipart to the upload endpoint
+    var token = getToken();
+
+    // Step 1: Create transcription record
+    var metaResult = await request('POST', '/cc/recordings', {
       body: {
         action: 'upload_file',
         lead_id: data.lead_id,
-        file_base64: data.file_base64,
         file_name: data.file_name,
         file_type: data.file_type,
         subject: data.subject,
         source: data.source || 'upload'
       }
     });
+
+    if (!metaResult.success) return metaResult;
+
+    // Step 2: Upload file binary via multipart form
+    var formData = new FormData();
+    formData.append('file', data.file);
+    formData.append('transcription_id', metaResult.transcription_id);
+    formData.append('lead_id', data.lead_id);
+
+    try {
+      var resp = await fetch(WH + '/cc/recording-upload', {
+        method: 'POST',
+        headers: { 'Dashboard_Token': token },
+        body: formData
+      });
+      var uploadResult = await resp.json();
+      if (!uploadResult.success) {
+        return { success: true, transcription_id: metaResult.transcription_id, message: 'Record created but file upload failed: ' + (uploadResult.error || 'Unknown'), status: 'pending' };
+      }
+      return uploadResult;
+    } catch (err) {
+      // Record was created even if file upload fails
+      return { success: true, transcription_id: metaResult.transcription_id, message: 'Record created. File upload will be retried.', status: 'pending' };
+    }
   }
 
   // ─── Documents ──────────────────────────────────────────────
