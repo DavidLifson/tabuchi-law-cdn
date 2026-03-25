@@ -1245,7 +1245,16 @@
     html += '<button id="cc-rec-upload-submit" class="cc-btn cc-btn-primary" style="font-size:13px;">Upload &amp; Transcribe</button>';
     html += '<button id="cc-rec-upload-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;">Cancel</button>';
     html += '</div>';
-    html += '<div id="cc-rec-upload-progress" style="display:none;margin-top:12px;padding:8px;background:#EFF6FF;border-radius:6px;font-size:13px;color:#1D4ED8;">Uploading...</div>';
+    html += '<div id="cc-rec-upload-progress" style="display:none;margin-top:12px;padding:12px;background:#EFF6FF;border-radius:6px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+    html += '<span id="cc-rec-upload-status" style="font-size:13px;color:#1D4ED8;font-weight:500;">Preparing upload...</span>';
+    html += '<span id="cc-rec-upload-pct" style="font-size:13px;color:#1D4ED8;font-weight:600;">0%</span>';
+    html += '</div>';
+    html += '<div style="background:#BFDBFE;border-radius:4px;height:8px;overflow:hidden;">';
+    html += '<div id="cc-rec-upload-bar" style="background:#2563EB;height:100%;width:0%;transition:width 0.3s ease;border-radius:4px;"></div>';
+    html += '</div>';
+    html += '<div id="cc-rec-upload-eta" style="font-size:11px;color:#6B7280;margin-top:4px;"></div>';
+    html += '</div>';
     html += '</div>';
 
     if (state.recordings.length === 0 && rcRecordings.length === 0) {
@@ -1491,11 +1500,24 @@
     }
 
     submitBtn.disabled = true;
+    var statusEl = document.getElementById('cc-rec-upload-status');
+    var pctEl = document.getElementById('cc-rec-upload-pct');
+    var barEl = document.getElementById('cc-rec-upload-bar');
+    var etaEl = document.getElementById('cc-rec-upload-eta');
+    var fileSizeMB = Math.round(file.size / 1024 / 1024);
+
     if (progressDiv) {
       progressDiv.style.display = '';
-      progressDiv.textContent = 'Uploading (' + Math.round(file.size / 1024 / 1024) + ' MB)...';
     }
+    function setProgress(pct, status, eta) {
+      if (statusEl) statusEl.textContent = status;
+      if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+      if (barEl) barEl.style.width = Math.round(pct) + '%';
+      if (etaEl) etaEl.textContent = eta || '';
+    }
+    setProgress(0, 'Creating record...', fileSizeMB + ' MB file');
 
+    var uploadStartTime = Date.now();
     try {
       var result = await API.recordings.uploadFile({
         lead_id: contactId,
@@ -1503,10 +1525,23 @@
         file_name: file.name,
         file_type: file.type,
         subject: (subjectInput ? subjectInput.value : '') || file.name,
-        source: sourceSelect ? sourceSelect.value : 'upload'
+        source: sourceSelect ? sourceSelect.value : 'upload',
+        onProgress: function(pct) {
+          var mins = '';
+          if (pct > 5 && pct < 95) {
+            var elapsed = (Date.now() - uploadStartTime) / 1000;
+            var totalEst = elapsed / (pct / 100);
+            var remaining = Math.max(0, Math.round(totalEst - elapsed));
+            if (remaining > 60) mins = Math.round(remaining / 60) + ' min remaining';
+            else if (remaining > 5) mins = remaining + ' sec remaining';
+            else mins = 'Almost done...';
+          }
+          setProgress(pct, 'Uploading file (' + fileSizeMB + ' MB)...', mins);
+        }
       });
 
       if (result.success) {
+        setProgress(100, 'Upload complete!', 'Transcription will begin shortly.');
         ccToast('File uploaded! Transcription in progress.', 'success');
         if (document.getElementById('cc-rec-upload-form')) {
           document.getElementById('cc-rec-upload-form').style.display = 'none';

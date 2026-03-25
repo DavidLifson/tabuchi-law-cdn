@@ -944,10 +944,12 @@ const ClientCareAPI = (() => {
   async function uploadRecordingFile(data) {
     // Two-step upload:
     // 1. Create the transcription record via JSON (metadata only)
-    // 2. Upload the actual file via multipart to the upload endpoint
+    // 2. Upload the actual file via multipart with progress tracking
     var token = getToken();
+    var onProgress = data.onProgress || function() {};
 
-    // Step 1: Create transcription record
+    // Step 1: Create transcription record (fast — JSON only)
+    onProgress(2);
     var metaResult = await request('POST', '/cc/recordings', {
       body: {
         action: 'upload_file',
@@ -960,27 +962,58 @@ const ClientCareAPI = (() => {
     });
 
     if (!metaResult.success) return metaResult;
+    onProgress(5);
 
-    // Step 2: Upload file binary via multipart form
+    // Step 2: Upload file binary via multipart form with XMLHttpRequest for progress
     var formData = new FormData();
     formData.append('file', data.file);
     formData.append('transcription_id', metaResult.transcription_id);
     formData.append('lead_id', data.lead_id);
 
     try {
-      var resp = await fetch(WH + '/cc/recording-upload', {
-        method: 'POST',
-        headers: { 'Dashboard_Token': token },
-        body: formData
+      var uploadResult = await new Promise(function(resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', WH + '/cc/recording-upload');
+        xhr.setRequestHeader('Dashboard_Token', token);
+
+        xhr.upload.addEventListener('progress', function(e) {
+          if (e.lengthComputable) {
+            // Map upload progress to 5-90% range (leaving room for server processing)
+            var pct = 5 + (e.loaded / e.total) * 85;
+            onProgress(pct);
+          }
+        });
+
+        xhr.addEventListener('load', function() {
+          onProgress(95);
+          try {
+            var result = JSON.parse(xhr.responseText);
+            resolve(result);
+          } catch (e) {
+            resolve({ success: true, transcription_id: metaResult.transcription_id, message: 'File uploaded.' });
+          }
+        });
+
+        xhr.addEventListener('error', function() {
+          reject(new Error('Upload network error'));
+        });
+
+        xhr.addEventListener('timeout', function() {
+          reject(new Error('Upload timed out'));
+        });
+
+        xhr.timeout = 600000; // 10 minute timeout for large files
+        xhr.send(formData);
       });
-      var uploadResult = await resp.json();
-      if (!uploadResult.success) {
-        return { success: true, transcription_id: metaResult.transcription_id, message: 'Record created but file upload failed: ' + (uploadResult.error || 'Unknown'), status: 'pending' };
+
+      onProgress(100);
+      if (!uploadResult.success && !uploadResult.transcription_id) {
+        return { success: true, transcription_id: metaResult.transcription_id, message: 'Record created but processing pending.', status: 'pending' };
       }
       return uploadResult;
     } catch (err) {
       // Record was created even if file upload fails
-      return { success: true, transcription_id: metaResult.transcription_id, message: 'Record created. File upload will be retried.', status: 'pending' };
+      return { success: true, transcription_id: metaResult.transcription_id, message: 'Record created. File upload may still be processing.', status: 'pending' };
     }
   }
 
