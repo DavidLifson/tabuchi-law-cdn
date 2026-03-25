@@ -950,6 +950,7 @@ const ClientCareAPI = (() => {
     var onProgress = data.onProgress || function() {};
 
     // Step 1: Create record + get SAS upload URL (single API call)
+    console.log('[Upload Step 1] Creating Airtable record + SAS URL...');
     onProgress(2);
     var metaResult = await request('POST', '/cc/recordings', {
       body: {
@@ -962,6 +963,7 @@ const ClientCareAPI = (() => {
       }
     });
 
+    console.log('[Upload Step 1] Result:', JSON.stringify(metaResult).substring(0, 300));
     if (!metaResult.success) return metaResult;
     onProgress(5);
 
@@ -970,10 +972,12 @@ const ClientCareAPI = (() => {
     var blobPath = metaResult.blob_path;
 
     if (!uploadUrl) {
+      console.warn('[Upload Step 2] No SAS URL returned — cannot upload to blob');
       return { success: true, transcription_id: transcriptionId, message: 'Record created but direct upload not available. Contact admin.', status: 'pending' };
     }
 
     // Step 2: Upload file directly to Azure Blob Storage with progress
+    console.log('[Upload Step 2] Uploading to Azure Blob...', blobPath);
     try {
       await new Promise(function(resolve, reject) {
         var xhr = new XMLHttpRequest();
@@ -990,9 +994,11 @@ const ClientCareAPI = (() => {
 
         xhr.addEventListener('load', function() {
           if (xhr.status >= 200 && xhr.status < 300) {
+            console.log('[Upload Step 2] Blob upload complete, HTTP ' + xhr.status);
             onProgress(92);
             resolve();
           } else {
+            console.error('[Upload Step 2] Blob upload failed, HTTP ' + xhr.status, xhr.responseText);
             reject(new Error('Azure upload failed: HTTP ' + xhr.status));
           }
         });
@@ -1003,10 +1009,12 @@ const ClientCareAPI = (() => {
         xhr.send(data.file);
       });
     } catch (err) {
+      console.error('[Upload Step 2] Error:', err.message);
       return { success: true, transcription_id: transcriptionId, message: 'Record created but file upload failed: ' + err.message, status: 'pending' };
     }
 
     // Step 3: Tell backend to start processing the uploaded file
+    console.log('[Upload Step 3] Starting processing...', transcriptionId, blobPath);
     onProgress(95);
     try {
       var processResult = await request('POST', '/cc/recordings', {
@@ -1016,9 +1024,11 @@ const ClientCareAPI = (() => {
           blob_path: blobPath
         }
       });
+      console.log('[Upload Step 3] Result:', JSON.stringify(processResult).substring(0, 300));
       onProgress(100);
       return processResult;
     } catch (err) {
+      console.error('[Upload Step 3] Error:', err.message || err.error);
       return { success: true, transcription_id: transcriptionId, message: 'File uploaded. Processing will begin shortly.', status: 'pending' };
     }
   }
