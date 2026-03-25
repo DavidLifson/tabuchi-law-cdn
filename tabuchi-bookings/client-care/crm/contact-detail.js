@@ -1280,6 +1280,14 @@
   function renderRecordingsTab(container) {
     if (!container) return;
 
+    // Inject spinner animation once
+    if (!document.getElementById('cc-rec-spin-style')) {
+      var spinStyle = document.createElement('style');
+      spinStyle.id = 'cc-rec-spin-style';
+      spinStyle.textContent = '@keyframes cc-spin { to { transform: rotate(360deg); } }';
+      document.head.appendChild(spinStyle);
+    }
+
     // If not loaded yet, trigger lazy load
     if (!state.recordingsLoaded) {
       loadContactRecordings();
@@ -1401,10 +1409,23 @@
           html += '<span class="cc-rec-card-meta" style="margin-left:auto;">' + escapeHtml(date) + (duration ? ' &middot; ' + duration : '') + '</span>';
           html += '</div>';
 
+          // Processing status indicator
+          if (rec.Status === 'pending' || rec.Status === 'transcribing' || rec.Status === 'analyzing') {
+            html += '<div style="padding:8px 0;font-size:0.85rem;color:#D97706;display:flex;align-items:center;gap:6px;">';
+            html += '<span style="display:inline-block;width:12px;height:12px;border:2px solid #D97706;border-top-color:transparent;border-radius:50%;animation:cc-spin 1s linear infinite;"></span>';
+            var statusMsg = rec.Status === 'pending' ? 'Waiting to start...' : rec.Status === 'transcribing' ? 'Transcribing audio (est. 5-15 min)...' : 'AI analysis in progress (est. 2-5 min)...';
+            html += escapeHtml(statusMsg);
+            html += '</div>';
+          }
+
           // Subject / File name
           var recTitle = rec.Meeting_Subject || rec.File_Name || rec.Subject || '';
           if (recTitle) {
             html += '<div style="font-size:0.9rem;font-weight:500;padding:4px 0 2px;color:#1F2937;">' + escapeHtml(recTitle) + '</div>';
+          }
+          var fileName = rec.File_Name || '';
+          if (fileName && fileName !== recTitle) {
+            html += '<div style="font-size:0.8rem;color:#6B7280;padding:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeAttr(fileName) + '">' + escapeHtml(fileName) + '</div>';
           }
 
           // AI Summary

@@ -102,15 +102,13 @@
   // ─── Column Definitions ──────────────────────────────────────
   var COLUMNS = [
     { key: 'checkbox',          label: '☐',             sortable: false, width: '3%' },
-    { key: 'Client_Name',      label: 'Contact',        sortable: true,  width: '18%' },
-    { key: 'Tags',             label: 'Tags',            sortable: true,  width: '16%' },
-    { key: 'Contact_Status',   label: 'Status',          sortable: true,  width: '10%' },
-    { key: 'Practice_Area',    label: 'Practice Area',   sortable: true,  width: '12%' },
-    { key: 'Source',           label: 'Lead Source',      sortable: true,  width: '8%' },
-    { key: 'Consent_Status',   label: 'Subscribed',      sortable: true,  width: '8%' },
-    { key: 'Last_Contacted_At', label: 'Last Contact',   sortable: true,  width: '9%' },
-    { key: 'Created_At',      label: 'Date Created',     sortable: true,  width: '9%' },
-    { key: 'Updated_At',      label: 'Last Updated',     sortable: true,  width: '9%' }
+    { key: 'Client_Name',      label: 'Contact',        sortable: true,  width: '22%' },
+    { key: 'Tags',             label: 'Tags',            sortable: true,  width: '18%' },
+    { key: 'Contact_Status',   label: 'Status',          sortable: true,  width: '11%' },
+    { key: 'Practice_Area',    label: 'Practice Area',   sortable: true,  width: '14%' },
+    { key: 'Consent_Status',   label: 'Subscribed',      sortable: true,  width: '9%' },
+    { key: 'Last_Contacted_At', label: 'Last Contact',   sortable: true,  width: '12%' },
+    { key: 'Created_At',      label: 'Date Created',     sortable: true,  width: '11%' }
   ];
 
   var PRACTICE_LABELS = {
@@ -246,7 +244,10 @@
       html += '<td class="cc-cell-name">';
       var cDisplayName = contact.Client_Name || contact.Client_Email || contact.Client_Phone || 'Unnamed';
       html += '<div class="cc-contact-name">' + escapeHtml(cDisplayName) + '</div>';
-      html += contact.Client_Name && contact.Client_Email ? '<div class="cc-contact-email">' + escapeHtml(contact.Client_Email) + '</div>' : '';
+      var subLine = contact.Client_Email || contact.Client_Phone || '';
+      if (contact.Client_Name && subLine) {
+        html += '<div class="cc-contact-email">' + escapeHtml(subLine) + '</div>';
+      }
       html += '</td>';
 
       // Tags
@@ -264,9 +265,6 @@
       // Practice Area
       html += '<td>' + escapeHtml(formatPracticeArea(contact.Practice_Area)) + '</td>';
 
-      // Source
-      html += '<td>' + (contact.Source ? escapeHtml(contact.Source) : '') + '</td>';
-
       // Consent
       html += '<td>' + consentIcon(contact.Consent_Status) + '</td>';
 
@@ -275,9 +273,6 @@
 
       // Date Created
       html += '<td>' + escapeHtml(API.util.formatDate(contact.Created_At)) + '</td>';
-
-      // Last Updated
-      html += '<td>' + (contact.Updated_At ? escapeHtml(API.util.formatRelativeTime(contact.Updated_At)) : '') + '</td>';
 
       html += '</tr>';
     });
