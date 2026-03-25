@@ -833,10 +833,10 @@
         }).then(function(r) { return r.json(); })
       ]);
       var templates = (tplRes.success ? tplRes.templates : []) || [];
-      _reminderTemplatesCache.email = templates.filter(function(t) { return t.category === 'Confirmation - Email'; });
-      _reminderTemplatesCache.sms = templates.filter(function(t) { return t.category === 'Confirmation - SMS'; });
+      _reminderTemplatesCache.email = templates.filter(function(t) { var cat = (t.category || t.Category || '').toLowerCase(); return cat === 'confirmation - email'; });
+      _reminderTemplatesCache.sms = templates.filter(function(t) { var cat = (t.category || t.Category || '').toLowerCase(); return cat === 'confirmation - sms'; });
       // Only show drip-type campaigns
-      _reminderCampaignsCache = ((campRes.success ? campRes.campaigns : []) || []).filter(function(c) { return c.type === 'drip'; });
+      _reminderCampaignsCache = ((campRes.success ? campRes.campaigns : []) || []).filter(function(c) { return (c.type || c.Type || '').toLowerCase() === 'drip'; });
     } catch (e) {
       console.warn('Failed to load reminder options:', e);
     }

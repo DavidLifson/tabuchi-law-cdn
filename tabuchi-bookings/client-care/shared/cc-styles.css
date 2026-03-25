@@ -86,7 +86,7 @@
 /* ═══════════════════════════════════════════
    3. Badges
    ═══════════════════════════════════════════ */
-.cc-badge { display:inline-block;padding:0.15rem 0.5rem;border-radius:9999px;font-size:0.75rem;font-weight:600;line-height:1.4;white-space:nowrap; }
+.cc-badge { display:inline-block;padding:0.1rem 0.4rem;border-radius:9999px;font-size:0.7rem;font-weight:600;line-height:1.4;white-space:nowrap; }
 .cc-badge-sm { font-size:0.65rem;padding:0.1rem 0.4rem; }
 .cc-badge-blue { background:#DBEAFE;color:#1E40AF; }
 .cc-badge-cyan { background:#CFFAFE;color:#155E75; }
@@ -100,12 +100,12 @@
 /* ═══════════════════════════════════════════
    4. Tables
    ═══════════════════════════════════════════ */
-.cc-table { width:100%;border-collapse:collapse;font-size:0.9rem; }
-.cc-table th,.cc-table td { padding:0.6rem 0.75rem;text-align:left;border-bottom:1px solid #E5E7EB; }
-.cc-table thead th { font-weight:600;color:#6B7280;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.03em;background:#F9FAFB; }
+.cc-table { width:100%;border-collapse:collapse;font-size:0.84rem; }
+.cc-table th,.cc-table td { padding:0.4rem 0.6rem;text-align:left;border-bottom:1px solid #E5E7EB; }
+.cc-table thead th { font-weight:600;color:#6B7280;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em;background:#F9FAFB; }
 .cc-table tbody tr:hover { background:#F9FAFB; }
 .cc-table-wrap { overflow-x:auto; }
-.cc-th { padding:0.75rem 1rem;text-align:left;font-weight:600;background:#F9FAFB;border-bottom:1px solid #E5E7EB;color:#374151;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.03em; }
+.cc-th { padding:0.45rem 0.6rem;text-align:left;font-weight:600;background:#F9FAFB;border-bottom:2px solid #E5E7EB;color:#374151;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.04em; }
 .cc-th-sortable { cursor:pointer;user-select:none; }
 .cc-th-sortable:hover { background:#F3F4F6; }
 .cc-th-sorted { background:#EFF6FF;color:#1E40AF; }
@@ -343,7 +343,7 @@
 .cc-contact-header-main { display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap; }
 .cc-contact-title { font-size:1.4rem;font-weight:700;margin:0; }
 .cc-contact-email-line { color:#6B7280;font-size:0.9rem;margin-top:0.25rem; }
-.cc-tag-pill { display:inline-block;padding:0.1rem 0.4rem;border-radius:9999px;font-size:0.7rem;font-weight:500;background:#EDE9FE;color:#5B21B6;margin:0.1rem 0.15rem; }
+.cc-tag-pill { display:inline-block;padding:0.05rem 0.35rem;border-radius:9999px;font-size:0.65rem;font-weight:500;background:#EDE9FE;color:#5B21B6;margin:0.05rem 0.1rem;line-height:1.4; }
 .cc-tag-pill-remove { cursor:pointer;margin-left:0.25rem;font-size:0.65rem;opacity:0.7; }
 .cc-tag-pill-remove:hover { opacity:1; }
 .cc-consent-yes { color:#059669;font-weight:700; }
@@ -412,9 +412,9 @@
    ═══════════════════════════════════════════ */
 .cc-contact-row { border-bottom:1px solid #F3F4F6;transition:background 0.1s; }
 .cc-contact-row:hover { background:#F9FAFB; }
-.cc-contact-row td { padding:0.6rem 1rem;vertical-align:middle; }
-.cc-contact-name { font-weight:500;color:#1F2937; }
-.cc-contact-email { font-size:0.8rem;color:#6B7280; }
+.cc-contact-row td { padding:0.4rem 0.6rem;vertical-align:middle;font-size:0.82rem;line-height:1.3; }
+.cc-contact-name { font-weight:500;color:#1F2937;font-size:0.85rem; }
+.cc-contact-email { font-size:0.75rem;color:#6B7280;margin-top:1px; }
 
 /* ═══════════════════════════════════════════
    24. Recordings List

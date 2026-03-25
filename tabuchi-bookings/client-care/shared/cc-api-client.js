@@ -937,6 +937,10 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/recordings', { body: { action: 'retry_processing', transcription_id: id } });
   }
 
+  async function deleteRecording(id) {
+    return request('POST', '/cc/recordings', { body: { action: 'delete', transcription_id: id } });
+  }
+
   async function linkRecordingLead(transcriptionId, leadId) {
     return request('POST', '/cc/recordings', { body: { action: 'link_lead', transcription_id: transcriptionId, lead_id: leadId } });
   }
@@ -1200,8 +1204,8 @@ const ClientCareAPI = (() => {
       list: listRecordings, get: getRecording,
       approveReview: approveRecordingReview, generateWill,
       uploadToClio, retryProcessing: retryRecordingProcessing,
-      linkLead: linkRecordingLead, analyze: analyzeTranscription,
-      uploadFile: uploadRecordingFile
+      delete: deleteRecording, linkLead: linkRecordingLead,
+      analyze: analyzeTranscription, uploadFile: uploadRecordingFile
     },
     // Documents
     documents: {

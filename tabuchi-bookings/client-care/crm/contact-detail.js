@@ -1441,6 +1441,7 @@
           } else if (rec.Status === 'completed') {
             html += '<button class="cc-btn cc-btn-sm cc-btn-success cc-rec-approve-btn" data-rec-id="' + escapeAttr(rec.id) + '">Mark Reviewed</button>';
           }
+          html += '<button class="cc-btn cc-btn-sm cc-rec-delete-btn" data-rec-id="' + escapeAttr(rec.id) + '" data-rec-name="' + escapeAttr(rec.Subject || rec.Meeting_Subject || 'this recording') + '" style="color:#DC2626;border:1px solid #FCA5A5;background:white;margin-left:auto;" title="Delete recording">Delete</button>';
           html += '</div>';
           html += '</div>'; // end card
         });
@@ -1541,6 +1542,32 @@
           ccToast('Failed: ' + (err.error || 'Network error'), 'error');
         }
         btn.disabled = false;
+      });
+    });
+
+    // Delete buttons
+    document.querySelectorAll('.cc-rec-delete-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var recName = btn.dataset.recName || 'this recording';
+        if (!confirm('Delete "' + recName + '"? This cannot be undone.')) return;
+        btn.disabled = true;
+        btn.textContent = 'Deleting...';
+        try {
+          var res = await API.recordings.delete(btn.dataset.recId);
+          if (res.success) {
+            ccToast('Recording deleted.', 'success');
+            reloadContactRecordings();
+          } else {
+            ccToast('Failed: ' + (res.error || 'Unknown error'), 'error');
+            btn.disabled = false;
+            btn.textContent = 'Delete';
+          }
+        } catch (err) {
+          ccToast('Failed: ' + (err.error || 'Network error'), 'error');
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+        }
       });
     });
   }
