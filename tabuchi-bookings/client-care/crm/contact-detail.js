@@ -5,7 +5,7 @@
  * Requires: cc-api-client.js loaded first
  *
  * Features:
- * - 3-tab layout: Overview, History, Conversion
+ * - 5-tab layout: Overview, Activity & Tasks, Recordings, Conversion, Documents
  * - Contact header with status badge and tag pills
  * - Info grid with all contact fields
  * - Inline tag management (add/remove)
@@ -114,12 +114,16 @@
     documentCreators: [],
     docCreatorStep: 0,
     docCreatorSources: {},
-    docCreatorFieldData: null
+    docCreatorFieldData: null,
+    recordings: [],
+    recordingsLoaded: false,
+    _recRefreshTimer: null
   };
 
   var TABS = [
     { key: 'overview', label: 'Overview' },
-    { key: 'history', label: 'History' },
+    { key: 'history', label: 'Activity & Tasks' },
+    { key: 'recordings', label: 'Recordings' },
     { key: 'conversion', label: 'Conversion' },
     { key: 'documents', label: 'Documents' }
   ];
@@ -376,16 +380,28 @@
     var html = '<div class="cc-tabs">';
     TABS.forEach(function(tab) {
       var cls = 'cc-tab' + (state.activeTab === tab.key ? ' cc-tab-active' : '');
-      html += '<button class="' + cls + '" data-tab="' + tab.key + '">' + tab.label + '</button>';
+      var badge = '';
+      if (tab.key === 'recordings' && state.recordings.length > 0) {
+        badge = ' <span class="cc-tab-badge">' + state.recordings.length + '</span>';
+      }
+      html += '<button class="' + cls + '" data-tab="' + tab.key + '">' + tab.label + badge + '</button>';
     });
     html += '</div>';
     el.innerHTML = html;
 
     el.querySelectorAll('.cc-tab').forEach(function(btn) {
       btn.addEventListener('click', function() {
+        var prevTab = state.activeTab;
         state.activeTab = btn.dataset.tab;
         renderTabs();
         renderTabContent();
+        // Lazy-load recordings on first switch
+        if (btn.dataset.tab === 'recordings' && !state.recordingsLoaded) {
+          loadContactRecordings();
+        }
+        // Manage auto-refresh
+        if (btn.dataset.tab === 'recordings') startRecRefresh();
+        else if (prevTab === 'recordings') stopRecRefresh();
       });
     });
   }
@@ -398,6 +414,7 @@
     switch (state.activeTab) {
       case 'overview':  renderOverview(el); break;
       case 'history':   renderHistory(el);  break;
+      case 'recordings': renderRecordingsTab(el); break;
       case 'conversion': renderConversion(el); break;
       case 'documents': renderDocuments(el); break;
     }
@@ -1119,7 +1136,415 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // TAB 3: CONVERSION
+  // TAB 3: RECORDINGS
+  // ═══════════════════════════════════════════════════════════
+
+  async function loadContactRecordings() {
+    var el = $el('cc-contact-tab-content');
+    if (!el || state.activeTab !== 'recordings') return;
+
+    el.innerHTML = '<div style="text-align:center;padding:2rem;color:#6B7280;">Loading recordings...</div>';
+
+    try {
+      var result = await API.recordings.list({ lead_id: contactId });
+      if (result.success) {
+        state.recordings = result.recordings || [];
+        state.recordingsLoaded = true;
+        renderRecordingsTab(el);
+        renderTabs(); // Update badge count
+      } else {
+        el.innerHTML = '<div class="cc-error">' + escapeHtml(result.error || 'Failed to load recordings') + '</div>';
+      }
+    } catch (err) {
+      el.innerHTML = '<div class="cc-error">' + escapeHtml(err.error || 'Failed to load recordings') + '</div>';
+    }
+  }
+
+  async function reloadContactRecordings() {
+    try {
+      var result = await API.recordings.list({ lead_id: contactId });
+      if (result.success) {
+        state.recordings = result.recordings || [];
+        if (state.activeTab === 'recordings') renderRecordingsTab($el('cc-contact-tab-content'));
+        renderTabs();
+      }
+    } catch (err) { /* silently fail */ }
+  }
+
+  function startRecRefresh() {
+    stopRecRefresh();
+    var hasPending = state.recordings.some(function(r) {
+      return ['pending', 'downloading', 'transcribing', 'analyzing'].indexOf((r.Status || '').toLowerCase()) >= 0;
+    });
+    if (hasPending) {
+      state._recRefreshTimer = setInterval(reloadContactRecordings, 15000);
+    }
+  }
+
+  function stopRecRefresh() {
+    if (state._recRefreshTimer) {
+      clearInterval(state._recRefreshTimer);
+      state._recRefreshTimer = null;
+    }
+  }
+
+  function recStatusColor(status) {
+    var map = { completed: 'green', pending: 'gray', downloading: 'blue', transcribing: 'blue', analyzing: 'blue', error: 'red' };
+    return map[(status || '').toLowerCase()] || 'gray';
+  }
+  function recIntentColor(intent) {
+    var map = { PROCEED: 'green', UNDECIDED: 'yellow', DECLINED: 'red', NEEDS_FOLLOWUP: 'blue' };
+    return map[intent] || 'gray';
+  }
+  function recWillColor(wst) {
+    var map = { PENDING_REVIEW: 'yellow', GENERATING: 'blue', GENERATED: 'green', UPLOADED_TO_CLIO: 'green', NOT_APPLICABLE: 'gray' };
+    return map[wst] || 'gray';
+  }
+  function recFormatDuration(seconds) {
+    if (!seconds) return '';
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function recParseJson(str) {
+    if (!str) return null;
+    if (Array.isArray(str)) return str;
+    try { return JSON.parse(str); } catch (e) { return null; }
+  }
+
+  function renderRecordingsTab(container) {
+    if (!container) return;
+
+    // If not loaded yet, trigger lazy load
+    if (!state.recordingsLoaded) {
+      loadContactRecordings();
+      return;
+    }
+
+    var rcRecordings = (state.activities || []).filter(function(a) { return a.recording_url || a.Recording_URL; });
+    var html = '';
+
+    // Upload button bar
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+    html += '<h3 class="cc-section-title" style="margin:0;">Recordings</h3>';
+    html += '<div style="display:flex;gap:8px;">';
+    html += '<button id="cc-rec-upload-btn" class="cc-btn cc-btn-primary" style="font-size:13px;padding:6px 14px;">&#128190; Upload Recording</button>';
+    html += '<button id="cc-rec-refresh-btn" class="cc-btn cc-btn-outline cc-btn-sm" title="Refresh" style="padding:4px 10px;font-size:0.8rem;">&#8635; Refresh</button>';
+    html += '</div></div>';
+
+    // Upload form (hidden by default)
+    html += '<div id="cc-rec-upload-form" style="display:none;margin-bottom:16px;padding:16px;border:2px dashed #CBD5E1;border-radius:8px;background:#F8FAFC;">';
+    html += '<p style="margin:0 0 12px;font-size:14px;font-weight:600;">Upload an audio or video file for transcription</p>';
+    html += '<input type="file" id="cc-rec-file-input" accept="audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.ogg,.flac" style="margin-bottom:12px;" />';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+    html += '<div><label style="font-size:12px;color:#555;">Subject / Title</label><input id="cc-rec-upload-subject" class="cc-input" placeholder="e.g. Initial consultation call" style="font-size:13px;" /></div>';
+    html += '<div><label style="font-size:12px;color:#555;">Source</label>';
+    html += '<select id="cc-rec-upload-source" class="cc-input" style="font-size:13px;"><option value="upload">File Upload</option><option value="phone">Phone Recording</option><option value="teams">Teams Meeting</option><option value="zoom">Zoom Meeting</option></select></div>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:8px;">';
+    html += '<button id="cc-rec-upload-submit" class="cc-btn cc-btn-primary" style="font-size:13px;">Upload &amp; Transcribe</button>';
+    html += '<button id="cc-rec-upload-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;">Cancel</button>';
+    html += '</div>';
+    html += '<div id="cc-rec-upload-progress" style="display:none;margin-top:12px;padding:8px;background:#EFF6FF;border-radius:6px;font-size:13px;color:#1D4ED8;">Uploading...</div>';
+    html += '</div>';
+
+    if (state.recordings.length === 0 && rcRecordings.length === 0) {
+      html += '<div class="cc-empty" style="padding:2rem;text-align:center;">';
+      html += '<p style="margin:0 0 .5rem;font-size:1.1rem;color:#6B7280;">No recordings linked to this contact.</p>';
+      html += '<p style="margin:0;font-size:.85rem;color:#9CA3AF;">Upload a recording or recordings from calls and meetings will appear here automatically.</p>';
+      html += '</div>';
+    } else {
+      // Call Recordings (from Activities with Recording_URL)
+      if (rcRecordings.length > 0) {
+        html += '<div style="margin-bottom:1rem;"><h4 style="margin:0 0 0.75rem;font-size:0.95rem;color:#374151;">Call Recordings</h4>';
+        rcRecordings.forEach(function(a) {
+          var date = API.util.formatDateTime(a.created_at || a.Occurred_At);
+          var duration = a.duration_minutes || a.Duration_Minutes;
+          var durationStr = duration ? duration + ' min' : '';
+          var recUrl = a.recording_url || a.Recording_URL;
+
+          html += '<div class="cc-rec-card" style="margin-bottom:0.5rem;">';
+          html += '<div class="cc-rec-card-header">';
+          html += '<span class="cc-badge cc-badge-green" style="font-size:.7rem;">RINGCENTRAL</span>';
+          html += '<span class="cc-badge cc-badge-gray">' + escapeHtml(a.outcome || a.Outcome || 'Completed') + '</span>';
+          html += '<span class="cc-rec-card-meta" style="margin-left:auto;">' + escapeHtml(date) + (durationStr ? ' &middot; ' + durationStr : '') + '</span>';
+          html += '</div>';
+          html += '<div style="padding:0.5rem 0;">';
+          html += '<div style="font-size:0.9rem;font-weight:500;margin-bottom:0.25rem;">' + escapeHtml(a.subject || a.Subject || 'Phone Call') + '</div>';
+          if (a.body || a.Body) html += '<div style="font-size:0.85rem;color:#4B5563;margin-bottom:0.5rem;white-space:pre-wrap;">' + escapeHtml((a.body || a.Body || '').substring(0, 200)) + '</div>';
+          html += '<a href="' + escapeAttr(recUrl) + '" target="_blank" rel="noopener" ' +
+            'style="display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:#4F46E5;color:white;border-radius:6px;font-size:0.8rem;text-decoration:none;font-weight:500;">' +
+            '&#9654; Play Recording</a>';
+          html += '</div></div>';
+        });
+        html += '</div>';
+      }
+
+      // Meeting / Uploaded Recordings
+      if (state.recordings.length > 0) {
+        html += '<div><h4 style="margin:0 0 0.75rem;font-size:0.95rem;color:#374151;">Meeting &amp; Uploaded Recordings</h4>';
+
+        state.recordings.forEach(function(rec, idx) {
+          var statusCls = recStatusColor(rec.Status);
+          var intentCls = recIntentColor(rec.AI_Client_Intent);
+          var willCls = recWillColor(rec.Will_Status);
+          var duration = recFormatDuration(rec.Duration_Seconds);
+          var date = API.util.formatDateTime(rec.Meeting_Date || rec.Created_At);
+          var source = (rec.Source || 'teams').toUpperCase();
+
+          html += '<div class="cc-rec-card" data-rec-id="' + escapeAttr(rec.id) + '">';
+          html += '<div class="cc-rec-card-header">';
+          html += '<span class="cc-badge cc-badge-' + (source === 'ZOOM' ? 'blue' : source === 'UPLOAD' ? 'purple' : 'purple') + '" style="font-size:.7rem;">' + escapeHtml(source) + '</span>';
+          html += '<span class="cc-badge cc-badge-' + statusCls + '">' + escapeHtml(rec.Status || 'pending') + '</span>';
+          if (rec.AI_Client_Intent) {
+            html += '<span class="cc-badge cc-badge-' + intentCls + '">' + escapeHtml(rec.AI_Client_Intent) + '</span>';
+          }
+          if (rec.Will_Status && rec.Will_Status !== 'NOT_APPLICABLE') {
+            html += '<span class="cc-badge cc-badge-' + willCls + '">Will: ' + escapeHtml(rec.Will_Status) + '</span>';
+          }
+          html += '<span class="cc-rec-card-meta" style="margin-left:auto;">' + escapeHtml(date) + (duration ? ' &middot; ' + duration : '') + '</span>';
+          html += '</div>';
+
+          // AI Summary
+          if (rec.AI_Summary) {
+            html += '<div class="cc-rec-summary">' + escapeHtml(rec.AI_Summary) + '</div>';
+          }
+
+          // Action Items
+          var actionItems = recParseJson(rec.AI_Action_Items);
+          if (actionItems && actionItems.length > 0) {
+            html += '<details style="margin:.5rem 0;">';
+            html += '<summary style="font-size:.85rem;font-weight:600;color:#374151;cursor:pointer;">Action Items (' + actionItems.length + ')</summary>';
+            html += '<ul class="cc-rec-items">';
+            actionItems.forEach(function(item) {
+              var text = typeof item === 'string' ? item : (item.description || item.text || JSON.stringify(item));
+              html += '<li>' + escapeHtml(text) + '</li>';
+            });
+            html += '</ul></details>';
+          }
+
+          // Transcript toggle
+          if (rec.Status === 'completed') {
+            html += '<div class="cc-transcript-panel" id="cc-transcript-panel-' + idx + '">';
+            html += '<button class="cc-transcript-toggle" data-rec-idx="' + idx + '" data-rec-id="' + escapeAttr(rec.id) + '">';
+            html += '<span style="transition:transform .15s;" id="cc-transcript-arrow-' + idx + '">&#9654;</span> View Transcript</button>';
+            html += '<div class="cc-transcript-body" id="cc-transcript-body-' + idx + '" style="display:none;"></div>';
+            html += '</div>';
+          }
+
+          // Actions row
+          html += '<div class="cc-rec-actions">';
+          if (rec.Status === 'completed') {
+            html += '<button class="cc-btn cc-btn-sm" onclick="window.open(\'' + escapeAttr(rec.Blob_Transcript_URL || '#') + '\')">Download Transcript</button>';
+          }
+          if (rec.Status === 'error') {
+            html += '<button class="cc-btn cc-btn-sm cc-btn-warning cc-rec-retry-btn" data-rec-id="' + escapeAttr(rec.id) + '">Retry Processing</button>';
+          }
+          if (rec.Reviewed_By) {
+            html += '<span class="cc-rec-card-meta">Reviewed by ' + escapeHtml(rec.Reviewed_By_Name || rec.Reviewed_By) + '</span>';
+          } else if (rec.Status === 'completed') {
+            html += '<button class="cc-btn cc-btn-sm cc-btn-success cc-rec-approve-btn" data-rec-id="' + escapeAttr(rec.id) + '">Mark Reviewed</button>';
+          }
+          html += '</div>';
+          html += '</div>'; // end card
+        });
+
+        html += '</div>'; // close Meeting Recordings section
+      }
+    }
+
+    container.innerHTML = html;
+    bindRecordingActions();
+  }
+
+  function bindRecordingActions() {
+    // Upload button toggle
+    var uploadBtn = document.getElementById('cc-rec-upload-btn');
+    var uploadForm = document.getElementById('cc-rec-upload-form');
+    if (uploadBtn && uploadForm) {
+      uploadBtn.addEventListener('click', function() {
+        uploadForm.style.display = uploadForm.style.display === 'none' ? '' : 'none';
+      });
+    }
+
+    // Upload cancel
+    var cancelBtn = document.getElementById('cc-rec-upload-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        if (uploadForm) uploadForm.style.display = 'none';
+      });
+    }
+
+    // Upload submit
+    var submitBtn = document.getElementById('cc-rec-upload-submit');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', handleRecordingUpload);
+    }
+
+    // Refresh button
+    var refreshBtn = document.getElementById('cc-rec-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async function() {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+        await reloadContactRecordings();
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '&#8635; Refresh';
+      });
+    }
+
+    // Transcript toggles
+    document.querySelectorAll('.cc-transcript-toggle').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var idx = btn.dataset.recIdx;
+        var recId = btn.dataset.recId;
+        var body = document.getElementById('cc-transcript-body-' + idx);
+        var arrow = document.getElementById('cc-transcript-arrow-' + idx);
+        if (!body) return;
+
+        if (body.style.display === 'none') {
+          body.style.display = '';
+          if (arrow) arrow.style.transform = 'rotate(90deg)';
+          if (!body.dataset.loaded) {
+            body.innerHTML = '<div style="color:#6B7280;padding:.5rem;">Loading transcript...</div>';
+            loadContactTranscript(recId, body);
+          }
+        } else {
+          body.style.display = 'none';
+          if (arrow) arrow.style.transform = '';
+        }
+      });
+    });
+
+    // Approve review buttons
+    document.querySelectorAll('.cc-rec-approve-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        try {
+          var res = await API.recordings.approveReview(btn.dataset.recId);
+          if (res.success) reloadContactRecordings();
+          else ccToast('Failed: ' + (res.error || 'Unknown error'), 'error');
+        } catch (err) {
+          ccToast('Failed: ' + (err.error || 'Network error'), 'error');
+        }
+        btn.disabled = false;
+      });
+    });
+
+    // Retry buttons
+    document.querySelectorAll('.cc-rec-retry-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.textContent = 'Retrying...';
+        try {
+          var res = await API.recordings.retryProcessing(btn.dataset.recId);
+          if (res.success) reloadContactRecordings();
+          else ccToast('Failed: ' + (res.error || 'Unknown error'), 'error');
+        } catch (err) {
+          ccToast('Failed: ' + (err.error || 'Network error'), 'error');
+        }
+        btn.disabled = false;
+      });
+    });
+  }
+
+  async function loadContactTranscript(recId, bodyEl) {
+    try {
+      var res = await API.recordings.get(recId);
+      if (res.success && res.recording) {
+        var transcript = res.recording.Transcript_Text || '';
+        if (!transcript && res.recording.Blob_Transcript_URL) {
+          bodyEl.innerHTML = '<div style="color:#6B7280;">Transcript available for download. <a href="' +
+            escapeAttr(res.recording.Blob_Transcript_URL) + '" target="_blank">Open transcript file</a></div>';
+        } else if (transcript) {
+          bodyEl.innerHTML = escapeHtml(transcript).replace(/^(Speaker \d+):/gm, '<span style="font-weight:600;color:#2563EB;">$1:</span>');
+        } else {
+          bodyEl.innerHTML = '<div style="color:#9CA3AF;">No transcript text available.</div>';
+        }
+      } else {
+        bodyEl.innerHTML = '<div style="color:#EF4444;">Failed to load transcript.</div>';
+      }
+    } catch (err) {
+      bodyEl.innerHTML = '<div style="color:#EF4444;">Error loading transcript.</div>';
+    }
+    bodyEl.dataset.loaded = 'true';
+  }
+
+  async function handleRecordingUpload() {
+    var fileInput = document.getElementById('cc-rec-file-input');
+    var subjectInput = document.getElementById('cc-rec-upload-subject');
+    var sourceSelect = document.getElementById('cc-rec-upload-source');
+    var progressDiv = document.getElementById('cc-rec-upload-progress');
+    var submitBtn = document.getElementById('cc-rec-upload-submit');
+
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      ccToast('Please select a file to upload.', 'info');
+      return;
+    }
+
+    var file = fileInput.files[0];
+    // Limit to 100MB
+    if (file.size > 100 * 1024 * 1024) {
+      ccToast('File is too large. Maximum size is 100MB.', 'error');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    if (progressDiv) {
+      progressDiv.style.display = '';
+      progressDiv.textContent = 'Reading file...';
+    }
+
+    try {
+      // Read file as base64
+      var base64 = await new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function() {
+          var result = reader.result;
+          // Strip data URL prefix
+          var base64Data = result.split(',')[1] || result;
+          resolve(base64Data);
+        };
+        reader.onerror = function() { reject(new Error('Failed to read file')); };
+        reader.readAsDataURL(file);
+      });
+
+      if (progressDiv) progressDiv.textContent = 'Uploading and starting transcription...';
+
+      var result = await API.recordings.uploadFile({
+        lead_id: contactId,
+        file_base64: base64,
+        file_name: file.name,
+        file_type: file.type,
+        subject: (subjectInput ? subjectInput.value : '') || file.name,
+        source: sourceSelect ? sourceSelect.value : 'upload'
+      });
+
+      if (result.success) {
+        ccToast('File uploaded! Transcription in progress.', 'success');
+        if (document.getElementById('cc-rec-upload-form')) {
+          document.getElementById('cc-rec-upload-form').style.display = 'none';
+        }
+        // Reset form
+        fileInput.value = '';
+        if (subjectInput) subjectInput.value = '';
+        // Reload recordings
+        await reloadContactRecordings();
+        startRecRefresh(); // Start polling for status updates
+      } else {
+        ccToast('Upload failed: ' + (result.error || 'Unknown error'), 'error');
+      }
+    } catch (err) {
+      ccToast('Upload failed: ' + (err.message || err.error || 'Network error'), 'error');
+    }
+
+    submitBtn.disabled = false;
+    if (progressDiv) progressDiv.style.display = 'none';
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // TAB 4: CONVERSION
   // ═══════════════════════════════════════════════════════════
   function renderConversion(container) {
     var c = state.contact;

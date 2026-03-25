@@ -1081,6 +1081,8 @@
 
     fd.name = (document.getElementById('cc-form-name') || {}).value || '';
     fd.form_id = (document.getElementById('cc-form-slug') || {}).value || '';
+    // Auto-generate slug from name if empty
+    if (!fd.form_id && fd.name) fd.form_id = slugify(fd.name);
     fd.form_type = (document.getElementById('cc-form-type') || {}).value || 'website';
     fd.practice_area = (document.getElementById('cc-form-practice-area') || {}).value || '';
     fd.is_active = !!(document.getElementById('cc-form-active') || {}).checked;
@@ -1202,12 +1204,16 @@
       saveBtn.textContent = 'Save';
     });
 
-    // Auto-slug from name
+    // Auto-slug from name (only if slug is empty or user hasn't manually edited it)
     var nameInput = document.getElementById('cc-form-name');
     var slugInput = document.getElementById('cc-form-slug');
-    if (nameInput && slugInput && state.formEditorMode === 'create') {
+    if (nameInput && slugInput) {
+      var _slugManuallyEdited = false;
+      slugInput.addEventListener('input', function() { _slugManuallyEdited = true; });
       nameInput.addEventListener('input', function() {
-        slugInput.value = slugify(nameInput.value);
+        if (!_slugManuallyEdited || !slugInput.value) {
+          slugInput.value = slugify(nameInput.value);
+        }
       });
     }
 
