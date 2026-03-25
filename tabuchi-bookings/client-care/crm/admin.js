@@ -184,6 +184,7 @@
     formsLoading: false,
     formDetail: null,
     formDetailLoading: false,
+    formsSubTab: sessionStorage.getItem('cc_forms_subtab') || 'website',
     formEditorMode: null, // null | 'list' | 'edit' | 'create'
     formEditorData: null,
     formSectionExpanded: {},
@@ -335,6 +336,18 @@
     { key: 'OTHER', label: 'Other' }
   ];
 
+  var PA_LABEL_MAP = {
+    'ESTATE_PLANNING_WILL_POA': 'Estate Planning', 'ESTATE_PLANNING_TRUST': 'Estate Planning',
+    'ESTATE_PLANNING_FULL': 'Estate Planning', 'PROBATE': 'Probate',
+    'ESTATE_ADMINISTRATION': 'Probate', 'REAL_ESTATE': 'Real Estate',
+    'CORPORATE': 'Business Law', 'OTHER': 'Other',
+    'Estate Planning': 'Estate Planning', 'Real Estate': 'Real Estate',
+    'Probate': 'Probate', 'Business Law': 'Business Law',
+    'Family Law': 'Family Law', 'Immigration': 'Immigration',
+    'Litigation': 'Litigation', 'Other': 'Other'
+  };
+  function getPALabel(pa) { return PA_LABEL_MAP[pa] || pa || 'Other'; }
+
   var FORM_FIELD_TYPES = [
     { key: 'short_text', label: 'Short Text' },
     { key: 'long_text', label: 'Long Text' },
@@ -396,77 +409,199 @@
     var content = $el('cc-admin-content');
     if (!content) return;
 
-    var items = state.forms || [];
+    var subTab = state.formsSubTab || 'website';
 
+    // ── Header + Sub-tab bar ──
     var html = '<div class="cc-admin-config">';
-    html += '<div class="cc-admin-section-header">';
+    html += '<div class="cc-admin-section-header" style="margin-bottom:0;">';
     html += '<h3 class="cc-admin-section-title">Forms</h3>';
-    html += '<button id="cc-forms-add-btn" class="cc-btn cc-btn-primary cc-btn-sm">+ New Form</button>';
+    html += '</div>';
+
+    html += '<div style="display:flex;gap:0;border-bottom:2px solid #E5E7EB;margin-bottom:1.5rem;">';
+    [
+      { key: 'website', label: 'Website Forms' },
+      { key: 'intake',  label: 'Intake Forms' }
+    ].forEach(function(tab) {
+      var isActive = subTab === tab.key;
+      html += '<button class="cc-forms-subtab" data-subtab="' + tab.key + '" style="padding:8px 20px;font-size:0.9rem;font-weight:' + (isActive ? '600' : '400') + ';color:' + (isActive ? '#2563EB' : '#6B7280') + ';border:none;background:none;cursor:pointer;border-bottom:2px solid ' + (isActive ? '#2563EB' : 'transparent') + ';margin-bottom:-2px;">' + tab.label + '</button>';
+    });
     html += '</div>';
 
     if (state.formsLoading) {
       html += '<div class="cc-loading"><div class="cc-spinner"></div><p>Loading forms...</p></div></div>';
       content.innerHTML = html;
+      bindFormsSubTabs();
       return;
     }
 
-    if (items.length === 0) {
-      html += '<div class="cc-empty"><p>No forms configured yet.</p></div></div>';
+    // ── Filter by form_type ──
+    var allItems = state.forms || [];
+    var filtered = allItems.filter(function(item) {
+      var ft = item.Form_Type || item.form_type || 'website';
+      return ft === subTab;
+    });
+
+    // ── "+ New" button ──
+    var btnLabel = subTab === 'website' ? '+ New Website Form' : '+ New Intake Form';
+    html += '<div style="margin-bottom:1rem;"><button id="cc-forms-add-btn" class="cc-btn cc-btn-primary cc-btn-sm">' + btnLabel + '</button></div>';
+
+    if (filtered.length === 0) {
+      html += '<div class="cc-empty"><p>No ' + (subTab === 'website' ? 'website' : 'intake') + ' forms configured yet. Create your first one above.</p></div></div>';
       content.innerHTML = html;
+      bindFormsSubTabs();
       bindFormsAddBtn();
       return;
     }
 
-    html += '<div style="background:white;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;">';
-    html += '<table class="cc-table">';
-    html += '<thead><tr>';
-    html += '<th class="cc-th">Name</th>';
-    html += '<th class="cc-th" style="width:160px;">Form ID</th>';
-    html += '<th class="cc-th" style="width:160px;">Practice Area</th>';
-    html += '<th class="cc-th" style="width:80px;">Status</th>';
-    html += '<th class="cc-th" style="width:100px;">Submissions</th>';
-    html += '<th class="cc-th" style="width:220px;">Actions</th>';
-    html += '</tr></thead><tbody>';
-
-    items.forEach(function(item) {
-      var itemActive = item.Is_Active !== undefined ? item.Is_Active : (item.is_active !== false);
-      var activeCls = itemActive ? 'green' : 'gray';
-      var activeText = itemActive ? 'Active' : 'Inactive';
-      var paLabel = '';
-      var pAreaVal = item.Practice_Area || item.practice_area || '';
-      var pa = FORM_PRACTICE_AREAS.find(function(p) { return p.key === pAreaVal; });
-      if (pa) paLabel = pa.label;
-      else paLabel = item.practice_area || '';
-
-      var slug = item.Form_ID || item.form_id || item.slug || '';
-      var name = item.Name || item.name || '';
-      var subCount = item.Submission_Count || item.submission_count || 0;
-      var isActive = item.Is_Active !== undefined ? item.Is_Active : (item.is_active !== false);
-      html += '<tr class="cc-form-row" data-form-slug="' + escapeAttr(slug) + '" data-form-rec-id="' + escapeAttr(item.id || '') + '" style="border-bottom:1px solid #F3F4F6;transition:background 0.1s;cursor:pointer;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'\'">';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;font-weight:500;">' + escapeHtml(name) + '</td>';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:4px;">' + escapeHtml(slug) + '</code></td>';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + escapeHtml(paLabel) + '</td>';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;"><span class="cc-badge cc-badge-' + activeCls + '">' + activeText + '</span></td>';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">' + subCount + '</td>';
-      html += '<td style="padding:0.6rem 1rem;vertical-align:middle;">';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-edit-btn" data-form-slug="' + escapeAttr(slug) + '">Edit</button> ';
-      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-dup-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(name) + '" data-form-slug="' + escapeAttr(slug) + '">Duplicate</button> ';
-      if (itemActive) {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-danger-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="deactivate">Deactivate</button> ';
-      } else {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-success-outline cc-form-toggle-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-action="activate">Activate</button> ';
-      }
-      html += '<button class="cc-btn cc-btn-sm cc-btn-danger cc-form-delete-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(name) + '" style="margin-left:2px;">Delete</button>';
-      html += '</td>';
-      html += '</tr>';
+    // ── Group by Practice Area ──
+    var groups = {};
+    filtered.forEach(function(item) {
+      var paRaw = item.Practice_Area || item.practice_area || '';
+      var pa = getPALabel(paRaw);
+      if (!groups[pa]) groups[pa] = [];
+      groups[pa].push(item);
     });
 
-    html += '</tbody></table></div>';
+    var paKeys = Object.keys(groups).sort(function(a, b) {
+      if (a === 'Other') return 1;
+      if (b === 'Other') return -1;
+      return a.localeCompare(b);
+    });
+
+    paKeys.forEach(function(pa) {
+      var items = groups[pa];
+      var accordionId = 'cc-form-acc-' + pa.replace(/\s+/g, '-').toLowerCase();
+      html += '<div class="cc-form-accordion" style="border:1px solid #E5E7EB;border-radius:8px;margin-bottom:0.75rem;overflow:hidden;">';
+      html += '<button class="cc-form-acc-toggle" data-target="' + accordionId + '" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 14px;background:#F9FAFB;border:none;cursor:pointer;font-size:0.9rem;font-weight:600;color:#374151;">';
+      html += '<span>' + escapeHtml(pa) + ' <span style="font-weight:400;color:#9CA3AF;">(' + items.length + ')</span></span>';
+      html += '<span class="cc-form-acc-arrow" style="transition:transform 0.2s;">&#9660;</span>';
+      html += '</button>';
+      html += '<div id="' + accordionId + '" class="cc-form-acc-body" style="display:block;padding:8px;">';
+
+      items.forEach(function(item) {
+        var itemActive = item.Is_Active !== undefined ? item.Is_Active : (item.is_active !== false);
+        var activeCls = itemActive ? 'green' : 'gray';
+        var activeText = itemActive ? 'Active' : 'Inactive';
+        var slug = item.Form_ID || item.form_id || '';
+        var name = item.Name || item.name || '';
+        var subCount = item.Submission_Count || item.submission_count || 0;
+
+        html += '<div class="cc-form-card" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #E5E7EB;border-radius:6px;margin-bottom:6px;background:white;cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'white\'" data-form-slug="' + escapeAttr(slug) + '" data-form-rec-id="' + escapeAttr(item.id || '') + '">';
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="font-weight:500;font-size:0.9rem;color:#1e293b;">' + escapeHtml(name) + '</div>';
+        html += '<div style="font-size:0.8rem;color:#6B7280;margin-top:2px;"><code style="font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:3px;">' + escapeHtml(slug) + '</code> &middot; <span class="cc-badge cc-badge-' + activeCls + '" style="font-size:11px;">' + activeText + '</span> &middot; ' + subCount + ' submission' + (subCount === 1 ? '' : 's') + '</div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:4px;flex-shrink:0;margin-left:12px;">';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-edit-btn" data-form-slug="' + escapeAttr(slug) + '">Edit</button>';
+        if (subTab === 'website') {
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-embed-btn" data-form-slug="' + escapeAttr(slug) + '" data-form-name="' + escapeAttr(name) + '">Embed Code</button>';
+        }
+        html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-form-dup-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(name) + '" data-form-slug="' + escapeAttr(slug) + '">Duplicate</button>';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-danger cc-form-delete-btn" data-form-id="' + escapeAttr(item.id || '') + '" data-form-name="' + escapeAttr(name) + '">Delete</button>';
+        html += '</div>';
+        html += '</div>';
+      });
+
+      html += '</div></div>';
+    });
+
     html += '</div>';
     content.innerHTML = html;
 
+    bindFormsSubTabs();
     bindFormsAddBtn();
     bindFormsTableEvents();
+
+    // Bind accordion toggles
+    content.querySelectorAll('.cc-form-acc-toggle').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var target = document.getElementById(btn.dataset.target);
+        if (target) {
+          var isOpen = target.style.display !== 'none';
+          target.style.display = isOpen ? 'none' : 'block';
+          var arrow = btn.querySelector('.cc-form-acc-arrow');
+          if (arrow) arrow.style.transform = isOpen ? 'rotate(-90deg)' : '';
+        }
+      });
+    });
+
+    // Bind embed code buttons
+    content.querySelectorAll('.cc-form-embed-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showEmbedCodeModal({ form_id: btn.dataset.formSlug, name: btn.dataset.formName });
+      });
+    });
+
+    // Bind form card clicks → edit
+    content.querySelectorAll('.cc-form-card').forEach(function(card) {
+      card.addEventListener('click', async function(e) {
+        if (e.target.closest('button')) return;
+        var slug = card.dataset.formSlug;
+        try {
+          showToast('Loading form...', 'info');
+          var result = await API.forms.get(slug);
+          state.formEditorMode = 'edit';
+          state.formEditorData = result.config || result.data || result;
+          state.formSectionExpanded = {};
+          renderFormsTab();
+        } catch (err) {
+          showToast(err.error || 'Failed to load form.', 'error');
+        }
+      });
+    });
+  }
+
+  function bindFormsSubTabs() {
+    var content = $el('cc-admin-content');
+    if (!content) return;
+    content.querySelectorAll('.cc-forms-subtab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        state.formsSubTab = btn.dataset.subtab;
+        sessionStorage.setItem('cc_forms_subtab', state.formsSubTab);
+        renderFormsTab();
+      });
+    });
+  }
+
+  function showEmbedCodeModal(form) {
+    var formId = form.form_id || form.Form_ID;
+    var code = '<div id="tb-form-' + formId + '"></div>\n<script src="https://davidlifson.github.io/tabuchi-law-cdn/tabuchi-bookings/client-care/public/form-embed.js" data-form="' + formId + '"><\/script>';
+
+    var overlay = document.createElement('div');
+    overlay.className = 'cc-modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'cc-modal';
+    modal.innerHTML =
+      '<div class="cc-modal-header">' +
+        '<h3>Embed Code: ' + escapeHtml(form.name || formId) + '</h3>' +
+        '<button class="cc-modal-close">&times;</button>' +
+      '</div>' +
+      '<div class="cc-modal-body">' +
+        '<p style="font-size:0.85rem;color:#6B7280;margin-bottom:0.75rem;">Paste this code into your Webflow page to embed this form.</p>' +
+        '<textarea id="cc-embed-code-ta" readonly style="width:100%;height:100px;font-family:monospace;font-size:12px;border:1px solid #D1D5DB;border-radius:6px;padding:8px;background:#F9FAFB;resize:vertical;">' + escapeHtml(code) + '</textarea>' +
+      '</div>' +
+      '<div class="cc-modal-footer">' +
+        '<button class="cc-btn cc-btn-outline cc-modal-cancel-btn">Close</button>' +
+        '<button class="cc-btn cc-btn-primary" id="cc-embed-copy-btn">Copy to Clipboard</button>' +
+      '</div>';
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    overlay.querySelector('.cc-modal-close').addEventListener('click', function() { overlay.remove(); });
+    overlay.querySelector('.cc-modal-cancel-btn').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    document.getElementById('cc-embed-copy-btn').addEventListener('click', function() {
+      var ta = document.getElementById('cc-embed-code-ta');
+      if (ta) {
+        ta.select();
+        navigator.clipboard.writeText(ta.value).then(function() {
+          showToast('Embed code copied to clipboard.', 'success');
+        }).catch(function() {
+          document.execCommand('copy');
+          showToast('Embed code copied.', 'success');
+        });
+      }
+    });
   }
 
   function bindFormsAddBtn() {
@@ -477,7 +612,8 @@
       state.formEditorData = {
         name: '', form_id: '', practice_area: '', description: '',
         submit_message: '', is_active: true, settings_json: '{}',
-        automations_json: '[]', sections: []
+        automations_json: '[]', sections: [],
+        form_type: state.formsSubTab || 'website'
       };
       state.formSectionExpanded = {};
       renderFormsTab();
@@ -656,6 +792,15 @@
     html += '<div>';
     html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Form ID (slug)</label>';
     html += '<input type="text" id="cc-form-slug" class="cc-input" value="' + escapeAttr(fd.form_id || '') + '" placeholder="auto-generated-from-name">';
+    html += '</div>';
+
+    // Form Type
+    html += '<div>';
+    html += '<label style="display:block;font-size:13px;font-weight:500;color:#475569;margin-bottom:4px;">Form Type</label>';
+    html += '<select id="cc-form-type" class="cc-input">';
+    html += '<option value="website"' + ((fd.form_type || 'website') === 'website' ? ' selected' : '') + '>Website Form</option>';
+    html += '<option value="intake"' + (fd.form_type === 'intake' ? ' selected' : '') + '>Intake Form</option>';
+    html += '</select>';
     html += '</div>';
 
     // Practice Area
@@ -934,6 +1079,7 @@
 
     fd.name = (document.getElementById('cc-form-name') || {}).value || '';
     fd.form_id = (document.getElementById('cc-form-slug') || {}).value || '';
+    fd.form_type = (document.getElementById('cc-form-type') || {}).value || 'website';
     fd.practice_area = (document.getElementById('cc-form-practice-area') || {}).value || '';
     fd.is_active = !!(document.getElementById('cc-form-active') || {}).checked;
     fd.description = (document.getElementById('cc-form-description') || {}).value || '';

@@ -1663,36 +1663,85 @@
   };
 
   // ── Send Intake Form Modal ──────────────────────────────
+  var SEND_FORM_PA_MAP = {
+    'ESTATE_PLANNING_WILL_POA': 'Estate Planning', 'ESTATE_PLANNING_TRUST': 'Estate Planning',
+    'ESTATE_PLANNING_FULL': 'Estate Planning', 'PROBATE': 'Probate',
+    'ESTATE_ADMINISTRATION': 'Probate', 'REAL_ESTATE': 'Real Estate',
+    'CORPORATE': 'Business Law', 'OTHER': 'Other',
+    'Estate Planning': 'Estate Planning', 'Real Estate': 'Real Estate',
+    'Probate': 'Probate', 'Business Law': 'Business Law',
+    'Family Law': 'Family Law', 'Immigration': 'Immigration',
+    'Litigation': 'Litigation', 'Other': 'Other'
+  };
+  function sendFormPALabel(pa) { return SEND_FORM_PA_MAP[pa] || pa || 'Other'; }
+
   async function showSendFormModal(record) {
     var formsList = [];
     try {
-      var result = await API.forms.list({ is_active: true });
+      var result = await API.forms.list({ form_type: 'intake', is_active: true });
       formsList = (result && result.data) || [];
     } catch (e) {
       ccToast('Could not load forms list.', 'error');
       return;
     }
     if (formsList.length === 0) {
-      ccToast('No active forms available. Create forms in Admin > Forms first.', 'error');
+      ccToast('No active intake forms available. Create intake forms in Admin > Forms first.', 'error');
       return;
     }
+
+    // Group forms by practice area
+    var groups = {};
+    formsList.forEach(function(f) {
+      var pa = sendFormPALabel(f.Practice_Area || f.practice_area || '');
+      if (!groups[pa]) groups[pa] = [];
+      groups[pa].push(f);
+    });
+    var paKeys = Object.keys(groups).sort(function(a, b) {
+      if (a === 'Other') return 1;
+      if (b === 'Other') return -1;
+      return a.localeCompare(b);
+    });
+
+    // Determine contact's practice area for default-open
+    var contactPA = sendFormPALabel(record.Practice_Area || '');
+
+    // Build accordion HTML
+    var accordionHtml = '';
+    paKeys.forEach(function(pa) {
+      var items = groups[pa];
+      var isOpen = (pa === contactPA);
+      var accId = 'cc-sfm-acc-' + pa.replace(/\s+/g, '-').toLowerCase();
+      accordionHtml += '<div style="border:1px solid #E5E7EB;border-radius:6px;margin-bottom:6px;overflow:hidden;">';
+      accordionHtml += '<button class="cc-sfm-acc-toggle" data-target="' + accId + '" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 12px;background:#F9FAFB;border:none;cursor:pointer;font-size:0.85rem;font-weight:600;color:#374151;">';
+      accordionHtml += '<span>' + escapeHtml(pa) + ' (' + items.length + ')</span>';
+      accordionHtml += '<span class="cc-sfm-arrow" style="transition:transform 0.2s;' + (isOpen ? '' : 'transform:rotate(-90deg);') + '">&#9660;</span>';
+      accordionHtml += '</button>';
+      accordionHtml += '<div id="' + accId + '" style="display:' + (isOpen ? 'block' : 'none') + ';padding:6px;">';
+      items.forEach(function(f) {
+        var fid = f.Form_ID || f.form_id || '';
+        var fname = f.Name || f.name || '';
+        var fdesc = f.Description || f.description || '';
+        accordionHtml += '<div class="cc-sfm-form-card" data-form-id="' + escapeAttr(fid) + '" style="padding:8px 10px;border:2px solid #E5E7EB;border-radius:6px;margin-bottom:4px;cursor:pointer;transition:border-color 0.15s,background 0.15s;" onmouseover="this.style.background=\'#F0F9FF\'" onmouseout="if(!this.classList.contains(\'cc-sfm-selected\'))this.style.background=\'white\'">';
+        accordionHtml += '<div style="font-weight:500;font-size:0.85rem;color:#1e293b;">' + escapeHtml(fname) + '</div>';
+        if (fdesc) accordionHtml += '<div style="font-size:0.78rem;color:#6B7280;margin-top:2px;">' + escapeHtml(fdesc) + '</div>';
+        accordionHtml += '</div>';
+      });
+      accordionHtml += '</div></div>';
+    });
+
     var overlay = document.createElement('div');
     overlay.className = 'cc-modal-overlay';
     var modal = document.createElement('div');
     modal.className = 'cc-modal';
-    var optionsHtml = '<option value="">Select a form...</option>';
-    formsList.forEach(function(f) {
-      optionsHtml += '<option value="' + escapeAttr(f.Form_ID) + '">' + escapeHtml(f.Name) + '</option>';
-    });
     modal.innerHTML =
       '<div class="cc-modal-header">' +
-        '<h3>Send Form to ' + escapeHtml(record.Client_Name || 'Client') + '</h3>' +
+        '<h3>Send Intake Form to ' + escapeHtml(record.Client_Name || 'Client') + '</h3>' +
         '<button class="cc-modal-close">&times;</button>' +
       '</div>' +
       '<div class="cc-modal-body">' +
         '<div class="cc-form-group" style="margin-bottom:1rem;">' +
-          '<label class="cc-label">Form</label>' +
-          '<select id="cc-send-form-select" class="cc-select" style="width:100%;">' + optionsHtml + '</select>' +
+          '<label class="cc-label">Select an Intake Form</label>' +
+          '<div id="cc-sfm-accordion" style="max-height:280px;overflow-y:auto;border:1px solid #E5E7EB;border-radius:6px;padding:6px;">' + accordionHtml + '</div>' +
         '</div>' +
         '<div class="cc-form-group" style="margin-bottom:1rem;">' +
           '<label class="cc-label">Custom Message (optional)</label>' +
@@ -1721,34 +1770,58 @@
     overlay.querySelector('.cc-modal-close').addEventListener('click', function() { overlay.remove(); });
     overlay.querySelector('.cc-modal-cancel-btn').addEventListener('click', function() { overlay.remove(); });
     overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-    var formSelect = document.getElementById('cc-send-form-select');
+
+    // Bind accordion toggles
+    modal.querySelectorAll('.cc-sfm-acc-toggle').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var target = document.getElementById(btn.dataset.target);
+        if (target) {
+          var isOpen = target.style.display !== 'none';
+          target.style.display = isOpen ? 'none' : 'block';
+          var arrow = btn.querySelector('.cc-sfm-arrow');
+          if (arrow) arrow.style.transform = isOpen ? 'rotate(-90deg)' : '';
+        }
+      });
+    });
+
+    // Track selected form
+    var selectedFormId = '';
     var sendBtn = document.getElementById('cc-send-form-btn');
     var previewDiv = document.getElementById('cc-send-form-preview');
     var urlSpan = document.getElementById('cc-send-form-url');
-    formSelect.addEventListener('change', function() {
-      if (formSelect.value) {
-        var url = 'https://clientcare.tabuchilaw.com/intake?form=' + encodeURIComponent(formSelect.value) + '&lead=' + encodeURIComponent(record.id);
+
+    // Bind form card selection
+    modal.querySelectorAll('.cc-sfm-form-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        modal.querySelectorAll('.cc-sfm-form-card').forEach(function(c) {
+          c.classList.remove('cc-sfm-selected');
+          c.style.borderColor = '#E5E7EB';
+          c.style.background = 'white';
+        });
+        card.classList.add('cc-sfm-selected');
+        card.style.borderColor = '#2563EB';
+        card.style.background = '#EFF6FF';
+        selectedFormId = card.dataset.formId;
+        var url = 'https://clientcare.tabuchilaw.com/intake?form=' + encodeURIComponent(selectedFormId) + '&lead=' + encodeURIComponent(record.id);
         urlSpan.textContent = url;
         previewDiv.style.display = '';
         sendBtn.disabled = false;
-      } else {
-        previewDiv.style.display = 'none';
-        sendBtn.disabled = true;
-      }
+      });
     });
+
     var followupCheck = document.getElementById('cc-send-form-followup');
     var followupConfig = document.getElementById('cc-send-form-followup-config');
     followupCheck.addEventListener('change', function() {
       followupConfig.style.display = followupCheck.checked ? '' : 'none';
     });
     sendBtn.addEventListener('click', async function() {
-      if (sendBtn.disabled) return;
+      if (sendBtn.disabled || !selectedFormId) return;
       sendBtn.disabled = true;
       sendBtn.textContent = 'Sending...';
       try {
         var payload = {
           lead_id: record.id,
-          form_id: formSelect.value,
+          form_id: selectedFormId,
           custom_message: document.getElementById('cc-send-form-message').value.trim(),
           create_followup_task: followupCheck.checked,
           followup_days: followupCheck.checked ? parseInt(document.getElementById('cc-send-form-followup-days').value, 10) || 3 : undefined
