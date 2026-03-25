@@ -1851,6 +1851,23 @@
     html += '<span style="color:#888;font-size:12px;margin-left:auto;">AI-extracted from call/meeting recordings</span>';
     html += '</label></div>';
 
+    // File from computer
+    html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">';
+    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
+    html += '<input type="checkbox" id="cc-dc-src-file" ' + (state.docCreatorSources.file ? 'checked' : '') + ' /> ';
+    html += '<span style="font-weight:600;">File From my Computer</span>';
+    html += '<span style="color:#888;font-size:12px;margin-left:auto;">Upload a document to extract data from</span>';
+    html += '</label></div>';
+
+    // File upload area (shown when file checkbox is checked)
+    html += '<div id="cc-dc-file-upload-area" style="display:' + (state.docCreatorSources.file ? '' : 'none') + ';padding:12px;border:2px dashed #CBD5E1;border-radius:8px;margin-bottom:8px;background:#F8FAFC;">';
+    html += '<input type="file" id="cc-dc-file-input" accept=".pdf,.doc,.docx,.txt,.rtf" style="margin-bottom:8px;" />';
+    html += '<p style="margin:0;font-size:12px;color:#888;">Supported: PDF, Word (.doc/.docx), TXT, RTF</p>';
+    if (state.docCreatorSources._fileName) {
+      html += '<p style="margin:4px 0 0;font-size:12px;color:#16a34a;">Selected: ' + escapeHtml(state.docCreatorSources._fileName) + '</p>';
+    }
+    html += '</div>';
+
     html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">';
     html += '<button id="cc-dc-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;">Cancel</button>';
     html += '<button id="cc-dc-next" class="cc-btn cc-btn-primary" style="font-size:13px;">Next &rarr;</button>';
@@ -1858,12 +1875,31 @@
 
     modal.innerHTML = html;
 
+    // Toggle file upload area visibility
+    var fileChk = document.getElementById('cc-dc-src-file');
+    var fileArea = document.getElementById('cc-dc-file-upload-area');
+    if (fileChk && fileArea) {
+      fileChk.addEventListener('change', function() {
+        fileArea.style.display = fileChk.checked ? '' : 'none';
+      });
+    }
+
     document.getElementById('cc-dc-cancel').addEventListener('click', closeDocCreatorModal);
     document.getElementById('cc-dc-next').addEventListener('click', function() {
       var intakeChk = document.getElementById('cc-dc-src-intake');
       var transChk = document.getElementById('cc-dc-src-transcription');
+      var fileChkEl = document.getElementById('cc-dc-src-file');
+      var fileInput = document.getElementById('cc-dc-file-input');
       state.docCreatorSources.intake = intakeChk ? intakeChk.checked : false;
       state.docCreatorSources.transcription = transChk ? transChk.checked : false;
+      state.docCreatorSources.file = fileChkEl ? fileChkEl.checked : false;
+      if (state.docCreatorSources.file && fileInput && fileInput.files && fileInput.files.length > 0) {
+        state.docCreatorSources._file = fileInput.files[0];
+        state.docCreatorSources._fileName = fileInput.files[0].name;
+      } else {
+        state.docCreatorSources._file = null;
+        state.docCreatorSources._fileName = null;
+      }
       mergeSourcesAndAdvance();
     });
   }
@@ -1929,6 +1965,31 @@
           }
         }
       } catch (e) { /* continue without intake data */ }
+    }
+
+    // Merge from uploaded file if selected
+    if (state.docCreatorSources.file && state.docCreatorSources._file) {
+      try {
+        if (modal) modal.innerHTML = '<div style="text-align:center;padding:40px;"><p>Reading uploaded file...</p></div>';
+        var fileText = await new Promise(function(resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function() { resolve(reader.result); };
+          reader.onerror = function() { reject(new Error('Failed to read file')); };
+          reader.readAsText(state.docCreatorSources._file);
+        });
+        // Try to parse any structured data from the file content
+        if (fileText) {
+          try {
+            var parsed = JSON.parse(fileText);
+            deepMergeWillData(merged, parsed);
+          } catch (e) {
+            // Not JSON — store raw text as special_instructions for context
+            if (fileText.length > 0 && !merged.special_instructions) {
+              merged.special_instructions = 'Content from uploaded file (' + escapeHtml(state.docCreatorSources._fileName || 'file') + '):\n' + fileText.substring(0, 5000);
+            }
+          }
+        }
+      } catch (e) { /* continue without file data */ }
     }
 
     // Merge from transcription extracted data if selected

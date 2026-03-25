@@ -941,6 +941,20 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/recordings', { body: { action: 'link_lead', transcription_id: transcriptionId, lead_id: leadId } });
   }
 
+  async function uploadRecordingFile(data) {
+    return request('POST', '/cc/recordings', {
+      body: {
+        action: 'upload_file',
+        lead_id: data.lead_id,
+        file_base64: data.file_base64,
+        file_name: data.file_name,
+        file_type: data.file_type,
+        subject: data.subject,
+        source: data.source || 'upload'
+      }
+    });
+  }
+
   // ─── Documents ──────────────────────────────────────────────
   async function listDocuments(leadId) {
     return request('POST', '/cc/documents', { body: { action: 'list', lead_id: leadId } });
@@ -1122,7 +1136,8 @@ const ClientCareAPI = (() => {
       list: listRecordings, get: getRecording,
       approveReview: approveRecordingReview, generateWill,
       uploadToClio, retryProcessing: retryRecordingProcessing,
-      linkLead: linkRecordingLead, analyze: analyzeTranscription
+      linkLead: linkRecordingLead, analyze: analyzeTranscription,
+      uploadFile: uploadRecordingFile
     },
     // Documents
     documents: {
