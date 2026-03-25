@@ -942,13 +942,10 @@ const ClientCareAPI = (() => {
   }
 
   async function uploadRecordingFile(data) {
-    // Two-step upload:
-    // 1. Create the transcription record via JSON (metadata only)
-    // 2. Upload the actual file via multipart with progress tracking
-    var token = getToken();
+    // 3-step upload: create record + get SAS URL → upload to Azure Blob → start processing
     var onProgress = data.onProgress || function() {};
 
-    // Step 1: Create transcription record (fast — JSON only)
+    // Step 1: Create record + get SAS upload URL (single API call)
     onProgress(2);
     var metaResult = await request('POST', '/cc/recordings', {
       body: {
@@ -964,56 +961,61 @@ const ClientCareAPI = (() => {
     if (!metaResult.success) return metaResult;
     onProgress(5);
 
-    // Step 2: Upload file binary via multipart form with XMLHttpRequest for progress
-    var formData = new FormData();
-    formData.append('file', data.file);
-    formData.append('transcription_id', metaResult.transcription_id);
-    formData.append('lead_id', data.lead_id);
+    var transcriptionId = metaResult.transcription_id;
+    var uploadUrl = metaResult.upload_url;
+    var blobPath = metaResult.blob_path;
 
+    if (!uploadUrl) {
+      return { success: true, transcription_id: transcriptionId, message: 'Record created but direct upload not available. Contact admin.', status: 'pending' };
+    }
+
+    // Step 2: Upload file directly to Azure Blob Storage with progress
     try {
-      var uploadResult = await new Promise(function(resolve, reject) {
+      await new Promise(function(resolve, reject) {
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', WH + '/cc/recording-upload');
-        xhr.setRequestHeader('Dashboard_Token', token);
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('x-ms-blob-type', 'BlockBlob');
+        xhr.setRequestHeader('Content-Type', data.file_type || 'application/octet-stream');
 
         xhr.upload.addEventListener('progress', function(e) {
           if (e.lengthComputable) {
-            // Map upload progress to 5-90% range (leaving room for server processing)
             var pct = 5 + (e.loaded / e.total) * 85;
             onProgress(pct);
           }
         });
 
         xhr.addEventListener('load', function() {
-          onProgress(95);
-          try {
-            var result = JSON.parse(xhr.responseText);
-            resolve(result);
-          } catch (e) {
-            resolve({ success: true, transcription_id: metaResult.transcription_id, message: 'File uploaded.' });
+          if (xhr.status >= 200 && xhr.status < 300) {
+            onProgress(92);
+            resolve();
+          } else {
+            reject(new Error('Azure upload failed: HTTP ' + xhr.status));
           }
         });
 
-        xhr.addEventListener('error', function() {
-          reject(new Error('Upload network error'));
-        });
-
-        xhr.addEventListener('timeout', function() {
-          reject(new Error('Upload timed out'));
-        });
-
-        xhr.timeout = 600000; // 10 minute timeout for large files
-        xhr.send(formData);
+        xhr.addEventListener('error', function() { reject(new Error('Upload network error')); });
+        xhr.addEventListener('timeout', function() { reject(new Error('Upload timed out')); });
+        xhr.timeout = 600000; // 10 min
+        xhr.send(data.file);
       });
-
-      onProgress(100);
-      if (!uploadResult.success && !uploadResult.transcription_id) {
-        return { success: true, transcription_id: metaResult.transcription_id, message: 'Record created but processing pending.', status: 'pending' };
-      }
-      return uploadResult;
     } catch (err) {
-      // Record was created even if file upload fails
-      return { success: true, transcription_id: metaResult.transcription_id, message: 'Record created. File upload may still be processing.', status: 'pending' };
+      return { success: true, transcription_id: transcriptionId, message: 'Record created but file upload failed: ' + err.message, status: 'pending' };
+    }
+
+    // Step 3: Tell backend to start processing the uploaded file
+    onProgress(95);
+    try {
+      var processResult = await request('POST', '/cc/recordings', {
+        body: {
+          action: 'start_processing',
+          transcription_id: transcriptionId,
+          blob_path: blobPath
+        }
+      });
+      onProgress(100);
+      return processResult;
+    } catch (err) {
+      return { success: true, transcription_id: transcriptionId, message: 'File uploaded. Processing will begin shortly.', status: 'pending' };
     }
   }
 
