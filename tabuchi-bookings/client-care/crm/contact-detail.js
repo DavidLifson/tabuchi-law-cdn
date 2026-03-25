@@ -108,13 +108,20 @@
     editMode: false,
     availableTags: [],
     priceBookItems: [],
-    crmUsers: []
+    crmUsers: [],
+    documents: [],
+    documentsLoading: false,
+    documentCreators: [],
+    docCreatorStep: 0,
+    docCreatorSources: {},
+    docCreatorFieldData: null
   };
 
   var TABS = [
     { key: 'overview', label: 'Overview' },
     { key: 'history', label: 'History' },
-    { key: 'conversion', label: 'Conversion' }
+    { key: 'conversion', label: 'Conversion' },
+    { key: 'documents', label: 'Documents' }
   ];
 
   // ─── Load All Data ──────────────────────────────────────────
@@ -131,7 +138,9 @@
         API.admin.config.list('tag').catch(function() { return { data: [] }; }),
         API.priceBook.list(true).catch(function() { return { items: [] }; }),
         API.admin.listUsers().catch(function() { return { users: [] }; }),
-        API.admin.config.list('practice_area').catch(function() { return { data: [] }; })
+        API.admin.config.list('practice_area').catch(function() { return { data: [] }; }),
+        API.documents.list(contactId).catch(function() { return { data: [] }; }),
+        API.documents.listCreators().catch(function() { return { data: [] }; })
       ]);
 
       var leadResult = results[0];
@@ -141,6 +150,8 @@
       var priceBookResult = results[4];
       var usersResult = results[5];
       var paResult = results[6];
+      var docsResult = results[7];
+      var creatorsResult = results[8];
 
       if (leadResult.success && leadResult.lead) {
         state.contact = leadResult.lead;
@@ -166,6 +177,8 @@
       // Price book items for Service Package dropdown
       state.priceBookItems = (priceBookResult.items || []).filter(function(i) { return i.Is_Active !== false; });
       state.crmUsers = (usersResult.users || []).filter(function(u) { return u.is_active; });
+      state.documents = (docsResult.data || []).filter(function(d) { return d.status !== 'archived'; });
+      state.documentCreators = creatorsResult.data || [];
 
       render();
     } catch (err) {
@@ -386,6 +399,7 @@
       case 'overview':  renderOverview(el); break;
       case 'history':   renderHistory(el);  break;
       case 'conversion': renderConversion(el); break;
+      case 'documents': renderDocuments(el); break;
     }
   }
 
@@ -1192,6 +1206,577 @@
         showContactDealLostModal();
       });
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // TAB 4: DOCUMENTS
+  // ═══════════════════════════════════════════════════════════
+
+  var WILL_SCHEMA_SECTIONS = [
+    { key: 'testator', label: 'Testator Information', fields: [
+      { id: 'testator.full_legal_name', label: 'Full Legal Name', type: 'text', required: true },
+      { id: 'testator.date_of_birth', label: 'Date of Birth', type: 'date' },
+      { id: 'testator.address.street', label: 'Street Address', type: 'text' },
+      { id: 'testator.address.city', label: 'City', type: 'text' },
+      { id: 'testator.address.province', label: 'Province', type: 'text', default: 'Ontario' },
+      { id: 'testator.address.postal_code', label: 'Postal Code', type: 'text' },
+      { id: 'testator.marital_status', label: 'Marital Status', type: 'select', options: ['single','married','common_law','divorced','widowed','separated'] },
+      { id: 'testator.occupation', label: 'Occupation', type: 'text' }
+    ]},
+    { key: 'spouse', label: 'Spouse / Partner', fields: [
+      { id: 'spouse.name', label: 'Spouse Name', type: 'text' },
+      { id: 'spouse.relationship', label: 'Relationship', type: 'select', options: ['spouse','common_law'] }
+    ]},
+    { key: 'executor', label: 'Executor & Guardian', fields: [
+      { id: 'executor.name', label: 'Executor Name', type: 'text', required: true },
+      { id: 'executor.relationship', label: 'Relationship', type: 'text' },
+      { id: 'executor.address', label: 'Executor Address', type: 'text' },
+      { id: 'executor.alternate_executor.name', label: 'Alternate Executor', type: 'text' },
+      { id: 'executor.alternate_executor.relationship', label: 'Alt. Executor Relationship', type: 'text' },
+      { id: 'guardian.name', label: 'Guardian (for minors)', type: 'text' },
+      { id: 'guardian.relationship', label: 'Guardian Relationship', type: 'text' },
+      { id: 'guardian.alternate_guardian.name', label: 'Alternate Guardian', type: 'text' },
+      { id: 'guardian.alternate_guardian.relationship', label: 'Alt. Guardian Relationship', type: 'text' }
+    ]},
+    { key: 'residual', label: 'Residual Estate & Trusts', fields: [
+      { id: 'residual_estate.distribution', label: 'Residual Estate Distribution', type: 'textarea' },
+      { id: 'special_instructions', label: 'Special Instructions', type: 'textarea' }
+    ]},
+    { key: 'poa', label: 'Powers of Attorney', fields: [
+      { id: 'poa_property.attorney', label: 'POA Property - Attorney', type: 'text' },
+      { id: 'poa_property.alternate_attorney', label: 'POA Property - Alternate', type: 'text' },
+      { id: 'poa_property.conditions', label: 'POA Property - Conditions', type: 'textarea' },
+      { id: 'poa_personal_care.attorney', label: 'POA Personal Care - Attorney', type: 'text' },
+      { id: 'poa_personal_care.alternate_attorney', label: 'POA Personal Care - Alternate', type: 'text' },
+      { id: 'poa_personal_care.conditions', label: 'POA Personal Care - Conditions', type: 'textarea' }
+    ]},
+    { key: 'funeral', label: 'Funeral Wishes', fields: [
+      { id: 'funeral_wishes.preference', label: 'Preference', type: 'select', options: ['burial','cremation','other'] },
+      { id: 'funeral_wishes.details', label: 'Details', type: 'textarea' }
+    ]}
+  ];
+
+  // Array field sections (children, beneficiaries, assets, specific_bequests) rendered dynamically
+  var WILL_ARRAY_SECTIONS = [
+    { key: 'children', label: 'Children', itemFields: [
+      { id: 'name', label: 'Name', type: 'text' },
+      { id: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+      { id: 'relationship', label: 'Relationship', type: 'select', options: ['child','stepchild','adopted'] },
+      { id: 'is_minor', label: 'Minor?', type: 'checkbox' }
+    ]},
+    { key: 'beneficiaries', label: 'Beneficiaries', itemFields: [
+      { id: 'name', label: 'Name', type: 'text' },
+      { id: 'relationship', label: 'Relationship', type: 'text' },
+      { id: 'bequest_type', label: 'Bequest Type', type: 'select', options: ['specific','residual','percentage'] },
+      { id: 'description', label: 'Description', type: 'text' },
+      { id: 'percentage', label: 'Percentage', type: 'number' }
+    ]},
+    { key: 'assets', label: 'Assets', itemFields: [
+      { id: 'type', label: 'Type', type: 'select', options: ['real_property','bank_account','investment','insurance','vehicle','personal_property','business'] },
+      { id: 'description', label: 'Description', type: 'text' },
+      { id: 'approximate_value', label: 'Value', type: 'text' },
+      { id: 'location', label: 'Location', type: 'text' }
+    ]},
+    { key: 'specific_bequests', label: 'Specific Bequests', itemFields: [
+      { id: 'item', label: 'Item', type: 'text' },
+      { id: 'beneficiary', label: 'Beneficiary', type: 'text' },
+      { id: 'conditions', label: 'Conditions', type: 'text' }
+    ]}
+  ];
+
+  function getNestedValue(obj, path) {
+    return path.split('.').reduce(function(o, k) { return (o && o[k] !== undefined) ? o[k] : ''; }, obj);
+  }
+
+  function setNestedValue(obj, path, value) {
+    var keys = path.split('.');
+    var last = keys.pop();
+    var target = keys.reduce(function(o, k) {
+      if (!o[k] || typeof o[k] !== 'object') o[k] = {};
+      return o[k];
+    }, obj);
+    target[last] = value;
+  }
+
+  function renderDocuments(container) {
+    var docs = state.documents || [];
+    var html = '';
+
+    // Header
+    html += '<div class="cc-section">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+    html += '<h3 class="cc-section-title" style="margin:0;">Completed Documents</h3>';
+    if (state.documentCreators.length > 0) {
+      html += '<button id="cc-generate-doc-btn" class="cc-btn cc-btn-primary" style="font-size:13px;padding:6px 14px;">+ Generate Document</button>';
+    }
+    html += '</div>';
+
+    if (docs.length === 0) {
+      html += '<div style="text-align:center;padding:32px 16px;color:#888;">';
+      html += '<p style="font-size:14px;">No documents generated yet.</p>';
+      if (state.documentCreators.length > 0) {
+        html += '<p style="font-size:13px;">Click "Generate Document" to create a will or other legal document.</p>';
+      }
+      html += '</div>';
+    } else {
+      docs.forEach(function(doc) {
+        var typeBadge = '<span class="cc-badge cc-badge-blue" style="font-size:11px;">' + escapeHtml(doc.document_type || '') + '</span>';
+        var statusBadge = doc.status === 'final'
+          ? '<span class="cc-badge cc-badge-green" style="font-size:11px;">Final</span>'
+          : '<span class="cc-badge cc-badge-yellow" style="font-size:11px;">Draft</span>';
+        var date = doc.generated_at ? API.util.formatDate(doc.generated_at) : '';
+
+        html += '<div class="cc-card" style="padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">';
+        html += '<div>';
+        html += '<div style="font-weight:600;font-size:14px;">' + escapeHtml(doc.document_name) + '</div>';
+        html += '<div style="margin-top:4px;">' + typeBadge + ' ' + statusBadge + ' <span style="color:#888;font-size:12px;margin-left:8px;">' + escapeHtml(date) + '</span></div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:8px;">';
+        if (doc.file_data && doc.file_data.length > 0) {
+          html += '<a href="' + escapeAttr(doc.file_data[0].url) + '" target="_blank" class="cc-btn cc-btn-sm" style="font-size:12px;">Download</a>';
+        }
+        if (doc.clio_document_id) {
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline" style="font-size:12px;" disabled>In Clio</button>';
+        }
+        html += '</div>';
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+
+    container.innerHTML = html;
+
+    // Bind generate button
+    var genBtn = document.getElementById('cc-generate-doc-btn');
+    if (genBtn) {
+      genBtn.addEventListener('click', function() {
+        openDocumentCreatorModal();
+      });
+    }
+  }
+
+  // ─── Document Creator Modal (3-Step Wizard) ─────────────────
+
+  function openDocumentCreatorModal() {
+    state.docCreatorStep = 0;
+    state.docCreatorSources = { lead_profile: true };
+    state.docCreatorFieldData = null;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'cc-doc-creator-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9000;display:flex;align-items:center;justify-content:center;';
+
+    var modal = document.createElement('div');
+    modal.id = 'cc-doc-creator-modal';
+    modal.style.cssText = 'background:#fff;border-radius:12px;width:90%;max-width:800px;max-height:90vh;overflow-y:auto;padding:24px;position:relative;';
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeDocCreatorModal();
+    });
+
+    renderDocCreatorStep();
+  }
+
+  function closeDocCreatorModal() {
+    var overlay = document.getElementById('cc-doc-creator-overlay');
+    if (overlay) overlay.remove();
+  }
+
+  function renderDocCreatorStep() {
+    var modal = document.getElementById('cc-doc-creator-modal');
+    if (!modal) return;
+
+    switch (state.docCreatorStep) {
+      case 0: renderDocCreatorStep1(modal); break;
+      case 1: renderDocCreatorStep2(modal); break;
+      case 2: renderDocCreatorStep3(modal); break;
+    }
+  }
+
+  // Step 1: Source Selector
+  function renderDocCreatorStep1(modal) {
+    var c = state.contact;
+    var html = '<h3 style="margin:0 0 16px;">Generate Document &mdash; Select Data Sources</h3>';
+    html += '<p style="color:#666;font-size:13px;margin-bottom:16px;">Choose which data sources to merge for the will. Lead profile is always included.</p>';
+
+    // Lead Profile (always checked)
+    html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;background:#f0fdf4;">';
+    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
+    html += '<input type="checkbox" checked disabled /> ';
+    html += '<span style="font-weight:600;">Lead Profile</span>';
+    html += '<span style="color:#888;font-size:12px;margin-left:auto;">' + escapeHtml(c.Client_Name || '') + '</span>';
+    html += '</label></div>';
+
+    // Intake forms — show a placeholder; we'd need to fetch form submissions
+    html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">';
+    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
+    html += '<input type="checkbox" id="cc-dc-src-intake" ' + (state.docCreatorSources.intake ? 'checked' : '') + ' /> ';
+    html += '<span style="font-weight:600;">Intake Form Submissions</span>';
+    html += '<span style="color:#888;font-size:12px;margin-left:auto;">Auto-fill from submitted forms</span>';
+    html += '</label></div>';
+
+    // Transcriptions
+    html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">';
+    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
+    html += '<input type="checkbox" id="cc-dc-src-transcription" ' + (state.docCreatorSources.transcription ? 'checked' : '') + ' /> ';
+    html += '<span style="font-weight:600;">Meeting Transcriptions</span>';
+    html += '<span style="color:#888;font-size:12px;margin-left:auto;">AI-extracted from call/meeting recordings</span>';
+    html += '</label></div>';
+
+    html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">';
+    html += '<button id="cc-dc-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;">Cancel</button>';
+    html += '<button id="cc-dc-next" class="cc-btn cc-btn-primary" style="font-size:13px;">Next &rarr;</button>';
+    html += '</div>';
+
+    modal.innerHTML = html;
+
+    document.getElementById('cc-dc-cancel').addEventListener('click', closeDocCreatorModal);
+    document.getElementById('cc-dc-next').addEventListener('click', function() {
+      var intakeChk = document.getElementById('cc-dc-src-intake');
+      var transChk = document.getElementById('cc-dc-src-transcription');
+      state.docCreatorSources.intake = intakeChk ? intakeChk.checked : false;
+      state.docCreatorSources.transcription = transChk ? transChk.checked : false;
+      mergeSourcesAndAdvance();
+    });
+  }
+
+  async function mergeSourcesAndAdvance() {
+    var modal = document.getElementById('cc-doc-creator-modal');
+    if (!modal) return;
+    modal.innerHTML = '<div style="text-align:center;padding:40px;"><p>Merging data sources...</p></div>';
+
+    var c = state.contact;
+    var merged = {
+      testator: {
+        full_legal_name: c.Client_Name || '',
+        date_of_birth: '',
+        address: {
+          street: c.Client_Address || '',
+          city: '',
+          province: 'Ontario',
+          postal_code: ''
+        },
+        marital_status: '',
+        occupation: ''
+      },
+      spouse: { name: '', relationship: '' },
+      children: [],
+      executor: { name: '', relationship: '', address: '', alternate_executor: { name: '', relationship: '' } },
+      guardian: { name: '', relationship: '', alternate_guardian: { name: '', relationship: '' } },
+      beneficiaries: [],
+      assets: [],
+      specific_bequests: [],
+      residual_estate: { distribution: '' },
+      trusts: [],
+      poa_property: { attorney: '', alternate_attorney: '', conditions: '' },
+      poa_personal_care: { attorney: '', alternate_attorney: '', conditions: '' },
+      funeral_wishes: { preference: '', details: '' },
+      special_instructions: ''
+    };
+
+    // Merge from intake form submissions if selected
+    if (state.docCreatorSources.intake) {
+      try {
+        var submissions = await API.forms.listSubmissions({ lead_id: contactId });
+        if (submissions.success && submissions.data) {
+          for (var si = 0; si < submissions.data.length; si++) {
+            var sub = submissions.data[si];
+            if (sub.form_data_json) {
+              var formData = typeof sub.form_data_json === 'string' ? JSON.parse(sub.form_data_json) : sub.form_data_json;
+              // Map common intake form fields to will schema
+              if (formData.client_name && !merged.testator.full_legal_name) merged.testator.full_legal_name = formData.client_name;
+              if (formData.date_of_birth) merged.testator.date_of_birth = formData.date_of_birth;
+              if (formData.client_address) merged.testator.address.street = formData.client_address;
+              if (formData.city) merged.testator.address.city = formData.city;
+              if (formData.postal_code) merged.testator.address.postal_code = formData.postal_code;
+              if (formData.marital_status) merged.testator.marital_status = formData.marital_status;
+              if (formData.occupation) merged.testator.occupation = formData.occupation;
+              if (formData.spouse_name) merged.spouse.name = formData.spouse_name;
+              // If the form data has nested will-specific fields (e.g. from a will intake form), deep merge
+              if (formData.uepp || formData.will_data) {
+                deepMergeWillData(merged, formData.uepp || formData.will_data);
+              }
+              break; // Use the most recent submission
+            }
+          }
+        }
+      } catch (e) { /* continue without intake data */ }
+    }
+
+    // Merge from transcription extracted data if selected
+    if (state.docCreatorSources.transcription) {
+      try {
+        var recordings = await API.recordings.list({ lead_id: contactId });
+        if (recordings.success && recordings.recordings) {
+          for (var i = 0; i < recordings.recordings.length; i++) {
+            var rec = recordings.recordings[i];
+            if (rec.Extracted_Data_JSON) {
+              var extracted = typeof rec.Extracted_Data_JSON === 'string' ? JSON.parse(rec.Extracted_Data_JSON) : rec.Extracted_Data_JSON;
+              // Deep merge extracted into merged — extracted wins on non-empty
+              deepMergeWillData(merged, extracted);
+              break; // Use the first one with data
+            }
+          }
+        }
+      } catch (e) { /* continue without transcription data */ }
+    }
+
+    state.docCreatorFieldData = merged;
+    state.docCreatorStep = 1;
+    renderDocCreatorStep();
+  }
+
+  function deepMergeWillData(target, source) {
+    if (!source || typeof source !== 'object') return;
+    for (var key in source) {
+      if (!source.hasOwnProperty(key)) continue;
+      var sv = source[key];
+      var tv = target[key];
+      if (Array.isArray(sv) && sv.length > 0) {
+        target[key] = sv;
+      } else if (sv && typeof sv === 'object' && !Array.isArray(sv)) {
+        if (!tv || typeof tv !== 'object') target[key] = {};
+        deepMergeWillData(target[key], sv);
+      } else if (sv !== '' && sv !== null && sv !== undefined) {
+        target[key] = sv;
+      }
+    }
+  }
+
+  // Step 2: Pre-populated Form
+  function renderDocCreatorStep2(modal) {
+    var data = state.docCreatorFieldData;
+    var html = '<h3 style="margin:0 0 4px;">Generate Document &mdash; Review &amp; Edit</h3>';
+    html += '<p style="color:#666;font-size:13px;margin-bottom:16px;">Review the pre-populated fields. Edit any values before generating.</p>';
+
+    // Render fixed sections
+    WILL_SCHEMA_SECTIONS.forEach(function(section) {
+      html += '<div class="cc-doc-form-section" style="margin-bottom:16px;">';
+      html += '<h4 style="margin:0 0 8px;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:14px;cursor:pointer;" data-section="' + section.key + '">' + escapeHtml(section.label) + '</h4>';
+      html += '<div class="cc-doc-form-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;">';
+      section.fields.forEach(function(field) {
+        var val = getNestedValue(data, field.id);
+        html += renderDocFormField(field, val);
+      });
+      html += '</div></div>';
+    });
+
+    // Render array sections
+    WILL_ARRAY_SECTIONS.forEach(function(section) {
+      var items = data[section.key] || [];
+      html += '<div class="cc-doc-form-section" style="margin-bottom:16px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;padding:6px 0;margin-bottom:8px;">';
+      html += '<h4 style="margin:0;font-size:14px;">' + escapeHtml(section.label) + ' (' + items.length + ')</h4>';
+      html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-dc-add-item" data-array="' + section.key + '" style="font-size:11px;">+ Add</button>';
+      html += '</div>';
+      items.forEach(function(item, idx) {
+        html += '<div class="cc-doc-array-item" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;position:relative;">';
+        html += '<button class="cc-dc-remove-item" data-array="' + section.key + '" data-idx="' + idx + '" style="position:absolute;top:4px;right:4px;background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;" title="Remove">&times;</button>';
+        section.itemFields.forEach(function(field) {
+          var fid = section.key + '[' + idx + '].' + field.id;
+          var val = item[field.id] || '';
+          html += renderDocFormField(Object.assign({}, field, { id: fid }), val);
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    html += '<div style="display:flex;justify-content:space-between;margin-top:20px;">';
+    html += '<button id="cc-dc-back" class="cc-btn cc-btn-outline" style="font-size:13px;">&larr; Back</button>';
+    html += '<button id="cc-dc-generate" class="cc-btn cc-btn-primary" style="font-size:13px;">Generate Will</button>';
+    html += '</div>';
+
+    modal.innerHTML = html;
+
+    // Bind events
+    document.getElementById('cc-dc-back').addEventListener('click', function() {
+      collectDocFormData();
+      state.docCreatorStep = 0;
+      renderDocCreatorStep();
+    });
+    document.getElementById('cc-dc-generate').addEventListener('click', function() {
+      collectDocFormData();
+      state.docCreatorStep = 2;
+      renderDocCreatorStep();
+      submitDocGeneration();
+    });
+
+    // Add item buttons
+    modal.querySelectorAll('.cc-dc-add-item').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        collectDocFormData();
+        var arrKey = btn.dataset.array;
+        if (!state.docCreatorFieldData[arrKey]) state.docCreatorFieldData[arrKey] = [];
+        var emptyItem = {};
+        var sec = WILL_ARRAY_SECTIONS.find(function(s) { return s.key === arrKey; });
+        if (sec) sec.itemFields.forEach(function(f) { emptyItem[f.id] = f.type === 'checkbox' ? false : ''; });
+        state.docCreatorFieldData[arrKey].push(emptyItem);
+        renderDocCreatorStep();
+      });
+    });
+
+    // Remove item buttons
+    modal.querySelectorAll('.cc-dc-remove-item').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        collectDocFormData();
+        var arrKey = btn.dataset.array;
+        var idx = parseInt(btn.dataset.idx);
+        if (state.docCreatorFieldData[arrKey]) state.docCreatorFieldData[arrKey].splice(idx, 1);
+        renderDocCreatorStep();
+      });
+    });
+  }
+
+  function renderDocFormField(field, value) {
+    var html = '<div style="margin-bottom:4px;">';
+    html += '<label style="font-size:11px;color:#555;display:block;margin-bottom:2px;">' + escapeHtml(field.label) + (field.required ? ' *' : '') + '</label>';
+    var fid = 'cc-dc-field-' + field.id.replace(/[\[\].]/g, '-');
+
+    if (field.type === 'select') {
+      html += '<select id="' + fid + '" data-field="' + escapeAttr(field.id) + '" class="cc-input cc-dc-input" style="font-size:13px;padding:4px 8px;width:100%;">';
+      html += '<option value="">-- Select --</option>';
+      (field.options || []).forEach(function(opt) {
+        html += '<option value="' + escapeAttr(opt) + '"' + (value === opt ? ' selected' : '') + '>' + escapeHtml(opt) + '</option>';
+      });
+      html += '</select>';
+    } else if (field.type === 'textarea') {
+      html += '<textarea id="' + fid + '" data-field="' + escapeAttr(field.id) + '" class="cc-input cc-dc-input" rows="2" style="font-size:13px;padding:4px 8px;width:100%;resize:vertical;">' + escapeHtml(value || '') + '</textarea>';
+    } else if (field.type === 'checkbox') {
+      html += '<input type="checkbox" id="' + fid + '" data-field="' + escapeAttr(field.id) + '" class="cc-dc-input" ' + (value ? 'checked' : '') + ' />';
+    } else {
+      html += '<input type="' + (field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text') + '" id="' + fid + '" data-field="' + escapeAttr(field.id) + '" class="cc-input cc-dc-input" value="' + escapeAttr(value || '') + '" style="font-size:13px;padding:4px 8px;width:100%;" />';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function collectDocFormData() {
+    var data = state.docCreatorFieldData;
+    if (!data) return;
+
+    document.querySelectorAll('.cc-dc-input').forEach(function(el) {
+      var fieldPath = el.dataset.field;
+      if (!fieldPath) return;
+
+      var val;
+      if (el.type === 'checkbox') val = el.checked;
+      else if (el.tagName === 'TEXTAREA') val = el.value;
+      else val = el.value;
+
+      // Handle array field paths like children[0].name
+      var arrayMatch = fieldPath.match(/^(\w+)\[(\d+)\]\.(.+)$/);
+      if (arrayMatch) {
+        var arrKey = arrayMatch[1];
+        var idx = parseInt(arrayMatch[2]);
+        var itemField = arrayMatch[3];
+        if (!data[arrKey]) data[arrKey] = [];
+        if (!data[arrKey][idx]) data[arrKey][idx] = {};
+        data[arrKey][idx][itemField] = val;
+      } else {
+        setNestedValue(data, fieldPath, val);
+      }
+    });
+  }
+
+  // Step 3: Generate
+  async function submitDocGeneration() {
+    var modal = document.getElementById('cc-doc-creator-modal');
+    if (!modal) return;
+    modal.innerHTML = '<div style="text-align:center;padding:60px 20px;"><div style="font-size:24px;margin-bottom:12px;">Generating Will...</div><p style="color:#666;">This may take a moment.</p></div>';
+
+    try {
+      var result = await API.documents.generate({
+        creator_type: 'will_creator',
+        lead_id: contactId,
+        field_data: state.docCreatorFieldData,
+        source_ids: state.docCreatorSources
+      });
+
+      if (result.success) {
+        // Auto-download the file if base64 is returned
+        if (result.file_base64) {
+          try {
+            var byteChars = atob(result.file_base64);
+            var byteNums = new Array(byteChars.length);
+            for (var bi = 0; bi < byteChars.length; bi++) byteNums[bi] = byteChars.charCodeAt(bi);
+            var byteArr = new Uint8Array(byteNums);
+            var blob = new Blob([byteArr], { type: 'application/msword' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = result.file_name || 'Will.doc';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+          } catch (dlErr) { /* download error handled below in UI */ }
+        }
+
+        var html = '<div style="text-align:center;padding:40px 20px;">';
+        html += '<div style="font-size:20px;font-weight:600;color:#16a34a;margin-bottom:12px;">Document Generated</div>';
+        html += '<p style="color:#666;margin-bottom:8px;">' + escapeHtml(result.document_name || 'Will') + '</p>';
+        html += '<p style="color:#888;font-size:13px;margin-bottom:20px;">The .doc file has been downloaded. Open it in Word to review and edit, then upload the final version to Clio.</p>';
+        if (result.file_base64) {
+          html += '<button id="cc-dc-redownload" class="cc-btn cc-btn-outline" style="font-size:13px;margin-bottom:12px;">Download Again</button><br>';
+        }
+        html += '<div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">';
+        html += '<button id="cc-dc-close-success" class="cc-btn cc-btn-primary" style="font-size:13px;">Done</button>';
+        html += '</div></div>';
+        modal.innerHTML = html;
+
+        // Re-download button
+        var redownloadBtn = document.getElementById('cc-dc-redownload');
+        if (redownloadBtn && result.file_base64) {
+          redownloadBtn.addEventListener('click', function() {
+            var byteChars = atob(result.file_base64);
+            var byteNums = new Array(byteChars.length);
+            for (var bi = 0; bi < byteChars.length; bi++) byteNums[bi] = byteChars.charCodeAt(bi);
+            var blob = new Blob([new Uint8Array(byteNums)], { type: 'application/msword' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = result.file_name || 'Will.doc';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          });
+        }
+
+        document.getElementById('cc-dc-close-success').addEventListener('click', function() {
+          closeDocCreatorModal();
+          // Refresh documents list
+          API.documents.list(contactId).then(function(r) {
+            state.documents = (r.data || []).filter(function(d) { return d.status !== 'archived'; });
+            renderDocuments($el('cc-contact-tab-content'));
+          });
+        });
+      } else {
+        throw new Error(result.error || 'Generation failed');
+      }
+    } catch (err) {
+      var html = '<div style="text-align:center;padding:40px 20px;">';
+      html += '<div style="font-size:20px;font-weight:600;color:#ef4444;margin-bottom:12px;">Generation Failed</div>';
+      html += '<p style="color:#666;margin-bottom:20px;">' + escapeHtml(err.message || String(err)) + '</p>';
+      html += '<div style="display:flex;gap:8px;justify-content:center;">';
+      html += '<button id="cc-dc-retry" class="cc-btn cc-btn-outline" style="font-size:13px;">Try Again</button>';
+      html += '<button id="cc-dc-close-err" class="cc-btn cc-btn-primary" style="font-size:13px;">Close</button>';
+      html += '</div></div>';
+      modal.innerHTML = html;
+      document.getElementById('cc-dc-retry').addEventListener('click', function() {
+        state.docCreatorStep = 1;
+        renderDocCreatorStep();
+      });
+      document.getElementById('cc-dc-close-err').addEventListener('click', closeDocCreatorModal);
+    }
+  }
+
+  function renderDocCreatorStep3(modal) {
+    // This is handled by submitDocGeneration() above
+    submitDocGeneration();
   }
 
   // ─── Contact Deal Lost Modal ────────────────────────────────

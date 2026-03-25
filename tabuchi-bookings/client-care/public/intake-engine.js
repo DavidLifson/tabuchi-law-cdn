@@ -1164,26 +1164,22 @@
       var hpVal = hpField ? hpField.value : '';
 
       var result;
+      var submitPayload = {
+          session_id: state.sessionId,
+          form_id: state.formId,
+          final_form_data: finalData,
+          uploaded_files: Object.keys(state.uploadedFiles).length > 0 ? state.uploadedFiles : undefined,
+          consent_status: consentStatus,
+          _hp: hpVal
+      };
+      if (state.leadId) submitPayload.lead_id = state.leadId;
+
       if (state.isDynamic) {
         // Dynamic forms use CC-32 submit handler
-        result = await API.forms.submitDynamic({
-          session_id: state.sessionId,
-          form_id: state.formId,
-          final_form_data: finalData,
-          uploaded_files: Object.keys(state.uploadedFiles).length > 0 ? state.uploadedFiles : undefined,
-          consent_status: consentStatus,
-          _hp: hpVal
-        });
+        result = await API.forms.submitDynamic(submitPayload);
       } else {
         // Static forms use CC-02 intake submit
-        result = await API.intake.submit({
-          session_id: state.sessionId,
-          form_id: state.formId,
-          final_form_data: finalData,
-          uploaded_files: Object.keys(state.uploadedFiles).length > 0 ? state.uploadedFiles : undefined,
-          consent_status: consentStatus,
-          _hp: hpVal
-        });
+        result = await API.intake.submit(submitPayload);
       }
 
       if (result.success) {
@@ -1267,6 +1263,7 @@
     // Determine form ID from URL param, default to 'uepp'
     var params = new URLSearchParams(window.location.search);
     state.formId = params.get('form') || 'uepp';
+    state.leadId = params.get('lead') || null;
     state.isPreview = params.get('preview') === '1';
 
     // 1. Try local static config first (backward compatible)

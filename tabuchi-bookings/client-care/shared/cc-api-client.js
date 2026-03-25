@@ -33,7 +33,8 @@ const ClientCareAPI = (() => {
     'system_stats', 'list_recipients', 'report', 'preview_audience', 'list_steps',
     'approve_review', 'link_lead', 'recent_messages',
     'get_sms_thread', 'get_user_settings',
-    'list_submissions', 'get_public'];
+    'list_submissions', 'get_public',
+    'list_creators', 'analyze'];
 
   // Actions that mutate data (invalidate cache)
   var WRITE_ACTIONS = ['create', 'update', 'delete', 'bulk_update_tags',
@@ -41,7 +42,7 @@ const ClientCareAPI = (() => {
     'schedule', 'send_now', 'cancel', 'duplicate', 'test_send',
     'resend_non_openers', 'create_template', 'update_template',
     'create_task', 'update_task', 'delete_task',
-    'generate_will', 'upload_to_clio', 'retry_processing',
+    'generate_will', 'upload_to_clio', 'retry_processing', 'generate',
     'send_email', 'send_sms', 'log_call', 'update_user_settings',
     'create_section', 'update_section', 'delete_section',
     'create_field', 'update_field', 'delete_field', 'reorder',
@@ -705,8 +706,14 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/forms', { body: Object.assign({ action: 'send_link' }, data) });
   }
 
-  async function listFormSubmissions(formId) {
-    return request('POST', '/cc/forms', { body: { action: 'list_submissions', form_id: formId } });
+  async function listFormSubmissions(params) {
+    var body = { action: 'list_submissions' };
+    if (typeof params === 'string') { body.form_id = params; }
+    else if (params && typeof params === 'object') {
+      if (params.form_id) body.form_id = params.form_id;
+      if (params.lead_id) body.lead_id = params.lead_id;
+    }
+    return request('POST', '/cc/forms', { body: body });
   }
 
   async function submitDynamicForm(data) {
@@ -934,6 +941,28 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/recordings', { body: { action: 'link_lead', transcription_id: transcriptionId, lead_id: leadId } });
   }
 
+  // ─── Documents ──────────────────────────────────────────────
+  async function listDocuments(leadId) {
+    return request('POST', '/cc/documents', { body: { action: 'list', lead_id: leadId } });
+  }
+  async function getDocument(id) {
+    return request('POST', '/cc/documents', { body: { action: 'get', id: id } });
+  }
+  async function generateDocument(data) {
+    return request('POST', '/cc/documents', { body: Object.assign({ action: 'generate' }, data) });
+  }
+  async function listDocumentCreators() {
+    return request('POST', '/cc/documents', { body: { action: 'list_creators' } });
+  }
+  async function deleteDocument(id) {
+    return request('POST', '/cc/documents', { body: { action: 'delete', id: id } });
+  }
+
+  // ─── Transcription Analysis ────────────────────────────────
+  async function analyzeTranscription(transcriptionId) {
+    return request('POST', '/cc/transcription-analyze', { body: { action: 'analyze', transcription_id: transcriptionId } });
+  }
+
   // ─── Communications ─────────────────────────────────────────
   async function sendEmail(data) {
     return request('POST', '/cc/comms', { body: { action: 'send_email', lead_id: data.lead_id, subject: data.subject, body_html: data.body_html, template_id: data.template_id } });
@@ -1093,7 +1122,12 @@ const ClientCareAPI = (() => {
       list: listRecordings, get: getRecording,
       approveReview: approveRecordingReview, generateWill,
       uploadToClio, retryProcessing: retryRecordingProcessing,
-      linkLead: linkRecordingLead
+      linkLead: linkRecordingLead, analyze: analyzeTranscription
+    },
+    // Documents
+    documents: {
+      list: listDocuments, get: getDocument, generate: generateDocument,
+      listCreators: listDocumentCreators, delete: deleteDocument
     },
     // Dashboard
     dashboard: { get: getDashboard },

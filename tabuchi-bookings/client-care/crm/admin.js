@@ -191,7 +191,9 @@
     // Documents
     documents: [],
     documentsLoading: false,
-    documentAccordionOpen: {}
+    documentAccordionOpen: {},
+    documentCreators: [],
+    documentCreatorsLoading: false
   };
 
   // ─── Role Gate ─────────────────────────────────────────────
@@ -4568,6 +4570,18 @@
     if (state.documents.length === 0) {
       state.documents = SAMPLE_DOCUMENTS.slice();
     }
+    // Also load document creators from API
+    if (API.documents && API.documents.listCreators) {
+      state.documentCreatorsLoading = true;
+      API.documents.listCreators().then(function(result) {
+        state.documentCreators = (result && result.data) || [];
+        state.documentCreatorsLoading = false;
+        renderDocumentsTab();
+      }).catch(function() {
+        state.documentCreatorsLoading = false;
+        renderDocumentsTab();
+      });
+    }
     renderDocumentsTab();
   }
 
@@ -4643,6 +4657,71 @@
 
       html += '</div>';
     });
+
+    // ─── Document Creators Sub-Section ───────────────────────
+    html += '<div style="border-top:2px solid #e5e7eb;margin-top:28px;padding-top:20px;">';
+    html += '<div class="cc-admin-section-header" style="margin-bottom:16px;">';
+    html += '<div>';
+    html += '<h3 class="cc-admin-section-title">Document Creators</h3>';
+    html += '<p style="color:#6b7280;font-size:13px;margin:2px 0 0;">Automated document generators that combine data from lead profiles, intake forms, and transcriptions.</p>';
+    html += '</div>';
+    html += '</div>';
+
+    var creators = state.documentCreators || [];
+    if (creators.length === 0) {
+      html += '<div class="cc-empty"><p>No document creators configured.</p></div>';
+    } else {
+      // Group by practice area
+      var creatorGrouped = {};
+      DOC_PRACTICE_AREAS.forEach(function(pa) { creatorGrouped[pa.key] = []; });
+      creators.forEach(function(cr) {
+        var key = cr.practice_area || 'Other';
+        if (!creatorGrouped[key]) creatorGrouped[key] = [];
+        creatorGrouped[key].push(cr);
+      });
+
+      DOC_PRACTICE_AREAS.forEach(function(pa) {
+        var items = creatorGrouped[pa.key];
+        if (!items || items.length === 0) return;
+
+        var accKey = 'creator_' + pa.key;
+        var isOpen = state.documentAccordionOpen[accKey] !== false;
+        var chevron = isOpen ? '&#9660;' : '&#9654;';
+
+        html += '<div class="cc-doc-accordion" style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;">';
+        html += '<div class="cc-doc-accordion-header" data-pa="' + accKey + '" style="padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;background:#f9fafb;border-radius:8px;">';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
+        html += '<span style="font-size:12px;color:#6b7280;">' + chevron + '</span>';
+        html += '<span style="font-weight:600;font-size:14px;">' + escapeHtml(pa.label) + '</span>';
+        html += '<span class="cc-badge" style="background:#e0e7ff;color:#3730a3;font-size:11px;">' + items.length + '</span>';
+        html += '</div></div>';
+
+        if (isOpen) {
+          html += '<div style="padding:8px 16px 16px;">';
+          items.forEach(function(cr) {
+            html += '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:8px;background:#fff;">';
+            html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+            html += '<span style="font-weight:600;font-size:14px;">' + escapeHtml(cr.creator_name) + '</span>';
+            html += '<span class="cc-badge" style="background:#dbeafe;color:#1d4ed8;font-size:10px;">System</span>';
+            if (cr.status === 'active') {
+              html += '<span class="cc-badge" style="background:#dcfce7;color:#15803d;font-size:10px;">Active</span>';
+            }
+            html += '</div>';
+            html += '<p style="color:#6b7280;font-size:13px;margin:0 0 8px;">' + escapeHtml(cr.description || '') + '</p>';
+            html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+            (cr.required_sources || []).forEach(function(src) {
+              var colors = { 'Lead Profile': 'background:#dbeafe;color:#1d4ed8', 'Intake Form': 'background:#fef3c7;color:#92400e', 'Transcription': 'background:#ede9fe;color:#5b21b6' };
+              html += '<span class="cc-badge" style="' + (colors[src] || 'background:#f3f4f6;color:#374151') + ';font-size:11px;">' + escapeHtml(src) + '</span>';
+            });
+            html += '</div>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    }
+    html += '</div>';
 
     html += '</div>';
     content.innerHTML = html;
