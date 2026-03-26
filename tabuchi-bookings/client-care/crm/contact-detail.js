@@ -3279,7 +3279,7 @@
     progressHtml += '<div style="background:#E5E7EB;border-radius:6px;height:6px;overflow:hidden;max-width:360px;margin:0 auto;">';
     progressHtml += '<div id="cc-dc-progress-bar" style="background:#3B82F6;height:100%;width:0%;transition:width 0.5s ease;border-radius:6px;"></div>';
     progressHtml += '</div>';
-    progressHtml += '<p id="cc-dc-progress-time" style="color:#9CA3AF;font-size:12px;margin-top:8px;">Estimated time: 15-30 seconds</p>';
+    progressHtml += '<p id="cc-dc-progress-time" style="color:#9CA3AF;font-size:12px;margin-top:8px;">This may take up to several minutes. Please do not close this window.</p>';
     progressHtml += '</div>';
     modal.innerHTML = progressHtml;
 
