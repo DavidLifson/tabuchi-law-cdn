@@ -2036,9 +2036,9 @@
     // Header
     html += '<div class="cc-section">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-    html += '<h3 class="cc-section-title" style="margin:0;">Completed Documents</h3>';
+    html += '<h3 class="cc-section-title" style="margin:0;">Completed Transcriptions</h3>';
     if (state.documentCreators.length > 0) {
-      html += '<button id="cc-generate-doc-btn" class="cc-btn cc-btn-primary" style="font-size:13px;padding:6px 14px;">+ Generate Document</button>';
+      html += '<button id="cc-generate-doc-btn" class="cc-btn cc-btn-primary" style="font-size:13px;padding:6px 14px;">+ Generate Finished Documents</button>';
     }
     html += '</div>';
 
@@ -2046,7 +2046,7 @@
       html += '<div style="text-align:center;padding:32px 16px;color:#888;">';
       html += '<p style="font-size:14px;">No documents generated yet.</p>';
       if (state.documentCreators.length > 0) {
-        html += '<p style="font-size:13px;">Click "Generate Document" to create a will or other legal document.</p>';
+        html += '<p style="font-size:13px;">Click "Generate Finished Documents" to create a will or other legal document.</p>';
       }
       html += '</div>';
     } else {
@@ -2096,8 +2096,14 @@
 
         html += '<div class="cc-card" style="padding:16px;margin-bottom:12px;">';
         html += '<div style="margin-bottom:12px;">';
-        html += '<div style="font-weight:700;font-size:15px;color:#1F2937;">&#128249; ' + escapeHtml(meetingName) + '</div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
+        html += '<span style="font-size:16px;">&#128249;</span>';
+        html += '<div style="flex:1;">';
+        html += '<div style="font-weight:700;font-size:15px;color:#1F2937;">' + escapeHtml(meetingName) + '</div>';
         if (groupDate) html += '<div style="font-size:12px;color:#6B7280;margin-top:2px;">Generated: ' + escapeHtml(groupDate) + '</div>';
+        html += '</div>';
+        html += '<span class="cc-badge cc-badge-blue" style="font-size:10px;">Transcription</span>';
+        html += '</div>';
         html += '</div>';
         groupDocs.forEach(function(doc) {
           var creatorType = doc.creator_type || doc.Creator_Type || doc.document_type || '';
@@ -2237,7 +2243,7 @@
   function contactDocCreatorLabel(type) {
     var map = {
       'meeting_summary_internal': 'Internal Summary',
-      'meeting_summary_client': 'Client Summary',
+      'meeting_summary_client': 'Client Copy of Summary',
       'will': 'Will',
       'poa_property': 'POA Property',
       'poa_care': 'POA Personal Care'
@@ -2309,7 +2315,7 @@
 
   function openDocumentCreatorModal() {
     state.docCreatorStep = 0;
-    state.docCreatorSources = { lead_profile: true };
+    state.docCreatorSources = { lead_profile: true, _selectedIntake: {}, _selectedRecordings: {}, _intakeData: [], _recordingData: [] };
     state.docCreatorFieldData = null;
 
     var overlay = document.createElement('div');
@@ -2346,86 +2352,189 @@
     }
   }
 
-  // Step 1: Source Selector
+  // Step 1: Source Selector — granular individual item selection
   function renderDocCreatorStep1(modal) {
     var c = state.contact;
-    var html = '<h3 style="margin:0 0 16px;">Generate Document &mdash; Select Data Sources</h3>';
-    html += '<p style="color:#666;font-size:13px;margin-bottom:16px;">Choose which data sources to merge for the will. Lead profile is always included.</p>';
+    modal.innerHTML = '<div style="text-align:center;padding:40px;"><p>Loading available sources...</p></div>';
 
-    // Lead Profile (always checked)
-    html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;background:#f0fdf4;">';
-    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
-    html += '<input type="checkbox" checked disabled /> ';
-    html += '<span style="font-weight:600;">Lead Profile</span>';
-    html += '<span style="color:#888;font-size:12px;margin-left:auto;">' + escapeHtml(c.Client_Name || '') + '</span>';
-    html += '</label></div>';
-
-    // Intake forms — show a placeholder; we'd need to fetch form submissions
-    html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">';
-    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
-    html += '<input type="checkbox" id="cc-dc-src-intake" ' + (state.docCreatorSources.intake ? 'checked' : '') + ' /> ';
-    html += '<span style="font-weight:600;">Intake Form Submissions</span>';
-    html += '<span style="color:#888;font-size:12px;margin-left:auto;">Auto-fill from submitted forms</span>';
-    html += '</label></div>';
-
-    // Transcriptions
-    html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">';
-    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
-    html += '<input type="checkbox" id="cc-dc-src-transcription" ' + (state.docCreatorSources.transcription ? 'checked' : '') + ' /> ';
-    html += '<span style="font-weight:600;">Meeting Transcriptions</span>';
-    html += '<span style="color:#888;font-size:12px;margin-left:auto;">AI-extracted from call/meeting recordings</span>';
-    html += '</label></div>';
-
-    // File from computer
-    html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">';
-    html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
-    html += '<input type="checkbox" id="cc-dc-src-file" ' + (state.docCreatorSources.file ? 'checked' : '') + ' /> ';
-    html += '<span style="font-weight:600;">File From my Computer</span>';
-    html += '<span style="color:#888;font-size:12px;margin-left:auto;">Upload a document to extract data from</span>';
-    html += '</label></div>';
-
-    // File upload area (shown when file checkbox is checked)
-    html += '<div id="cc-dc-file-upload-area" style="display:' + (state.docCreatorSources.file ? '' : 'none') + ';padding:12px;border:2px dashed #CBD5E1;border-radius:8px;margin-bottom:8px;background:#F8FAFC;">';
-    html += '<input type="file" id="cc-dc-file-input" accept=".pdf,.doc,.docx,.txt,.rtf" style="margin-bottom:8px;" />';
-    html += '<p style="margin:0;font-size:12px;color:#888;">Supported: PDF, Word (.doc/.docx), TXT, RTF</p>';
-    if (state.docCreatorSources._fileName) {
-      html += '<p style="margin:4px 0 0;font-size:12px;color:#16a34a;">Selected: ' + escapeHtml(state.docCreatorSources._fileName) + '</p>';
-    }
-    html += '</div>';
-
-    html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">';
-    html += '<button id="cc-dc-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;">Cancel</button>';
-    html += '<button id="cc-dc-next" class="cc-btn cc-btn-primary" style="font-size:13px;">Next &rarr;</button>';
-    html += '</div>';
-
-    modal.innerHTML = html;
-
-    // Toggle file upload area visibility
-    var fileChk = document.getElementById('cc-dc-src-file');
-    var fileArea = document.getElementById('cc-dc-file-upload-area');
-    if (fileChk && fileArea) {
-      fileChk.addEventListener('change', function() {
-        fileArea.style.display = fileChk.checked ? '' : 'none';
+    // Fetch all available sources in parallel
+    Promise.all([
+      API.forms.listSubmissions({ lead_id: contactId }).catch(function() { return { success: false, data: [] }; }),
+      API.recordings.list({ lead_id: contactId }).catch(function() { return { success: false, recordings: [] }; })
+    ]).then(function(results) {
+      var intakeForms = (results[0].success && results[0].data) ? results[0].data : [];
+      var recordings = (results[1].success && results[1].recordings) ? results[1].recordings : [];
+      // Only show completed recordings with analysis
+      var analyzedRecordings = recordings.filter(function(r) {
+        return r.Status === 'completed' || r.AI_Summary || r.Extracted_Data_JSON;
       });
-    }
 
-    document.getElementById('cc-dc-cancel').addEventListener('click', closeDocCreatorModal);
-    document.getElementById('cc-dc-next').addEventListener('click', function() {
-      var intakeChk = document.getElementById('cc-dc-src-intake');
-      var transChk = document.getElementById('cc-dc-src-transcription');
-      var fileChkEl = document.getElementById('cc-dc-src-file');
-      var fileInput = document.getElementById('cc-dc-file-input');
-      state.docCreatorSources.intake = intakeChk ? intakeChk.checked : false;
-      state.docCreatorSources.transcription = transChk ? transChk.checked : false;
-      state.docCreatorSources.file = fileChkEl ? fileChkEl.checked : false;
-      if (state.docCreatorSources.file && fileInput && fileInput.files && fileInput.files.length > 0) {
-        state.docCreatorSources._file = fileInput.files[0];
-        state.docCreatorSources._fileName = fileInput.files[0].name;
+      // Initialize selected sources if not already set
+      if (!state.docCreatorSources._selectedIntake) state.docCreatorSources._selectedIntake = {};
+      if (!state.docCreatorSources._selectedRecordings) state.docCreatorSources._selectedRecordings = {};
+      state.docCreatorSources._intakeData = intakeForms;
+      state.docCreatorSources._recordingData = analyzedRecordings;
+
+      var html = '<h3 style="margin:0 0 4px;">Generate Finished Documents &mdash; Select Sources</h3>';
+      html += '<p style="color:#666;font-size:13px;margin-bottom:16px;">Select the specific sources to include. Click a card to toggle selection.</p>';
+      html += '<div style="max-height:55vh;overflow-y:auto;padding-right:4px;">';
+
+      // ── Lead Profile (always included) ──
+      html += '<div style="font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Lead Profile</div>';
+      html += '<div style="padding:10px 12px;border:2px solid #22c55e;border-radius:8px;margin-bottom:12px;background:#f0fdf4;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span style="color:#22c55e;font-size:16px;">&#10003;</span>';
+      html += '<div style="flex:1;">';
+      html += '<div style="font-weight:600;font-size:14px;">' + escapeHtml(c.Client_Name || 'Contact') + '</div>';
+      html += '<div style="font-size:12px;color:#888;">' + escapeHtml(c.Practice_Area || '') + (c.Client_Email ? ' &middot; ' + escapeHtml(c.Client_Email) : '') + '</div>';
+      html += '</div>';
+      html += '<span style="font-size:11px;color:#888;">Always included</span>';
+      html += '</div></div>';
+
+      // ── Intake Forms ──
+      html += '<div style="font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Intake Forms (' + intakeForms.length + ' available)</div>';
+      if (intakeForms.length === 0) {
+        html += '<div style="padding:8px 12px;color:#888;font-size:13px;margin-bottom:12px;border:1px dashed #E5E7EB;border-radius:8px;">No intake forms submitted yet.</div>';
       } else {
-        state.docCreatorSources._file = null;
-        state.docCreatorSources._fileName = null;
+        intakeForms.forEach(function(form, idx) {
+          var formId = form.id || form.record_id || 'intake_' + idx;
+          var isSelected = !!state.docCreatorSources._selectedIntake[formId];
+          var formName = form.form_name || form.Form_Name || 'Intake Form';
+          var submittedAt = form.submitted_at || form.Submitted_At || form.created_at || form.Created_At || '';
+          var dateStr = submittedAt ? API.util.formatDate(submittedAt) : '';
+          var fieldCount = 0;
+          try {
+            var fd = form.form_data_json || form.Form_Data_JSON;
+            if (fd) { var parsed = typeof fd === 'string' ? JSON.parse(fd) : fd; fieldCount = Object.keys(parsed).length; }
+          } catch (e) {}
+
+          var borderColor = isSelected ? '#3B82F6' : '#E5E7EB';
+          var bgColor = isSelected ? '#EFF6FF' : '#fff';
+          html += '<div class="cc-dc-source-card" data-source-type="intake" data-source-id="' + escapeAttr(formId) + '" ';
+          html += 'style="padding:10px 12px;border:2px solid ' + borderColor + ';border-radius:8px;margin-bottom:6px;background:' + bgColor + ';cursor:pointer;transition:all 0.15s;">';
+          html += '<div style="display:flex;align-items:center;gap:10px;">';
+          html += '<span style="font-size:16px;width:20px;text-align:center;color:' + (isSelected ? '#3B82F6' : '#CBD5E1') + ';">' + (isSelected ? '&#9745;' : '&#9744;') + '</span>';
+          html += '<div style="flex:1;min-width:0;">';
+          html += '<div style="font-weight:600;font-size:13px;">' + escapeHtml(formName) + '</div>';
+          html += '<div style="font-size:12px;color:#888;">';
+          if (dateStr) html += escapeHtml(dateStr);
+          if (fieldCount) html += ' &middot; ' + fieldCount + ' fields';
+          html += '</div></div></div></div>';
+        });
       }
-      mergeSourcesAndAdvance();
+
+      // ── Meeting Transcriptions ──
+      html += '<div style="font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;">Meeting Transcriptions (' + analyzedRecordings.length + ' available)</div>';
+      if (analyzedRecordings.length === 0) {
+        html += '<div style="padding:8px 12px;color:#888;font-size:13px;margin-bottom:12px;border:1px dashed #E5E7EB;border-radius:8px;">No analyzed transcriptions available. Upload and analyze a recording first.</div>';
+      } else {
+        analyzedRecordings.forEach(function(rec) {
+          var recId = rec.id || rec.record_id || '';
+          var isSelected = !!state.docCreatorSources._selectedRecordings[recId];
+          var subject = rec.Meeting_Subject || rec.File_Name || 'Recording';
+          var createdAt = rec.Created_At || '';
+          var dateStr = createdAt ? API.util.formatDate(createdAt) : '';
+          var duration = rec.Duration_Seconds ? Math.round(rec.Duration_Seconds / 60) + ' min' : '';
+          var source = (rec.Source || '').replace('_', ' ');
+          var intent = rec.AI_Client_Intent || '';
+          var summary = rec.AI_Summary || '';
+          // First sentence of summary
+          var summaryPreview = summary.split(/\.\s+/)[0];
+          if (summaryPreview && summaryPreview.length > 120) summaryPreview = summaryPreview.substring(0, 117) + '...';
+          if (summaryPreview && !summaryPreview.endsWith('.')) summaryPreview += '.';
+
+          var borderColor = isSelected ? '#3B82F6' : '#E5E7EB';
+          var bgColor = isSelected ? '#EFF6FF' : '#fff';
+          html += '<div class="cc-dc-source-card" data-source-type="recording" data-source-id="' + escapeAttr(recId) + '" ';
+          html += 'style="padding:10px 12px;border:2px solid ' + borderColor + ';border-radius:8px;margin-bottom:6px;background:' + bgColor + ';cursor:pointer;transition:all 0.15s;">';
+          html += '<div style="display:flex;align-items:flex-start;gap:10px;">';
+          html += '<span style="font-size:16px;width:20px;text-align:center;margin-top:1px;color:' + (isSelected ? '#3B82F6' : '#CBD5E1') + ';">' + (isSelected ? '&#9745;' : '&#9744;') + '</span>';
+          html += '<div style="flex:1;min-width:0;">';
+          html += '<div style="font-weight:600;font-size:13px;">' + escapeHtml(subject) + '</div>';
+          html += '<div style="font-size:12px;color:#888;margin-top:2px;">';
+          var metaParts = [];
+          if (dateStr) metaParts.push(dateStr);
+          if (duration) metaParts.push(duration);
+          if (source) metaParts.push(source);
+          if (intent) metaParts.push('Intent: ' + intent);
+          html += escapeHtml(metaParts.join(' \u00B7 '));
+          html += '</div>';
+          if (summaryPreview) {
+            html += '<div style="font-size:12px;color:#6B7280;margin-top:4px;font-style:italic;">' + escapeHtml(summaryPreview) + '</div>';
+          }
+          html += '</div></div></div>';
+        });
+      }
+
+      // ── File from computer ──
+      html += '<div style="font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;">Upload File</div>';
+      html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">';
+      html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
+      html += '<input type="checkbox" id="cc-dc-src-file" ' + (state.docCreatorSources.file ? 'checked' : '') + ' /> ';
+      html += '<span style="font-weight:600;font-size:13px;">File from my computer</span>';
+      html += '</label>';
+      html += '<div id="cc-dc-file-upload-area" style="display:' + (state.docCreatorSources.file ? '' : 'none') + ';margin-top:8px;">';
+      html += '<input type="file" id="cc-dc-file-input" accept=".pdf,.doc,.docx,.txt,.rtf" style="font-size:12px;" />';
+      if (state.docCreatorSources._fileName) {
+        html += '<p style="margin:4px 0 0;font-size:12px;color:#16a34a;">Selected: ' + escapeHtml(state.docCreatorSources._fileName) + '</p>';
+      }
+      html += '</div></div>';
+
+      html += '</div>'; // end scrollable area
+
+      html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #E5E7EB;">';
+      html += '<button id="cc-dc-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;">Cancel</button>';
+      html += '<button id="cc-dc-next" class="cc-btn cc-btn-primary" style="font-size:13px;">Next &rarr;</button>';
+      html += '</div>';
+
+      modal.innerHTML = html;
+
+      // Bind card click toggles
+      modal.querySelectorAll('.cc-dc-source-card').forEach(function(card) {
+        card.addEventListener('click', function() {
+          var type = card.dataset.sourceType;
+          var id = card.dataset.sourceId;
+          if (type === 'intake') {
+            state.docCreatorSources._selectedIntake[id] = !state.docCreatorSources._selectedIntake[id];
+          } else if (type === 'recording') {
+            state.docCreatorSources._selectedRecordings[id] = !state.docCreatorSources._selectedRecordings[id];
+          }
+          // Re-render to update visual state
+          renderDocCreatorStep1(modal);
+        });
+      });
+
+      // Toggle file upload area
+      var fileChk = document.getElementById('cc-dc-src-file');
+      var fileArea = document.getElementById('cc-dc-file-upload-area');
+      if (fileChk && fileArea) {
+        fileChk.addEventListener('change', function() {
+          fileArea.style.display = fileChk.checked ? '' : 'none';
+        });
+      }
+
+      document.getElementById('cc-dc-cancel').addEventListener('click', closeDocCreatorModal);
+      document.getElementById('cc-dc-next').addEventListener('click', function() {
+        // Collect selected source IDs
+        var selectedIntakeIds = Object.keys(state.docCreatorSources._selectedIntake).filter(function(k) { return state.docCreatorSources._selectedIntake[k]; });
+        var selectedRecordingIds = Object.keys(state.docCreatorSources._selectedRecordings).filter(function(k) { return state.docCreatorSources._selectedRecordings[k]; });
+        state.docCreatorSources.intake = selectedIntakeIds.length > 0;
+        state.docCreatorSources.transcription = selectedRecordingIds.length > 0;
+        state.docCreatorSources._selectedIntakeIds = selectedIntakeIds;
+        state.docCreatorSources._selectedRecordingIds = selectedRecordingIds;
+
+        var fileChkEl = document.getElementById('cc-dc-src-file');
+        var fileInput = document.getElementById('cc-dc-file-input');
+        state.docCreatorSources.file = fileChkEl ? fileChkEl.checked : false;
+        if (state.docCreatorSources.file && fileInput && fileInput.files && fileInput.files.length > 0) {
+          state.docCreatorSources._file = fileInput.files[0];
+          state.docCreatorSources._fileName = fileInput.files[0].name;
+        } else {
+          state.docCreatorSources._file = null;
+          state.docCreatorSources._fileName = null;
+        }
+        mergeSourcesAndAdvance();
+      });
     });
   }
 
@@ -2463,29 +2572,29 @@
       special_instructions: ''
     };
 
-    // Merge from intake form submissions if selected
-    if (state.docCreatorSources.intake) {
+    // Merge from selected intake form submissions
+    if (state.docCreatorSources.intake && state.docCreatorSources._selectedIntakeIds) {
       try {
-        var submissions = await API.forms.listSubmissions({ lead_id: contactId });
-        if (submissions.success && submissions.data) {
-          for (var si = 0; si < submissions.data.length; si++) {
-            var sub = submissions.data[si];
-            if (sub.form_data_json) {
-              var formData = typeof sub.form_data_json === 'string' ? JSON.parse(sub.form_data_json) : sub.form_data_json;
-              // Map common intake form fields to will schema
-              if (formData.client_name && !merged.testator.full_legal_name) merged.testator.full_legal_name = formData.client_name;
-              if (formData.date_of_birth) merged.testator.date_of_birth = formData.date_of_birth;
-              if (formData.client_address) merged.testator.address.street = formData.client_address;
-              if (formData.city) merged.testator.address.city = formData.city;
-              if (formData.postal_code) merged.testator.address.postal_code = formData.postal_code;
-              if (formData.marital_status) merged.testator.marital_status = formData.marital_status;
-              if (formData.occupation) merged.testator.occupation = formData.occupation;
-              if (formData.spouse_name) merged.spouse.name = formData.spouse_name;
-              // If the form data has nested will-specific fields (e.g. from a will intake form), deep merge
-              if (formData.uepp || formData.will_data) {
-                deepMergeWillData(merged, formData.uepp || formData.will_data);
-              }
-              break; // Use the most recent submission
+        var allForms = state.docCreatorSources._intakeData || [];
+        var selectedIds = state.docCreatorSources._selectedIntakeIds || [];
+        for (var si = 0; si < allForms.length; si++) {
+          var sub = allForms[si];
+          var subId = sub.id || sub.record_id || '';
+          if (selectedIds.indexOf(subId) < 0) continue; // Skip unselected
+          var rawFormData = sub.form_data_json || sub.Form_Data_JSON;
+          if (rawFormData) {
+            var formData = typeof rawFormData === 'string' ? JSON.parse(rawFormData) : rawFormData;
+            // Map common intake form fields to will schema
+            if (formData.client_name && !merged.testator.full_legal_name) merged.testator.full_legal_name = formData.client_name;
+            if (formData.date_of_birth) merged.testator.date_of_birth = formData.date_of_birth;
+            if (formData.client_address) merged.testator.address.street = formData.client_address;
+            if (formData.city) merged.testator.address.city = formData.city;
+            if (formData.postal_code) merged.testator.address.postal_code = formData.postal_code;
+            if (formData.marital_status) merged.testator.marital_status = formData.marital_status;
+            if (formData.occupation) merged.testator.occupation = formData.occupation;
+            if (formData.spouse_name) merged.spouse.name = formData.spouse_name;
+            if (formData.uepp || formData.will_data) {
+              deepMergeWillData(merged, formData.uepp || formData.will_data);
             }
           }
         }
@@ -2517,19 +2626,18 @@
       } catch (e) { /* continue without file data */ }
     }
 
-    // Merge from transcription extracted data if selected
-    if (state.docCreatorSources.transcription) {
+    // Merge from selected transcription recordings
+    if (state.docCreatorSources.transcription && state.docCreatorSources._selectedRecordingIds) {
       try {
-        var recordings = await API.recordings.list({ lead_id: contactId });
-        if (recordings.success && recordings.recordings) {
-          for (var i = 0; i < recordings.recordings.length; i++) {
-            var rec = recordings.recordings[i];
-            if (rec.Extracted_Data_JSON) {
-              var extracted = typeof rec.Extracted_Data_JSON === 'string' ? JSON.parse(rec.Extracted_Data_JSON) : rec.Extracted_Data_JSON;
-              // Deep merge extracted into merged — extracted wins on non-empty
-              deepMergeWillData(merged, extracted);
-              break; // Use the first one with data
-            }
+        var allRecordings = state.docCreatorSources._recordingData || [];
+        var selectedRecIds = state.docCreatorSources._selectedRecordingIds || [];
+        for (var i = 0; i < allRecordings.length; i++) {
+          var rec = allRecordings[i];
+          var recId = rec.id || rec.record_id || '';
+          if (selectedRecIds.indexOf(recId) < 0) continue; // Skip unselected
+          if (rec.Extracted_Data_JSON) {
+            var extracted = typeof rec.Extracted_Data_JSON === 'string' ? JSON.parse(rec.Extracted_Data_JSON) : rec.Extracted_Data_JSON;
+            deepMergeWillData(merged, extracted);
           }
         }
       } catch (e) { /* continue without transcription data */ }
@@ -2560,7 +2668,7 @@
   // Step 2: Pre-populated Form
   function renderDocCreatorStep2(modal) {
     var data = state.docCreatorFieldData;
-    var html = '<h3 style="margin:0 0 4px;">Generate Document &mdash; Review &amp; Edit</h3>';
+    var html = '<h3 style="margin:0 0 4px;">Generate Finished Documents &mdash; Review &amp; Edit</h3>';
     html += '<p style="color:#666;font-size:13px;margin-bottom:16px;">Review the pre-populated fields. Edit any values before generating.</p>';
 
     // Render fixed sections
