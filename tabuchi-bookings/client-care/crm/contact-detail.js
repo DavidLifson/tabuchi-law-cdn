@@ -3910,7 +3910,7 @@
     return items.map(function(item) {
       // Try to find by record ID in price book items
       for (var i = 0; i < pb.length; i++) {
-        if (pb[i].id === item || pb[i].record_id === item) return pb[i].Name || pb[i].name || pb[i].Label || pb[i].label || item;
+        if (pb[i].id === item || pb[i].record_id === item) return pb[i].Service_Name || pb[i].Name || pb[i].name || pb[i].Label || pb[i].label || item;
       }
       // If not a record ID, format it as a label
       return item.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); });
