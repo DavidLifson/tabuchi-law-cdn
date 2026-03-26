@@ -2824,7 +2824,38 @@
           if (rec.Extracted_Data_JSON) {
             extracted = typeof rec.Extracted_Data_JSON === 'string' ? JSON.parse(rec.Extracted_Data_JSON) : rec.Extracted_Data_JSON;
           }
-          if (!extracted) continue;
+
+          // If no structured data, still process legacy AI_Drafting_Notes
+          if (!extracted) {
+            var dn = null;
+            try { if (rec.AI_Drafting_Notes) dn = typeof rec.AI_Drafting_Notes === 'string' ? JSON.parse(rec.AI_Drafting_Notes) : rec.AI_Drafting_Notes; } catch (e) {}
+            if (dn) {
+              if (dn.executor_discussed && !merged.executor.name) merged.executor.name = dn.executor_discussed;
+              if (dn.poa_property_discussed && !merged.poa_property.attorney) merged.poa_property.attorney = dn.poa_property_discussed;
+              if (dn.poa_care_discussed && !merged.poa_personal_care.attorney) merged.poa_personal_care.attorney = dn.poa_care_discussed;
+              if (dn.guardian_discussed && !merged.guardian.name) merged.guardian.name = dn.guardian_discussed;
+              if (dn.beneficiaries_discussed && dn.beneficiaries_discussed.length && !merged.beneficiaries.length) {
+                merged.beneficiaries = dn.beneficiaries_discussed.map(function(b) {
+                  return { name: b.name || '', relationship: b.relationship || '', bequest_type: 'residual', description: b.share_description || '', percentage: '' };
+                });
+              }
+              if (dn.special_bequests && typeof dn.special_bequests === 'string' && !merged.specific_bequests.length) {
+                merged.specific_bequests.push({ item: dn.special_bequests, beneficiary: '', conditions: '' });
+              } else if (dn.special_bequests && Array.isArray(dn.special_bequests) && !merged.specific_bequests.length) {
+                merged.specific_bequests = dn.special_bequests.map(function(sb) {
+                  return typeof sb === 'string' ? { item: sb, beneficiary: '', conditions: '' } : { item: sb.item || '', beneficiary: sb.beneficiary || '', conditions: sb.notes || '' };
+                });
+              }
+              if (dn.trust_provisions && !merged.trusts.length) merged.trusts.push({ details: dn.trust_provisions });
+              if (dn.concerns_raised && Array.isArray(dn.concerns_raised)) {
+                merged.special_instructions = (merged.special_instructions ? merged.special_instructions + '\n\n' : '') + 'Concerns:\n' + dn.concerns_raised.join('\n');
+              }
+              if (dn.additional_notes && typeof dn.additional_notes === 'string') {
+                merged.special_instructions = (merged.special_instructions ? merged.special_instructions + '\n\n' : '') + 'Additional Notes:\n' + dn.additional_notes;
+              }
+            }
+            continue;
+          }
 
           // Map client_info to testator
           var ci = extracted.client_info || {};
