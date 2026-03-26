@@ -112,6 +112,8 @@
     documents: [],
     documentsLoading: false,
     documentCreators: [],
+    _docSortBy: 'generated_at',
+    _docSortDir: 'desc',
     docCreatorStep: 0,
     docCreatorSources: {},
     docCreatorFieldData: null,
@@ -2150,127 +2152,93 @@
       }
       html += '</div>';
     } else {
-      // Group documents by transcription_id
-      var groups = {};
-      var ungrouped = [];
-      docs.forEach(function(doc) {
-        var transcriptionId = null;
-        try {
-          var sourceJson = doc.source_data_json || doc.Source_Data_JSON || '';
-          if (sourceJson && typeof sourceJson === 'string') {
-            var parsed = JSON.parse(sourceJson);
-            transcriptionId = parsed.transcription_id || null;
-          } else if (sourceJson && typeof sourceJson === 'object') {
-            transcriptionId = sourceJson.transcription_id || null;
-          }
-        } catch (e) { /* ignore parse errors */ }
-
-        if (transcriptionId) {
-          if (!groups[transcriptionId]) {
-            groups[transcriptionId] = { docs: [], transcriptionId: transcriptionId };
-          }
-          groups[transcriptionId].docs.push(doc);
-        } else {
-          ungrouped.push(doc);
-        }
+      // Sort documents
+      var sortBy = state._docSortBy || 'generated_at';
+      var sortDir = state._docSortDir || 'desc';
+      var sorted = docs.slice().sort(function(a, b) {
+        var va = '', vb = '';
+        if (sortBy === 'generated_at') { va = a.generated_at || a.Generated_At || ''; vb = b.generated_at || b.Generated_At || ''; }
+        else if (sortBy === 'name') { va = (a.document_name || a.Document_Name || '').toLowerCase(); vb = (b.document_name || b.Document_Name || '').toLowerCase(); }
+        else if (sortBy === 'type') { va = a.creator_type || a.Creator_Type || ''; vb = b.creator_type || b.Creator_Type || ''; }
+        else if (sortBy === 'status') { va = a.status || a.Status || ''; vb = b.status || b.Status || ''; }
+        else if (sortBy === 'practice_area') { va = a.practice_area || a.Practice_Area || ''; vb = b.practice_area || b.Practice_Area || ''; }
+        if (va < vb) return sortDir === 'asc' ? -1 : 1;
+        if (va > vb) return sortDir === 'asc' ? 1 : -1;
+        return 0;
       });
 
-      // Render grouped documents
-      var groupKeys = Object.keys(groups);
-      groupKeys.forEach(function(key) {
-        var group = groups[key];
-        var groupDocs = group.docs;
-        // Derive meeting name from document names (strip "Internal Summary — " or "Client Summary — " prefix)
-        var meetingName = '';
-        for (var gi = 0; gi < groupDocs.length; gi++) {
-          var dn = groupDocs[gi].document_name || groupDocs[gi].Document_Name || '';
-          var stripped = dn.replace(/^(Internal Summary|Client Summary)\s*[-—]\s*/i, '').trim();
-          if (stripped) { meetingName = stripped; break; }
-        }
-        if (!meetingName) meetingName = 'Recording';
-        var groupDate = '';
-        for (var gj = 0; gj < groupDocs.length; gj++) {
-          var gd = groupDocs[gj].generated_at || groupDocs[gj].Generated_At;
-          if (gd) { groupDate = API.util.formatDate(gd); break; }
-        }
+      // Table header
+      function sortHeader(label, key) {
+        var arrow = sortBy === key ? (sortDir === 'asc' ? ' &#9650;' : ' &#9660;') : '';
+        return '<th class="cc-doc-sort-header" data-sort-key="' + key + '" style="padding:8px 10px;text-align:left;font-size:12px;font-weight:600;color:#374151;cursor:pointer;white-space:nowrap;border-bottom:2px solid #E5E7EB;user-select:none;">' + label + arrow + '</th>';
+      }
 
-        html += '<div class="cc-card" style="padding:16px;margin-bottom:12px;">';
-        html += '<div style="margin-bottom:12px;">';
-        html += '<div style="display:flex;align-items:center;gap:8px;">';
-        html += '<span style="font-size:16px;">&#128249;</span>';
-        html += '<div style="flex:1;">';
-        html += '<div style="font-weight:700;font-size:15px;color:#1F2937;">' + escapeHtml(meetingName) + '</div>';
-        if (groupDate) html += '<div style="font-size:12px;color:#6B7280;margin-top:2px;">Generated: ' + escapeHtml(groupDate) + '</div>';
-        html += '</div>';
-        html += '<span class="cc-badge cc-badge-blue" style="font-size:10px;">Transcription</span>';
-        html += '</div>';
-        html += '</div>';
-        groupDocs.forEach(function(doc) {
-          var creatorType = doc.creator_type || doc.Creator_Type || doc.document_type || '';
-          var creatorLabel = contactDocCreatorLabel(creatorType);
-          var docId = doc.id || doc.record_id || '';
-          var docName = doc.document_name || doc.Document_Name || 'Untitled Document';
-          var hasHtml = !!(doc.document_html || doc.Document_HTML);
-          var statusVal = (doc.status || doc.Status || 'draft').toLowerCase();
-          var statusBadge = statusVal === 'final'
-            ? '<span class="cc-badge cc-badge-green" style="font-size:11px;">Final</span>'
-            : '<span class="cc-badge cc-badge-yellow" style="font-size:11px;">Draft</span>';
+      html += '<div style="overflow-x:auto;">';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+      html += '<thead><tr style="background:#F9FAFB;">';
+      html += sortHeader('Document Name', 'name');
+      html += sortHeader('Type', 'type');
+      html += sortHeader('Practice Area', 'practice_area');
+      html += sortHeader('Status', 'status');
+      html += sortHeader('Generated', 'generated_at');
+      html += '<th style="padding:8px 10px;text-align:right;font-size:12px;font-weight:600;color:#374151;border-bottom:2px solid #E5E7EB;">Actions</th>';
+      html += '</tr></thead><tbody>';
 
-          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #F3F4F6;">';
-          html += '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">';
-          html += '<span style="font-size:13px;">&#128196; ' + escapeHtml(creatorLabel) + '</span> ' + statusBadge;
-          html += '</div>';
-          html += '<div style="display:flex;gap:8px;flex-shrink:0;">';
-          if (hasHtml) {
-            html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:12px;">View</button>';
-            html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:12px;">Download</button>';
-          }
-          if (doc.file_data && doc.file_data.length > 0) {
-            html += '<a href="' + escapeAttr(doc.file_data[0].url) + '" target="_blank" class="cc-btn cc-btn-sm" style="font-size:12px;">Download File</a>';
-          }
-          if (doc.clio_document_id) {
-            html += '<button class="cc-btn cc-btn-sm cc-btn-outline" style="font-size:12px;" disabled>In Clio</button>';
-          }
-          html += '</div>';
-          html += '</div>';
-        });
-        html += '</div>';
-      });
-
-      // Render ungrouped documents individually
-      ungrouped.forEach(function(doc) {
-        var creatorType = doc.creator_type || doc.Creator_Type || doc.document_type || '';
+      sorted.forEach(function(doc) {
+        var docId = doc.id || doc.record_id || '';
+        var docName = doc.document_name || doc.Document_Name || 'Untitled Document';
+        var creatorType = doc.creator_type || doc.Creator_Type || '';
         var creatorLabel = contactDocCreatorLabel(creatorType);
         var creatorColor = contactDocCreatorColor(creatorType);
-        var typeBadge = '<span class="cc-badge cc-badge-' + creatorColor + '" style="font-size:11px;">' + escapeHtml(creatorLabel) + '</span>';
+        var practiceArea = doc.practice_area || doc.Practice_Area || '';
         var statusVal = (doc.status || doc.Status || 'draft').toLowerCase();
-        var statusBadge = statusVal === 'final'
-          ? '<span class="cc-badge cc-badge-green" style="font-size:11px;">Final</span>'
-          : '<span class="cc-badge cc-badge-yellow" style="font-size:11px;">Draft</span>';
-        var date = (doc.generated_at || doc.Generated_At) ? API.util.formatDate(doc.generated_at || doc.Generated_At) : '';
-        var docName = doc.document_name || doc.Document_Name || 'Untitled Document';
-        var docId = doc.id || doc.record_id || '';
+        var genAt = doc.generated_at || doc.Generated_At || '';
+        var genDateStr = genAt ? API.util.formatDateTime(genAt) : '—';
         var hasHtml = !!(doc.document_html || doc.Document_HTML);
+        var hasClio = !!(doc.clio_document_id);
+        var hasFile = !!(doc.file_data && doc.file_data.length > 0);
 
-        html += '<div class="cc-card" style="padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">';
-        html += '<div style="flex:1;min-width:0;">';
-        html += '<div style="font-weight:600;font-size:14px;">' + escapeHtml(docName) + '</div>';
-        html += '<div style="margin-top:4px;">' + typeBadge + ' ' + statusBadge + ' <span style="color:#888;font-size:12px;margin-left:8px;">' + escapeHtml(date) + '</span></div>';
-        html += '</div>';
-        html += '<div style="display:flex;gap:8px;flex-shrink:0;">';
+        html += '<tr style="border-bottom:1px solid #F3F4F6;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'\'">';
+
+        // Name
+        html += '<td style="padding:10px 10px;font-weight:500;color:#1F2937;max-width:280px;">';
+        html += '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeAttr(docName) + '">' + escapeHtml(docName) + '</div>';
+        html += '</td>';
+
+        // Type
+        html += '<td style="padding:10px 10px;">';
+        html += '<span class="cc-badge cc-badge-' + creatorColor + '" style="font-size:11px;">' + escapeHtml(creatorLabel) + '</span>';
+        html += '</td>';
+
+        // Practice Area
+        html += '<td style="padding:10px 10px;color:#6B7280;font-size:12px;">' + escapeHtml(practiceArea || '—') + '</td>';
+
+        // Status
+        html += '<td style="padding:10px 10px;">';
+        if (statusVal === 'final') html += '<span class="cc-badge cc-badge-green" style="font-size:11px;">Final</span>';
+        else html += '<span class="cc-badge cc-badge-yellow" style="font-size:11px;">Draft</span>';
+        if (hasClio) html += ' <span class="cc-badge" style="font-size:10px;background:#DBEAFE;color:#1D4ED8;">Clio</span>';
+        html += '</td>';
+
+        // Generated date/time
+        html += '<td style="padding:10px 10px;color:#6B7280;font-size:12px;white-space:nowrap;">' + escapeHtml(genDateStr) + '</td>';
+
+        // Actions
+        html += '<td style="padding:10px 10px;text-align:right;white-space:nowrap;">';
         if (hasHtml) {
-          html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:12px;">View</button>';
-          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:12px;">Download</button>';
+          html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:11px;padding:3px 8px;margin-left:4px;">View</button>';
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:11px;padding:3px 8px;margin-left:4px;">Download</button>';
         }
-        if (doc.file_data && doc.file_data.length > 0) {
-          html += '<a href="' + escapeAttr(doc.file_data[0].url) + '" target="_blank" class="cc-btn cc-btn-sm" style="font-size:12px;">Download File</a>';
+        if (hasFile) {
+          html += '<a href="' + escapeAttr(doc.file_data[0].url) + '" target="_blank" class="cc-btn cc-btn-sm" style="font-size:11px;padding:3px 8px;margin-left:4px;">File</a>';
         }
-        if (doc.clio_document_id) {
-          html += '<button class="cc-btn cc-btn-sm cc-btn-outline" style="font-size:12px;" disabled>In Clio</button>';
-        }
-        html += '</div>';
-        html += '</div>';
+        html += '</td>';
+
+        html += '</tr>';
       });
+
+      html += '</tbody></table>';
+      html += '</div>';
     }
     html += '</div>';
 
@@ -2283,6 +2251,20 @@
         openDocumentCreatorModal();
       });
     }
+
+    // Bind sort headers
+    document.querySelectorAll('.cc-doc-sort-header').forEach(function(th) {
+      th.addEventListener('click', function() {
+        var key = th.dataset.sortKey;
+        if (state._docSortBy === key) {
+          state._docSortDir = state._docSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state._docSortBy = key;
+          state._docSortDir = key === 'generated_at' ? 'desc' : 'asc';
+        }
+        renderDocuments(container);
+      });
+    });
 
     // Bind view buttons
     document.querySelectorAll('.cc-doc-view-btn').forEach(function(btn) {
