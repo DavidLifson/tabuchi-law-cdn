@@ -1485,13 +1485,45 @@
           html += '<button class="cc-btn cc-btn-sm cc-rec-delete-btn" data-rec-id="' + escapeAttr(rec.id) + '" data-rec-name="' + escapeAttr(rec.Subject || rec.Meeting_Subject || 'this recording') + '" style="color:#DC2626;border:1px solid #FCA5A5;background:white;margin-left:auto;" title="Delete recording">Delete</button>';
           html += '</div>';
 
-          // Summary document links (if previously generated)
-          var sourceData = recParseJson(rec.Source_Data_JSON);
-          if (rec.Summary_Internal_Doc_ID || rec.Summary_Client_Doc_ID || (sourceData && sourceData.internal_doc_id)) {
-            html += '<div style="display:flex;gap:8px;padding:4px 0;flex-wrap:wrap;">';
-            html += '<span style="font-size:0.8rem;color:#6B7280;align-self:center;">Summaries:</span>';
-            html += '<a href="#" class="cc-btn cc-btn-sm cc-summary-view-btn" data-doc-type="internal" data-rec-id="' + escapeAttr(rec.id) + '" style="font-size:0.75rem;padding:3px 8px;background:#EDE9FE;color:#7C3AED;border:1px solid #C4B5FD;text-decoration:none;">Internal Summary</a>';
-            html += '<a href="#" class="cc-btn cc-btn-sm cc-summary-view-btn" data-doc-type="client" data-rec-id="' + escapeAttr(rec.id) + '" style="font-size:0.75rem;padding:3px 8px;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;text-decoration:none;">Client Summary</a>';
+          // Completed Transcription Documents (matched from state.documents)
+          var recDocs = (state.documents || []).filter(function(d) {
+            var ct = (d.creator_type || d.Creator_Type || '').toLowerCase();
+            if (ct.indexOf('meeting_summary') < 0) return false;
+            try {
+              var sd = d.source_data_json || d.Source_Data_JSON || '';
+              var parsed = typeof sd === 'string' ? JSON.parse(sd) : sd;
+              return parsed && parsed.transcription_id === rec.id;
+            } catch (e) { return false; }
+          });
+          if (recDocs.length > 0) {
+            html += '<div style="margin-top:8px;border:1px solid #E5E7EB;border-radius:8px;background:#FAFAFA;">';
+            html += '<div style="padding:8px 12px;font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #E5E7EB;">Completed Transcriptions (' + recDocs.length + ')</div>';
+            recDocs.forEach(function(doc) {
+              var creatorType = (doc.creator_type || doc.Creator_Type || '').toLowerCase();
+              var docLabel = creatorType.indexOf('client') >= 0 ? 'Client Copy of Summary' : 'Internal Summary';
+              var docIcon = creatorType.indexOf('client') >= 0 ? '&#128196;' : '&#128203;';
+              var labelColor = creatorType.indexOf('client') >= 0 ? 'color:#059669;background:#ECFDF5;border:1px solid #A7F3D0' : 'color:#7C3AED;background:#EDE9FE;border:1px solid #C4B5FD';
+              var docId = doc.id || doc.record_id || '';
+              var docName = doc.document_name || doc.Document_Name || docLabel;
+              var statusVal = (doc.status || doc.Status || 'draft').toLowerCase();
+              var hasHtml = !!(doc.document_html || doc.Document_HTML);
+              var genDate = (doc.generated_at || doc.Generated_At) ? API.util.formatDate(doc.generated_at || doc.Generated_At) : '';
+
+              html += '<div style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #F3F4F6;">';
+              html += '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">';
+              html += '<span style="font-size:14px;">' + docIcon + '</span>';
+              html += '<span class="cc-badge" style="' + labelColor + ';font-size:11px;padding:2px 8px;border-radius:4px;">' + escapeHtml(docLabel) + '</span>';
+              html += '<span class="cc-badge cc-badge-' + (statusVal === 'final' ? 'green' : 'yellow') + '" style="font-size:10px;">' + escapeHtml(statusVal === 'final' ? 'Final' : 'Draft') + '</span>';
+              if (genDate) html += '<span style="font-size:11px;color:#9CA3AF;">' + escapeHtml(genDate) + '</span>';
+              html += '</div>';
+              html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
+              if (hasHtml) {
+                html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:11px;padding:3px 8px;">View</button>';
+                html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:11px;padding:3px 8px;">Download</button>';
+              }
+              html += '</div>';
+              html += '</div>';
+            });
             html += '</div>';
           }
 
@@ -1675,6 +1707,39 @@
           ccToast('Failed: ' + (err.error || err.message || 'Network error'), 'error');
         }
         btn.textContent = docType === 'internal' ? 'Internal Summary' : 'Client Summary';
+      });
+    });
+
+    // Doc view/download buttons on recording cards (completed transcription docs)
+    document.querySelectorAll('.cc-rec-card .cc-doc-view-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = btn.dataset.docId;
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          var res = await API.documents.get(docId);
+          var docHtml = (res.data && (res.data.document_html || res.data.Document_HTML)) || res.document_html || res.Document_HTML || '';
+          if (docHtml) openDocViewerModal(docHtml);
+          else ccToast('No content available.', 'info');
+        } catch (err) { ccToast('Failed to load document.', 'error'); }
+        btn.disabled = false;
+        btn.textContent = 'View';
+      });
+    });
+    document.querySelectorAll('.cc-rec-card .cc-doc-download-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = btn.dataset.docId;
+        var docName = btn.dataset.docName || 'document';
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+          var res = await API.documents.get(docId);
+          var docHtml = (res.data && (res.data.document_html || res.data.Document_HTML)) || res.document_html || res.Document_HTML || '';
+          if (docHtml) contactDownloadHtmlFile(docHtml, docName.replace(/[^a-zA-Z0-9_\- ]/g, '') + '.html');
+          else ccToast('No content available for download.', 'info');
+        } catch (err) { ccToast('Failed to download.', 'error'); }
+        btn.disabled = false;
+        btn.textContent = 'Download';
       });
     });
 
@@ -2030,13 +2095,17 @@
   }
 
   function renderDocuments(container) {
-    var docs = state.documents || [];
+    // Filter out transcription summaries — those are shown on the Recordings tab
+    var docs = (state.documents || []).filter(function(d) {
+      var ct = (d.creator_type || d.Creator_Type || '').toLowerCase();
+      return ct.indexOf('meeting_summary') < 0;
+    });
     var html = '';
 
     // Header
     html += '<div class="cc-section">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-    html += '<h3 class="cc-section-title" style="margin:0;">Completed Transcriptions</h3>';
+    html += '<h3 class="cc-section-title" style="margin:0;">Finished Documents</h3>';
     if (state.documentCreators.length > 0) {
       html += '<button id="cc-generate-doc-btn" class="cc-btn cc-btn-primary" style="font-size:13px;padding:6px 14px;">+ Generate Finished Documents</button>';
     }
@@ -2044,7 +2113,7 @@
 
     if (docs.length === 0) {
       html += '<div style="text-align:center;padding:32px 16px;color:#888;">';
-      html += '<p style="font-size:14px;">No documents generated yet.</p>';
+      html += '<p style="font-size:14px;">No finished documents generated yet.</p>';
       if (state.documentCreators.length > 0) {
         html += '<p style="font-size:13px;">Click "Generate Finished Documents" to create a will or other legal document.</p>';
       }
