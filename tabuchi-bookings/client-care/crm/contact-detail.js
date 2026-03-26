@@ -2528,8 +2528,11 @@
   // Step 0: Document Type Selector
   function renderDocCreatorStep0(modal) {
     var creators = state.documentCreators || [];
+    if (!state.docCreatorSelectedTypes) state.docCreatorSelectedTypes = [];
+    var selected = state.docCreatorSelectedTypes;
+
     var html = '<h3 style="margin:0 0 4px;">Generate Finished Documents</h3>';
-    html += '<p style="color:#666;font-size:13px;margin-bottom:16px;">Select the type of document to generate.</p>';
+    html += '<p style="color:#666;font-size:13px;margin-bottom:16px;">Select one or more document types to generate.</p>';
 
     if (creators.length === 0) {
       html += '<div style="text-align:center;padding:24px;color:#888;">';
@@ -2549,14 +2552,14 @@
         html += '<div style="font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;">' + escapeHtml(pa) + '</div>';
         groups[pa].forEach(function(cr) {
           var crId = cr.id || cr.record_id || cr.creator_name || '';
-          var isSelected = state.docCreatorSelectedType === crId;
+          var isSelected = selected.indexOf(crId) >= 0;
           var borderColor = isSelected ? '#3B82F6' : '#E5E7EB';
           var bgColor = isSelected ? '#EFF6FF' : '#fff';
 
           html += '<div class="cc-dc-type-card" data-creator-id="' + escapeAttr(crId) + '" ';
           html += 'style="padding:12px 14px;border:2px solid ' + borderColor + ';border-radius:8px;margin-bottom:6px;background:' + bgColor + ';cursor:pointer;transition:all 0.15s;">';
           html += '<div style="display:flex;align-items:center;gap:10px;">';
-          html += '<span style="font-size:16px;width:20px;text-align:center;color:' + (isSelected ? '#3B82F6' : '#CBD5E1') + ';">' + (isSelected ? '&#9673;' : '&#9675;') + '</span>';
+          html += '<span style="font-size:16px;width:20px;text-align:center;color:' + (isSelected ? '#3B82F6' : '#CBD5E1') + ';">' + (isSelected ? '&#9745;' : '&#9744;') + '</span>';
           html += '<div style="flex:1;">';
           html += '<div style="font-weight:600;font-size:14px;">' + escapeHtml(cr.creator_name || cr.Creator_Name || 'Document') + '</div>';
           if (cr.description) {
@@ -2574,19 +2577,32 @@
           html += '</div></div></div>';
         });
       });
+
+      // Selected count
+      if (selected.length > 0) {
+        html += '<div style="font-size:12px;color:#3B82F6;margin-top:4px;">' + selected.length + ' document type' + (selected.length > 1 ? 's' : '') + ' selected</div>';
+      }
     }
 
     html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #E5E7EB;">';
     html += '<button id="cc-dc-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;">Cancel</button>';
-    html += '<button id="cc-dc-next" class="cc-btn cc-btn-primary" style="font-size:13px;" ' + (!state.docCreatorSelectedType ? 'disabled' : '') + '>Next &rarr;</button>';
+    html += '<button id="cc-dc-next" class="cc-btn cc-btn-primary" style="font-size:13px;" ' + (selected.length === 0 ? 'disabled' : '') + '>Next &rarr;</button>';
     html += '</div>';
 
     modal.innerHTML = html;
 
-    // Bind type card clicks
+    // Bind type card clicks — toggle checkbox
     modal.querySelectorAll('.cc-dc-type-card').forEach(function(card) {
       card.addEventListener('click', function() {
-        state.docCreatorSelectedType = card.dataset.creatorId;
+        var crId = card.dataset.creatorId;
+        var idx = selected.indexOf(crId);
+        if (idx >= 0) {
+          selected.splice(idx, 1);
+        } else {
+          selected.push(crId);
+        }
+        // Keep backward compat — set single type to first selected
+        state.docCreatorSelectedType = selected.length > 0 ? selected[0] : '';
         renderDocCreatorStep0(modal);
       });
     });
@@ -2595,7 +2611,7 @@
     var nextBtn = document.getElementById('cc-dc-next');
     if (nextBtn) {
       nextBtn.addEventListener('click', function() {
-        if (!state.docCreatorSelectedType) return;
+        if (selected.length === 0) return;
         state.docCreatorStep = 1;
         renderDocCreatorStep();
       });
