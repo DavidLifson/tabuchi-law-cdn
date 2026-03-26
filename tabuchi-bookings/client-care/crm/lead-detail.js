@@ -82,6 +82,8 @@
     tasks: [],
     recordings: [],
     recordingsLoaded: false,
+    documents: [],
+    documentsLoaded: false,
     willTemplates: null,
     activeTab: params.tab || 'activity',
     loading: true,
@@ -92,7 +94,8 @@
 
   var LEAD_TABS = [
     { key: 'activity', label: 'Activity & Tasks' },
-    { key: 'recordings', label: 'Recordings' }
+    { key: 'recordings', label: 'Recordings' },
+    { key: 'documents', label: 'Documents' }
   ];
 
   var _recRefreshTimer = null;
@@ -239,6 +242,9 @@
       if (tab.key === 'recordings' && state.recordings.length > 0) {
         badge = ' <span class="cc-tab-badge">' + state.recordings.length + '</span>';
       }
+      if (tab.key === 'documents' && state.documents.length > 0) {
+        badge = ' <span class="cc-tab-badge">' + state.documents.length + '</span>';
+      }
       html += '<button class="' + cls + '" data-tab="' + tab.key + '">' + tab.label + badge + '</button>';
     });
     // Refresh button for recordings tab
@@ -275,13 +281,20 @@
     // Show/hide panels
     var actPanel = $el('cc-tab-activity-tasks');
     var recPanel = $el('cc-tab-recordings');
+    var docPanel = $el('cc-tab-documents');
 
     if (actPanel) actPanel.style.display = tabKey === 'activity' ? '' : 'none';
     if (recPanel) recPanel.style.display = tabKey === 'recordings' ? '' : 'none';
+    if (docPanel) docPanel.style.display = tabKey === 'documents' ? '' : 'none';
 
     // Lazy-load recordings on first tab switch
     if (tabKey === 'recordings' && !state.recordingsLoaded) {
       loadRecordings();
+    }
+
+    // Lazy-load documents on first tab switch
+    if (tabKey === 'documents' && !state.documentsLoaded) {
+      loadDocuments();
     }
 
     // Manage auto-refresh for recordings
@@ -628,10 +641,14 @@
           if (res.success) {
             ccToast('Meeting summaries generated successfully!', 'success');
             if (res.internal_html) {
-              var w = window.open('', '_blank');
-              if (w) { w.document.write(res.internal_html); w.document.close(); }
+              openDocViewerModal(res.internal_html);
             }
             reloadRecordings();
+            // Refresh documents tab if it was loaded
+            if (state.documentsLoaded) {
+              state.documentsLoaded = false;
+              loadDocuments();
+            }
           } else {
             ccToast('Generation failed: ' + (res.error || 'Unknown error'), 'error');
           }
@@ -644,25 +661,47 @@
       });
     });
 
-    // View Summary document buttons
+    // View Summary document buttons — fetch from documents API
     document.querySelectorAll('.cc-summary-view-btn').forEach(function(btn) {
       btn.addEventListener('click', async function(e) {
         e.preventDefault();
         var recId = btn.dataset.recId;
         var docType = btn.dataset.docType;
+        var rec = state.recordings.find(function(r) { return r.id === recId; });
+        var sourceData = parseJson(rec && rec.Source_Data_JSON);
+        var docId = docType === 'internal'
+          ? (rec && rec.Summary_Internal_Doc_ID) || (sourceData && sourceData.internal_doc_id)
+          : (rec && rec.Summary_Client_Doc_ID) || (sourceData && sourceData.client_doc_id);
+
         btn.textContent = 'Loading...';
         try {
-          var res = await API.recordings.generateSummary(recId);
-          if (res.success) {
-            var html = docType === 'internal' ? res.internal_html : res.client_html;
-            if (html) {
-              var w = window.open('', '_blank');
-              if (w) { w.document.write(html); w.document.close(); }
+          if (docId) {
+            var res = await API.documents.get(docId);
+            var docHtml = '';
+            if (res.data) {
+              docHtml = res.data.document_html || res.data.Document_HTML || '';
+            } else if (res.document_html || res.Document_HTML) {
+              docHtml = res.document_html || res.Document_HTML;
+            }
+            if (docHtml) {
+              openDocViewerModal(docHtml);
             } else {
-              ccToast('No ' + docType + ' summary available.', 'info');
+              ccToast('No ' + docType + ' summary content found.', 'info');
             }
           } else {
-            ccToast('Failed to load summary: ' + (res.error || 'Unknown error'), 'error');
+            // Fallback: re-generate to view
+            var res = await API.recordings.generateSummary(recId);
+            if (res.success) {
+              var html = docType === 'internal' ? res.internal_html : res.client_html;
+              if (html) {
+                openDocViewerModal(html);
+              } else {
+                ccToast('No ' + docType + ' summary available.', 'info');
+              }
+              reloadRecordings();
+            } else {
+              ccToast('Failed to load summary: ' + (res.error || 'Unknown error'), 'error');
+            }
           }
         } catch (err) {
           ccToast('Failed: ' + (err.error || err.message || 'Network error'), 'error');
@@ -781,6 +820,227 @@
     if (!str) return null;
     if (Array.isArray(str)) return str;
     try { return JSON.parse(str); } catch (e) { return null; }
+  }
+
+  // ─── Documents Tab ────────────────────────────────────────────
+  async function loadDocuments() {
+    var el = $el('cc-tab-documents');
+    if (!el) return;
+
+    el.innerHTML = '<div style="text-align:center;padding:2rem;color:#6B7280;">Loading documents...</div>';
+
+    try {
+      var result = await API.documents.list(leadId);
+      if (result.success !== false) {
+        state.documents = (result.data || []).filter(function(d) { return d.status !== 'archived'; });
+        state.documentsLoaded = true;
+        renderDocuments();
+        renderTabs();
+      } else {
+        el.innerHTML = '<div class="cc-error">' + escapeHtml(result.error || 'Failed to load documents') + '</div>';
+      }
+    } catch (err) {
+      el.innerHTML = '<div class="cc-error">' + escapeHtml(err.error || 'Failed to load documents') + '</div>';
+    }
+  }
+
+  function renderDocuments() {
+    var el = $el('cc-tab-documents');
+    if (!el) return;
+
+    var docs = state.documents || [];
+    var html = '';
+
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+    html += '<h3 style="margin:0;font-size:1rem;font-weight:600;color:#374151;">Documents</h3>';
+    html += '<button id="cc-docs-refresh-btn" class="cc-btn cc-btn-sm cc-btn-outline" style="padding:4px 10px;font-size:0.8rem;">&#8635; Refresh</button>';
+    html += '</div>';
+
+    if (docs.length === 0) {
+      html += '<div class="cc-empty" style="padding:2rem;text-align:center;">';
+      html += '<p style="margin:0 0 .5rem;font-size:1.1rem;color:#6B7280;">No documents generated yet.</p>';
+      html += '<p style="margin:0;font-size:.85rem;color:#9CA3AF;">Documents generated from meeting summaries and other sources will appear here.</p>';
+      html += '</div>';
+    } else {
+      docs.forEach(function(doc) {
+        var creatorLabel = docCreatorLabel(doc.creator_type || doc.Creator_Type || '');
+        var creatorColor = docCreatorColor(doc.creator_type || doc.Creator_Type || '');
+        var statusVal = (doc.status || doc.Status || 'draft').toLowerCase();
+        var statusBadge = statusVal === 'final'
+          ? '<span class="cc-badge cc-badge-green" style="font-size:11px;">Final</span>'
+          : '<span class="cc-badge cc-badge-yellow" style="font-size:11px;">Draft</span>';
+        var date = (doc.generated_at || doc.Generated_At) ? API.util.formatDate(doc.generated_at || doc.Generated_At) : '';
+        var docName = doc.document_name || doc.Document_Name || 'Untitled Document';
+        var docId = doc.id || doc.record_id || '';
+        var hasHtml = !!(doc.document_html || doc.Document_HTML);
+
+        html += '<div class="cc-card" style="padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">';
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="font-weight:600;font-size:14px;">' + escapeHtml(docName) + '</div>';
+        html += '<div style="margin-top:4px;">';
+        html += '<span class="cc-badge cc-badge-' + creatorColor + '" style="font-size:11px;">' + escapeHtml(creatorLabel) + '</span> ';
+        html += statusBadge + ' ';
+        html += '<span style="color:#888;font-size:12px;margin-left:4px;">' + escapeHtml(date) + '</span>';
+        html += '</div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:8px;flex-shrink:0;">';
+        if (hasHtml) {
+          html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:12px;">View</button>';
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:12px;">Download</button>';
+        }
+        if (doc.file_data && doc.file_data.length > 0) {
+          html += '<a href="' + escapeAttr(doc.file_data[0].url) + '" target="_blank" class="cc-btn cc-btn-sm" style="font-size:12px;">Download File</a>';
+        }
+        html += '</div>';
+        html += '</div>';
+      });
+    }
+
+    el.innerHTML = html;
+
+    // Bind refresh
+    var refreshBtn = document.getElementById('cc-docs-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async function() {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+        state.documentsLoaded = false;
+        await loadDocuments();
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '&#8635; Refresh';
+      });
+    }
+
+    // Bind view buttons
+    document.querySelectorAll('.cc-doc-view-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = btn.dataset.docId;
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+        try {
+          var res = await API.documents.get(docId);
+          var docHtml = '';
+          if (res.data) {
+            docHtml = res.data.document_html || res.data.Document_HTML || '';
+          } else if (res.document_html || res.Document_HTML) {
+            docHtml = res.document_html || res.Document_HTML;
+          }
+          if (docHtml) {
+            openDocViewerModal(docHtml);
+          } else {
+            ccToast('No document content available.', 'info');
+          }
+        } catch (err) {
+          ccToast('Failed to load document: ' + (err.error || err.message || 'Network error'), 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'View';
+      });
+    });
+
+    // Bind download buttons
+    document.querySelectorAll('.cc-doc-download-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = btn.dataset.docId;
+        var docName = btn.dataset.docName || 'document';
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+        try {
+          var res = await API.documents.get(docId);
+          var docHtml = '';
+          if (res.data) {
+            docHtml = res.data.document_html || res.data.Document_HTML || '';
+          } else if (res.document_html || res.Document_HTML) {
+            docHtml = res.document_html || res.Document_HTML;
+          }
+          if (docHtml) {
+            downloadHtmlFile(docHtml, docName.replace(/[^a-zA-Z0-9_\- ]/g, '') + '.html');
+          } else {
+            ccToast('No document content available for download.', 'info');
+          }
+        } catch (err) {
+          ccToast('Failed to load document: ' + (err.error || err.message || 'Network error'), 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Download';
+      });
+    });
+  }
+
+  function docCreatorLabel(type) {
+    var map = {
+      'meeting_summary_internal': 'Internal Summary',
+      'meeting_summary_client': 'Client Summary',
+      'will': 'Will',
+      'poa_property': 'POA Property',
+      'poa_care': 'POA Personal Care'
+    };
+    return map[(type || '').toLowerCase()] || type || 'Document';
+  }
+
+  function docCreatorColor(type) {
+    var map = {
+      'meeting_summary_internal': 'purple',
+      'meeting_summary_client': 'green',
+      'will': 'blue',
+      'poa_property': 'blue',
+      'poa_care': 'blue'
+    };
+    return map[(type || '').toLowerCase()] || 'gray';
+  }
+
+  function openDocViewerModal(htmlContent) {
+    // Remove existing modal if any
+    var existing = document.getElementById('cc-doc-viewer-overlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'cc-doc-viewer-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9000;display:flex;align-items:center;justify-content:center;';
+
+    var modal = document.createElement('div');
+    modal.style.cssText = 'background:#fff;border-radius:12px;width:90%;max-width:900px;height:85vh;display:flex;flex-direction:column;position:relative;';
+
+    // Header bar
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #E5E7EB;flex-shrink:0;';
+    header.innerHTML = '<span style="font-weight:600;font-size:14px;">Document Viewer</span>' +
+      '<button id="cc-doc-viewer-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6B7280;padding:4px 8px;">&times;</button>';
+
+    // Iframe for sandboxed content
+    var iframe = document.createElement('iframe');
+    iframe.style.cssText = 'flex:1;border:none;border-radius:0 0 12px 12px;';
+    iframe.sandbox = 'allow-same-origin';
+
+    modal.appendChild(header);
+    modal.appendChild(iframe);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Write content to iframe
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(htmlContent);
+    iframe.contentDocument.close();
+
+    // Bind close
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.getElementById('cc-doc-viewer-close').addEventListener('click', function() {
+      overlay.remove();
+    });
+  }
+
+  function downloadHtmlFile(htmlContent, fileName) {
+    var blob = new Blob([htmlContent], { type: 'text/html' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   // ─── Header ─────────────────────────────────────────────────
