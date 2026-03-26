@@ -1076,6 +1076,21 @@
       // Collapsible detail section
       html += '<div class="cc-timeline-details" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #E5E7EB;">';
       if (item.body) html += '<div class="cc-timeline-body">' + escapeHtml(item.body) + '</div>';
+      // Document links for Meeting Summary Generated activities
+      if (item.subject === 'Meeting Summary Generated' && item.body) {
+        var internalMatch = item.body.match(/Internal Doc ID: (rec\w+)/);
+        var clientMatch = item.body.match(/Client Doc ID: (rec\w+)/);
+        if (internalMatch || clientMatch) {
+          html += '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">';
+          if (internalMatch) {
+            html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-activity-doc-btn" data-doc-id="' + escapeAttr(internalMatch[1]) + '" style="font-size:0.78rem;" onclick="event.stopPropagation();">&#128196; View Internal Summary</button>';
+          }
+          if (clientMatch) {
+            html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-activity-doc-btn" data-doc-id="' + escapeAttr(clientMatch[1]) + '" style="font-size:0.78rem;" onclick="event.stopPropagation();">&#128196; View Client Summary</button>';
+          }
+          html += '</div>';
+        }
+      }
       if (item.duration) html += '<div class="cc-timeline-meta">' + item.duration + ' min</div>';
       // Campaign send status badges
       if (item.kind === 'campaign' && item.outcome) {
@@ -2035,7 +2050,89 @@
       }
       html += '</div>';
     } else {
+      // Group documents by transcription_id
+      var groups = {};
+      var ungrouped = [];
       docs.forEach(function(doc) {
+        var transcriptionId = null;
+        try {
+          var sourceJson = doc.source_data_json || doc.Source_Data_JSON || '';
+          if (sourceJson && typeof sourceJson === 'string') {
+            var parsed = JSON.parse(sourceJson);
+            transcriptionId = parsed.transcription_id || null;
+          } else if (sourceJson && typeof sourceJson === 'object') {
+            transcriptionId = sourceJson.transcription_id || null;
+          }
+        } catch (e) { /* ignore parse errors */ }
+
+        if (transcriptionId) {
+          if (!groups[transcriptionId]) {
+            groups[transcriptionId] = { docs: [], transcriptionId: transcriptionId };
+          }
+          groups[transcriptionId].docs.push(doc);
+        } else {
+          ungrouped.push(doc);
+        }
+      });
+
+      // Render grouped documents
+      var groupKeys = Object.keys(groups);
+      groupKeys.forEach(function(key) {
+        var group = groups[key];
+        var groupDocs = group.docs;
+        // Derive meeting name from document names (strip "Internal Summary — " or "Client Summary — " prefix)
+        var meetingName = '';
+        for (var gi = 0; gi < groupDocs.length; gi++) {
+          var dn = groupDocs[gi].document_name || groupDocs[gi].Document_Name || '';
+          var stripped = dn.replace(/^(Internal Summary|Client Summary)\s*[-—]\s*/i, '').trim();
+          if (stripped) { meetingName = stripped; break; }
+        }
+        if (!meetingName) meetingName = 'Recording';
+        var groupDate = '';
+        for (var gj = 0; gj < groupDocs.length; gj++) {
+          var gd = groupDocs[gj].generated_at || groupDocs[gj].Generated_At;
+          if (gd) { groupDate = API.util.formatDate(gd); break; }
+        }
+
+        html += '<div class="cc-card" style="padding:16px;margin-bottom:12px;">';
+        html += '<div style="margin-bottom:12px;">';
+        html += '<div style="font-weight:700;font-size:15px;color:#1F2937;">&#128249; ' + escapeHtml(meetingName) + '</div>';
+        if (groupDate) html += '<div style="font-size:12px;color:#6B7280;margin-top:2px;">Generated: ' + escapeHtml(groupDate) + '</div>';
+        html += '</div>';
+        groupDocs.forEach(function(doc) {
+          var creatorType = doc.creator_type || doc.Creator_Type || doc.document_type || '';
+          var creatorLabel = contactDocCreatorLabel(creatorType);
+          var docId = doc.id || doc.record_id || '';
+          var docName = doc.document_name || doc.Document_Name || 'Untitled Document';
+          var hasHtml = !!(doc.document_html || doc.Document_HTML);
+          var statusVal = (doc.status || doc.Status || 'draft').toLowerCase();
+          var statusBadge = statusVal === 'final'
+            ? '<span class="cc-badge cc-badge-green" style="font-size:11px;">Final</span>'
+            : '<span class="cc-badge cc-badge-yellow" style="font-size:11px;">Draft</span>';
+
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #F3F4F6;">';
+          html += '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">';
+          html += '<span style="font-size:13px;">&#128196; ' + escapeHtml(creatorLabel) + '</span> ' + statusBadge;
+          html += '</div>';
+          html += '<div style="display:flex;gap:8px;flex-shrink:0;">';
+          if (hasHtml) {
+            html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:12px;">View</button>';
+            html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:12px;">Download</button>';
+          }
+          if (doc.file_data && doc.file_data.length > 0) {
+            html += '<a href="' + escapeAttr(doc.file_data[0].url) + '" target="_blank" class="cc-btn cc-btn-sm" style="font-size:12px;">Download File</a>';
+          }
+          if (doc.clio_document_id) {
+            html += '<button class="cc-btn cc-btn-sm cc-btn-outline" style="font-size:12px;" disabled>In Clio</button>';
+          }
+          html += '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+      });
+
+      // Render ungrouped documents individually
+      ungrouped.forEach(function(doc) {
         var creatorType = doc.creator_type || doc.Creator_Type || doc.document_type || '';
         var creatorLabel = contactDocCreatorLabel(creatorType);
         var creatorColor = contactDocCreatorColor(creatorType);
@@ -2928,6 +3025,35 @@
         details.style.display = isOpen ? 'none' : 'block';
         item.setAttribute('aria-expanded', String(!isOpen));
         if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+      });
+    });
+
+    // Bind activity document view buttons
+    document.querySelectorAll('.cc-activity-doc-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var docId = btn.dataset.docId;
+        var origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+        try {
+          var res = await API.documents.get(docId);
+          var docHtml = '';
+          if (res.data) {
+            docHtml = res.data.document_html || res.data.Document_HTML || '';
+          } else if (res.document_html || res.Document_HTML) {
+            docHtml = res.document_html || res.Document_HTML;
+          }
+          if (docHtml) {
+            openDocViewerModal(docHtml);
+          } else {
+            ccToast('No document content available.', 'info');
+          }
+        } catch (err) {
+          ccToast('Failed to load document: ' + (err.error || err.message || 'Network error'), 'error');
+        }
+        btn.disabled = false;
+        btn.innerHTML = origText;
       });
     });
   }
