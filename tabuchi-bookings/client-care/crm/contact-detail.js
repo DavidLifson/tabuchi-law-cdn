@@ -2315,8 +2315,9 @@
 
   function openDocumentCreatorModal() {
     state.docCreatorStep = 0;
-    state.docCreatorSources = { lead_profile: true, _selectedIntake: {}, _selectedRecordings: {}, _intakeData: [], _recordingData: [] };
+    state.docCreatorSources = { lead_profile: true, _selectedIntake: {}, _selectedRecordings: {}, _selectedActivities: true, _intakeData: [], _recordingData: [] };
     state.docCreatorFieldData = null;
+    state.docCreatorSelectedType = null;
 
     var overlay = document.createElement('div');
     overlay.id = 'cc-doc-creator-overlay';
@@ -2346,9 +2347,87 @@
     if (!modal) return;
 
     switch (state.docCreatorStep) {
-      case 0: renderDocCreatorStep1(modal); break;
-      case 1: renderDocCreatorStep2(modal); break;
-      case 2: renderDocCreatorStep3(modal); break;
+      case 0: renderDocCreatorStep0(modal); break; // Document type selection
+      case 1: renderDocCreatorStep1(modal); break; // Source selection
+      case 2: renderDocCreatorStep2(modal); break; // Form review & edit
+      case 3: renderDocCreatorStep3(modal); break; // Generation
+    }
+  }
+
+  // Step 0: Document Type Selector
+  function renderDocCreatorStep0(modal) {
+    var creators = state.documentCreators || [];
+    var html = '<h3 style="margin:0 0 4px;">Generate Finished Documents</h3>';
+    html += '<p style="color:#666;font-size:13px;margin-bottom:16px;">Select the type of document to generate.</p>';
+
+    if (creators.length === 0) {
+      html += '<div style="text-align:center;padding:24px;color:#888;">';
+      html += '<p>No document creators configured.</p>';
+      html += '<p style="font-size:12px;">Set up document creators in Admin &rarr; Documents.</p>';
+      html += '</div>';
+    } else {
+      // Group by practice area
+      var groups = {};
+      creators.forEach(function(cr) {
+        var pa = cr.practice_area || cr.Practice_Area || 'Other';
+        if (!groups[pa]) groups[pa] = [];
+        groups[pa].push(cr);
+      });
+
+      Object.keys(groups).forEach(function(pa) {
+        html += '<div style="font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;">' + escapeHtml(pa) + '</div>';
+        groups[pa].forEach(function(cr) {
+          var crId = cr.id || cr.record_id || cr.creator_name || '';
+          var isSelected = state.docCreatorSelectedType === crId;
+          var borderColor = isSelected ? '#3B82F6' : '#E5E7EB';
+          var bgColor = isSelected ? '#EFF6FF' : '#fff';
+
+          html += '<div class="cc-dc-type-card" data-creator-id="' + escapeAttr(crId) + '" ';
+          html += 'style="padding:12px 14px;border:2px solid ' + borderColor + ';border-radius:8px;margin-bottom:6px;background:' + bgColor + ';cursor:pointer;transition:all 0.15s;">';
+          html += '<div style="display:flex;align-items:center;gap:10px;">';
+          html += '<span style="font-size:16px;width:20px;text-align:center;color:' + (isSelected ? '#3B82F6' : '#CBD5E1') + ';">' + (isSelected ? '&#9673;' : '&#9675;') + '</span>';
+          html += '<div style="flex:1;">';
+          html += '<div style="font-weight:600;font-size:14px;">' + escapeHtml(cr.creator_name || cr.Creator_Name || 'Document') + '</div>';
+          if (cr.description) {
+            html += '<div style="font-size:12px;color:#888;margin-top:2px;">' + escapeHtml(cr.description) + '</div>';
+          }
+          // Show required sources as pills
+          if (cr.required_sources && cr.required_sources.length) {
+            html += '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">';
+            cr.required_sources.forEach(function(src) {
+              var colors = { 'Lead Profile': 'background:#dbeafe;color:#1d4ed8', 'Intake Form': 'background:#fef3c7;color:#92400e', 'Transcription': 'background:#ede9fe;color:#5b21b6' };
+              html += '<span class="cc-badge" style="' + (colors[src] || 'background:#f3f4f6;color:#374151') + ';font-size:10px;">' + escapeHtml(src) + '</span>';
+            });
+            html += '</div>';
+          }
+          html += '</div></div></div>';
+        });
+      });
+    }
+
+    html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid #E5E7EB;">';
+    html += '<button id="cc-dc-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;">Cancel</button>';
+    html += '<button id="cc-dc-next" class="cc-btn cc-btn-primary" style="font-size:13px;" ' + (!state.docCreatorSelectedType ? 'disabled' : '') + '>Next &rarr;</button>';
+    html += '</div>';
+
+    modal.innerHTML = html;
+
+    // Bind type card clicks
+    modal.querySelectorAll('.cc-dc-type-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        state.docCreatorSelectedType = card.dataset.creatorId;
+        renderDocCreatorStep0(modal);
+      });
+    });
+
+    document.getElementById('cc-dc-cancel').addEventListener('click', closeDocCreatorModal);
+    var nextBtn = document.getElementById('cc-dc-next');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', function() {
+        if (!state.docCreatorSelectedType) return;
+        state.docCreatorStep = 1;
+        renderDocCreatorStep();
+      });
     }
   }
 
@@ -2467,6 +2546,28 @@
       }
 
       // ── File from computer ──
+      // ── Activity & Task Notes ──
+      var relevantNotes = (state.activities || []).filter(function(a) {
+        return (a.type === 'NOTE' || a.type === 'MEETING' || a.type === 'CALL') && a.body;
+      });
+      html += '<div style="font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;">Activity Notes (' + relevantNotes.length + ' available)</div>';
+      if (relevantNotes.length === 0) {
+        html += '<div style="padding:8px 12px;color:#888;font-size:13px;margin-bottom:12px;border:1px dashed #E5E7EB;border-radius:8px;">No activity notes recorded.</div>';
+      } else {
+        var isActSelected = !!state.docCreatorSources._selectedActivities;
+        var actBorder = isActSelected ? '#3B82F6' : '#E5E7EB';
+        var actBg = isActSelected ? '#EFF6FF' : '#fff';
+        html += '<div class="cc-dc-source-card" data-source-type="activities" data-source-id="all" ';
+        html += 'style="padding:10px 12px;border:2px solid ' + actBorder + ';border-radius:8px;margin-bottom:6px;background:' + actBg + ';cursor:pointer;transition:all 0.15s;">';
+        html += '<div style="display:flex;align-items:center;gap:10px;">';
+        html += '<span style="font-size:16px;width:20px;text-align:center;color:' + (isActSelected ? '#3B82F6' : '#CBD5E1') + ';">' + (isActSelected ? '&#9745;' : '&#9744;') + '</span>';
+        html += '<div style="flex:1;min-width:0;">';
+        html += '<div style="font-weight:600;font-size:13px;">Include all activity notes (' + relevantNotes.length + ' notes)</div>';
+        html += '<div style="font-size:12px;color:#888;">Notes, meeting logs, and call records from Activity &amp; Tasks tab</div>';
+        html += '</div></div></div>';
+      }
+
+      // ── File from computer ──
       html += '<div style="font-size:12px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;">Upload File</div>';
       html += '<div style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">';
       html += '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">';
@@ -2498,6 +2599,8 @@
             state.docCreatorSources._selectedIntake[id] = !state.docCreatorSources._selectedIntake[id];
           } else if (type === 'recording') {
             state.docCreatorSources._selectedRecordings[id] = !state.docCreatorSources._selectedRecordings[id];
+          } else if (type === 'activities') {
+            state.docCreatorSources._selectedActivities = !state.docCreatorSources._selectedActivities;
           }
           // Re-render to update visual state
           renderDocCreatorStep1(modal);
@@ -2643,8 +2746,23 @@
       } catch (e) { /* continue without transcription data */ }
     }
 
+    // Merge from activity notes if selected
+    if (state.docCreatorSources._selectedActivities) {
+      var relevantNotes = (state.activities || []).filter(function(a) {
+        return (a.type === 'NOTE' || a.type === 'MEETING' || a.type === 'CALL') && a.body;
+      });
+      if (relevantNotes.length > 0) {
+        var noteTexts = relevantNotes.map(function(n) {
+          return '[' + (n.type || 'NOTE') + ' - ' + (n.subject || 'Note') + ' - ' + API.util.formatDate(n.created_at || '') + ']\n' + n.body;
+        });
+        var existingInstructions = merged.special_instructions || '';
+        merged.special_instructions = (existingInstructions ? existingInstructions + '\n\n' : '') +
+          'Activity Notes:\n' + noteTexts.join('\n\n');
+      }
+    }
+
     state.docCreatorFieldData = merged;
-    state.docCreatorStep = 1;
+    state.docCreatorStep = 2;
     renderDocCreatorStep();
   }
 
