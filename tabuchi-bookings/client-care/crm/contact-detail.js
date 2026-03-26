@@ -498,7 +498,7 @@
       { label: 'Preferred Language', value: c.Preferred_Language },
       { label: 'Referred By', value: c.Referral_Source },
       { label: 'Practice Area', value: formatPracticeArea(c.Practice_Area) },
-      { label: 'Service Package', value: formatPracticeArea(c.Service_Package) },
+      { label: 'Service Package', value: formatServicePackage(c.Service_Package) },
       { label: 'Lead Source', value: c.Source },
       { label: 'Lead Stage', value: API.util.stageLabel(c.Lead_Stage) },
       { label: 'Disposition', value: c.Disposition || 'OPEN' },
@@ -3578,6 +3578,20 @@
 
   function escapeAttr(str) {
     return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function formatServicePackage(sp) {
+    if (!sp) return '—';
+    var items = Array.isArray(sp) ? sp : [sp];
+    var pb = state.priceBookItems || [];
+    return items.map(function(item) {
+      // Try to find by record ID in price book items
+      for (var i = 0; i < pb.length; i++) {
+        if (pb[i].id === item || pb[i].record_id === item) return pb[i].Name || pb[i].name || pb[i].Label || pb[i].label || item;
+      }
+      // If not a record ID, format it as a label
+      return item.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+    }).join(', ');
   }
 
   function formatPracticeArea(pa) {
