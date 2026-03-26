@@ -885,51 +885,58 @@
         }
       });
 
-      // Render grouped documents
+      // Render grouped documents with alternating background colors
       var groupKeys = Object.keys(groups);
-      groupKeys.forEach(function(key) {
+      var groupColors = ['#F0F9FF', '#FFF7ED']; // light blue, light orange alternating
+      groupKeys.forEach(function(key, groupIdx) {
         var group = groups[key];
         var groupDocs = group.docs;
-        // Derive meeting name from document names (strip "Internal Summary — " or "Client Summary — " prefix)
+        var bgColor = groupColors[groupIdx % groupColors.length];
+        // Derive meeting name from document names
         var meetingName = '';
         for (var gi = 0; gi < groupDocs.length; gi++) {
           var dn = groupDocs[gi].document_name || groupDocs[gi].Document_Name || '';
-          var stripped = dn.replace(/^(Internal Summary|Client Summary)\s*[-—]\s*/i, '').trim();
-          if (stripped) { meetingName = stripped; break; }
+          var stripped = dn.replace(/^(Internal Meeting Summary|Client Meeting Summary|Internal Summary|Client Summary)\s*[-—]\s*/i, '').trim();
+          if (stripped && stripped !== 'Client') { meetingName = stripped; break; }
         }
-        if (!meetingName) meetingName = 'Recording';
-        var groupDate = '';
+        if (!meetingName) meetingName = 'Meeting Recording';
+        var groupGenDate = '';
+        var groupCreatedDate = '';
         for (var gj = 0; gj < groupDocs.length; gj++) {
           var gd = groupDocs[gj].generated_at || groupDocs[gj].Generated_At;
-          if (gd) { groupDate = API.util.formatDate(gd); break; }
+          if (gd) { groupGenDate = API.util.formatDateTime ? API.util.formatDateTime(gd) : API.util.formatDate(gd); break; }
         }
 
-        html += '<div class="cc-card" style="padding:16px;margin-bottom:12px;">';
-        html += '<div style="margin-bottom:12px;">';
-        html += '<div style="font-weight:700;font-size:15px;color:#1F2937;">&#128249; ' + escapeHtml(meetingName) + '</div>';
-        if (groupDate) html += '<div style="font-size:12px;color:#6B7280;margin-top:2px;">Generated: ' + escapeHtml(groupDate) + '</div>';
+        html += '<div style="background:' + bgColor + ';border:1px solid #E5E7EB;border-radius:10px;padding:16px;margin-bottom:14px;">';
+        html += '<div style="margin-bottom:10px;">';
+        html += '<div style="font-weight:700;font-size:15px;color:#1F2937;">&#127909; Meeting: ' + escapeHtml(meetingName) + '</div>';
+        html += '<div style="font-size:12px;color:#6B7280;margin-top:3px;">';
+        if (groupGenDate) html += 'Generated: ' + escapeHtml(groupGenDate);
+        html += ' &middot; ' + groupDocs.length + ' document' + (groupDocs.length !== 1 ? 's' : '');
         html += '</div>';
-        groupDocs.forEach(function(doc) {
-          var creatorLabel = docCreatorLabel(doc.creator_type || doc.Creator_Type || '');
+        html += '</div>';
+        groupDocs.forEach(function(doc, di) {
+          var creatorType = doc.creator_type || doc.Creator_Type || '';
+          var creatorLabel = docCreatorLabel(creatorType);
           var docId = doc.id || doc.record_id || '';
-          var docName = doc.document_name || doc.Document_Name || 'Untitled Document';
+          var docName = doc.document_name || doc.Document_Name || 'Untitled';
           var hasHtml = !!(doc.document_html || doc.Document_HTML);
           var statusVal = (doc.status || doc.Status || 'draft').toLowerCase();
           var statusBadge = statusVal === 'final'
-            ? '<span class="cc-badge cc-badge-green" style="font-size:11px;">Final</span>'
-            : '<span class="cc-badge cc-badge-yellow" style="font-size:11px;">Draft</span>';
+            ? '<span style="font-size:10px;background:#D1FAE5;color:#065F46;padding:2px 6px;border-radius:4px;">Final</span>'
+            : '<span style="font-size:10px;background:#FEF3C7;color:#92400E;padding:2px 6px;border-radius:4px;">Draft</span>';
+          var icon = creatorType.indexOf('internal') > -1 ? '&#128203;' : '&#128196;';
+          var rowBg = di % 2 === 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)';
 
-          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid #F3F4F6;">';
-          html += '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">';
-          html += '<span style="font-size:13px;">&#128196; ' + escapeHtml(creatorLabel) + '</span> ' + statusBadge;
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:' + rowBg + ';border-radius:6px;margin-bottom:4px;">';
+          html += '<div style="flex:1;min-width:0;">';
+          html += '<div style="font-weight:600;font-size:13px;color:#1F2937;">' + icon + ' ' + escapeHtml(creatorLabel) + ' ' + statusBadge + '</div>';
+          html += '<div style="font-size:11px;color:#9CA3AF;margin-top:2px;">' + escapeHtml(docName) + '</div>';
           html += '</div>';
-          html += '<div style="display:flex;gap:8px;flex-shrink:0;">';
+          html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
           if (hasHtml) {
-            html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:12px;">View</button>';
-            html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:12px;">Download</button>';
-          }
-          if (doc.file_data && doc.file_data.length > 0) {
-            html += '<a href="' + escapeAttr(doc.file_data[0].url) + '" target="_blank" class="cc-btn cc-btn-sm" style="font-size:12px;">Download File</a>';
+            html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:11px;padding:4px 10px;">View</button>';
+            html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:11px;padding:4px 10px;">Download</button>';
           }
           html += '</div>';
           html += '</div>';
