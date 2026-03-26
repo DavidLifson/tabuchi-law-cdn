@@ -3137,7 +3137,52 @@
   async function submitDocGeneration() {
     var modal = document.getElementById('cc-doc-creator-modal');
     if (!modal) return;
-    modal.innerHTML = '<div style="text-align:center;padding:60px 20px;"><div style="font-size:24px;margin-bottom:12px;">Generating Will...</div><p style="color:#666;">This may take a moment.</p></div>';
+
+    // Show animated progress UI
+    var steps = [
+      { label: 'Preparing data sources...', icon: '&#128203;' },
+      { label: 'Merging client information...', icon: '&#128100;' },
+      { label: 'Generating document with AI...', icon: '&#129302;' },
+      { label: 'Formatting and saving...', icon: '&#128196;' }
+    ];
+    var progressHtml = '<div style="text-align:center;padding:40px 20px;">';
+    progressHtml += '<div style="font-size:20px;font-weight:600;color:#1E3A5F;margin-bottom:24px;">Generating Document</div>';
+    progressHtml += '<div id="cc-dc-progress-steps" style="text-align:left;max-width:360px;margin:0 auto 24px;">';
+    for (var pi = 0; pi < steps.length; pi++) {
+      progressHtml += '<div id="cc-dc-step-' + pi + '" style="display:flex;align-items:center;gap:10px;padding:8px 0;color:#CBD5E1;transition:color 0.3s;">';
+      progressHtml += '<span style="font-size:18px;width:24px;text-align:center;">' + steps[pi].icon + '</span>';
+      progressHtml += '<span style="font-size:14px;">' + steps[pi].label + '</span>';
+      progressHtml += '<span id="cc-dc-check-' + pi + '" style="margin-left:auto;display:none;color:#22C55E;">&#10003;</span>';
+      progressHtml += '</div>';
+    }
+    progressHtml += '</div>';
+    progressHtml += '<div style="background:#E5E7EB;border-radius:6px;height:6px;overflow:hidden;max-width:360px;margin:0 auto;">';
+    progressHtml += '<div id="cc-dc-progress-bar" style="background:#3B82F6;height:100%;width:0%;transition:width 0.5s ease;border-radius:6px;"></div>';
+    progressHtml += '</div>';
+    progressHtml += '<p id="cc-dc-progress-time" style="color:#9CA3AF;font-size:12px;margin-top:8px;">Estimated time: 15-30 seconds</p>';
+    progressHtml += '</div>';
+    modal.innerHTML = progressHtml;
+
+    // Animate progress steps
+    function activateStep(idx) {
+      var el = document.getElementById('cc-dc-step-' + idx);
+      if (el) el.style.color = '#1F2937';
+      // Complete previous step
+      if (idx > 0) {
+        var prev = document.getElementById('cc-dc-step-' + (idx - 1));
+        if (prev) prev.style.color = '#22C55E';
+        var chk = document.getElementById('cc-dc-check-' + (idx - 1));
+        if (chk) chk.style.display = '';
+      }
+      var bar = document.getElementById('cc-dc-progress-bar');
+      if (bar) bar.style.width = ((idx + 1) / steps.length * 80) + '%';
+    }
+
+    activateStep(0);
+    var stepTimers = [];
+    stepTimers.push(setTimeout(function() { activateStep(1); }, 1500));
+    stepTimers.push(setTimeout(function() { activateStep(2); }, 3000));
+    stepTimers.push(setTimeout(function() { activateStep(3); }, 8000));
 
     try {
       var result = await API.documents.generate({
@@ -3148,6 +3193,18 @@
       });
 
       if (result.success) {
+        // Complete progress bar
+        stepTimers.forEach(clearTimeout);
+        for (var si = 0; si < steps.length; si++) {
+          var stepEl = document.getElementById('cc-dc-step-' + si);
+          if (stepEl) stepEl.style.color = '#22C55E';
+          var chkEl = document.getElementById('cc-dc-check-' + si);
+          if (chkEl) chkEl.style.display = '';
+        }
+        var bar = document.getElementById('cc-dc-progress-bar');
+        if (bar) bar.style.width = '100%';
+        await new Promise(function(r) { setTimeout(r, 600); }); // Brief pause to show completion
+
         // Auto-download the file if base64 is returned
         if (result.file_base64) {
           try {
@@ -3209,6 +3266,7 @@
         throw new Error(result.error || 'Generation failed');
       }
     } catch (err) {
+      stepTimers.forEach(clearTimeout);
       var html = '<div style="text-align:center;padding:40px 20px;">';
       html += '<div style="font-size:20px;font-weight:600;color:#ef4444;margin-bottom:12px;">Generation Failed</div>';
       html += '<p style="color:#666;margin-bottom:20px;">' + escapeHtml(err.message || String(err)) + '</p>';
