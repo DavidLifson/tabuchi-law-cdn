@@ -2223,15 +2223,17 @@
         // Generated date/time
         html += '<td style="padding:10px 10px;color:#6B7280;font-size:12px;white-space:nowrap;">' + escapeHtml(genDateStr) + '</td>';
 
-        // Actions
+        // Actions — Open in Word (.doc), Download (.docx), View (HTML), Delete
         html += '<td style="padding:10px 10px;text-align:right;white-space:nowrap;">';
         if (hasHtml) {
-          html += '<button class="cc-btn cc-btn-sm cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" style="font-size:11px;padding:3px 8px;margin-left:4px;">View</button>';
-          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" style="font-size:11px;padding:3px 8px;margin-left:4px;">Download</button>';
+          html += '<button class="cc-btn cc-btn-sm cc-doc-open-word-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" title="Download as .doc and open in Word" style="font-size:11px;padding:3px 8px;margin-left:4px;">&#128196; Open in Word</button>';
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-download-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" title="Download as .docx file" style="font-size:11px;padding:3px 8px;margin-left:4px;">&#11015; Download</button>';
+          html += '<button class="cc-btn cc-btn-sm cc-btn-outline cc-doc-view-btn" data-doc-id="' + escapeAttr(docId) + '" title="Preview in browser" style="font-size:11px;padding:3px 8px;margin-left:4px;">&#128065; View</button>';
         }
         if (hasFile) {
           html += '<a href="' + escapeAttr(doc.file_data[0].url) + '" target="_blank" class="cc-btn cc-btn-sm" style="font-size:11px;padding:3px 8px;margin-left:4px;">File</a>';
         }
+        html += '<button class="cc-btn cc-btn-sm cc-doc-delete-btn" data-doc-id="' + escapeAttr(docId) + '" data-doc-name="' + escapeAttr(docName) + '" title="Delete document" style="font-size:11px;padding:3px 8px;margin-left:4px;color:#DC2626;border-color:#FCA5A5;">&#128465; Delete</button>';
         html += '</td>';
 
         html += '</tr>';
@@ -2266,22 +2268,34 @@
       });
     });
 
-    // Bind view buttons
-    document.querySelectorAll('.cc-doc-view-btn').forEach(function(btn) {
+    // Bind "Open in Word" buttons — downloads as .doc (Word-compatible HTML)
+    document.querySelectorAll('.cc-doc-open-word-btn').forEach(function(btn) {
       btn.addEventListener('click', async function() {
         var docId = btn.dataset.docId;
+        var docName = btn.dataset.docName || 'Document';
         btn.disabled = true;
         btn.textContent = 'Loading...';
         try {
           var res = await API.documents.get(docId);
           var docHtml = '';
-          if (res.data) {
-            docHtml = res.data.document_html || res.data.Document_HTML || '';
-          } else if (res.document_html || res.Document_HTML) {
-            docHtml = res.document_html || res.Document_HTML;
-          }
+          if (res.data) { docHtml = res.data.document_html || res.data.Document_HTML || ''; }
+          else { docHtml = res.document_html || res.Document_HTML || ''; }
           if (docHtml) {
-            openDocViewerModal(docHtml);
+            // Wrap in Word-compatible HTML envelope
+            var wordDoc = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">\n'
+              + '<head><meta charset="utf-8">\n'
+              + '<style>\n@page { size: letter; margin: 1in; }\nbody { font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.5; }\n'
+              + 'h1 { font-size: 16pt; text-align: center; margin-bottom: 24pt; }\nh2 { font-size: 13pt; margin-top: 18pt; margin-bottom: 6pt; }\n'
+              + 'p { margin: 6pt 0; }\nol, ul { margin: 6pt 0 6pt 36pt; }\n</style>\n</head>\n<body>\n' + docHtml + '\n</body>\n</html>';
+            var blob = new Blob([wordDoc], { type: 'application/msword' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = docName.replace(/[^a-zA-Z0-9_\- ]/g, '') + '.doc';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
           } else {
             ccToast('No document content available.', 'info');
           }
@@ -2289,11 +2303,11 @@
           ccToast('Failed to load document: ' + (err.error || err.message || 'Network error'), 'error');
         }
         btn.disabled = false;
-        btn.textContent = 'View';
+        btn.textContent = 'Open in Word';
       });
     });
 
-    // Bind download buttons
+    // Bind "Download" buttons — downloads as .doc (Word-compatible, named .docx)
     document.querySelectorAll('.cc-doc-download-btn').forEach(function(btn) {
       btn.addEventListener('click', async function() {
         var docId = btn.dataset.docId;
@@ -2303,13 +2317,23 @@
         try {
           var res = await API.documents.get(docId);
           var docHtml = '';
-          if (res.data) {
-            docHtml = res.data.document_html || res.data.Document_HTML || '';
-          } else if (res.document_html || res.Document_HTML) {
-            docHtml = res.document_html || res.Document_HTML;
-          }
+          if (res.data) { docHtml = res.data.document_html || res.data.Document_HTML || ''; }
+          else { docHtml = res.document_html || res.Document_HTML || ''; }
           if (docHtml) {
-            contactDownloadHtmlFile(docHtml, docName.replace(/[^a-zA-Z0-9_\- ]/g, '') + '.html');
+            var wordDoc = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">\n'
+              + '<head><meta charset="utf-8">\n'
+              + '<style>\n@page { size: letter; margin: 1in; }\nbody { font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.5; }\n'
+              + 'h1 { font-size: 16pt; text-align: center; margin-bottom: 24pt; }\nh2 { font-size: 13pt; margin-top: 18pt; margin-bottom: 6pt; }\n'
+              + 'p { margin: 6pt 0; }\nol, ul { margin: 6pt 0 6pt 36pt; }\n</style>\n</head>\n<body>\n' + docHtml + '\n</body>\n</html>';
+            var blob = new Blob([wordDoc], { type: 'application/msword' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = docName.replace(/[^a-zA-Z0-9_\- ]/g, '') + '.doc';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
           } else {
             ccToast('No document content available for download.', 'info');
           }
@@ -2317,7 +2341,72 @@
           ccToast('Failed to load document: ' + (err.error || err.message || 'Network error'), 'error');
         }
         btn.disabled = false;
-        btn.textContent = 'Download';
+        btn.textContent = '\u2B07 Download';
+      });
+    });
+
+    // Bind "View" buttons — HTML preview in modal
+    document.querySelectorAll('.cc-doc-view-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var docId = btn.dataset.docId;
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+        try {
+          var res = await API.documents.get(docId);
+          var docHtml = '';
+          if (res.data) { docHtml = res.data.document_html || res.data.Document_HTML || ''; }
+          else { docHtml = res.document_html || res.Document_HTML || ''; }
+          if (docHtml) {
+            openDocViewerModal(docHtml);
+          } else {
+            ccToast('No document content available.', 'info');
+          }
+        } catch (err) {
+          ccToast('Failed to load document: ' + (err.error || err.message || 'Network error'), 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = '\uD83D\uDC41 View';
+      });
+    });
+
+    // Bind "Delete" buttons — with confirmation dialog
+    document.querySelectorAll('.cc-doc-delete-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var docId = btn.dataset.docId;
+        var docName = btn.dataset.docName || 'this document';
+        // Show confirmation dialog
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10001;display:flex;align-items:center;justify-content:center;';
+        var dialog = document.createElement('div');
+        dialog.style.cssText = 'background:#fff;border-radius:12px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+        dialog.innerHTML = '<h3 style="margin:0 0 12px;font-size:16px;color:#1F2937;">Delete Document?</h3>'
+          + '<p style="color:#6B7280;font-size:14px;margin:0 0 20px;">Are you sure you want to delete <strong>' + escapeHtml(docName) + '</strong>? This cannot be undone.</p>'
+          + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
+          + '<button id="cc-doc-del-cancel" class="cc-btn cc-btn-outline" style="font-size:13px;padding:6px 16px;">Cancel</button>'
+          + '<button id="cc-doc-del-confirm" class="cc-btn" style="font-size:13px;padding:6px 16px;background:#DC2626;color:#fff;border:none;border-radius:6px;cursor:pointer;">Delete</button>'
+          + '</div>';
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) { document.body.removeChild(overlay); } });
+        document.getElementById('cc-doc-del-cancel').addEventListener('click', function() { document.body.removeChild(overlay); });
+        document.getElementById('cc-doc-del-confirm').addEventListener('click', async function() {
+          var confirmBtn = document.getElementById('cc-doc-del-confirm');
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'Deleting...';
+          try {
+            await API.documents.delete(docId);
+            document.body.removeChild(overlay);
+            // Remove from local state
+            state.documents = (state.documents || []).filter(function(d) { return d.id !== docId; });
+            renderDocuments(container);
+            ccToast('Document deleted.', 'success');
+          } catch (err) {
+            ccToast('Failed to delete: ' + (err.error || err.message || 'Error'), 'error');
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Delete';
+          }
+        });
       });
     });
   }
