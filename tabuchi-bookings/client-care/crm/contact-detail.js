@@ -3269,154 +3269,144 @@
     });
   }
 
-  // Step 3: Generate
+  // Step 3: Generate — loops through all selected document types
   async function submitDocGeneration() {
     var modal = document.getElementById('cc-doc-creator-modal');
     if (!modal) return;
 
-    // Show animated progress UI
-    var steps = [
-      { label: 'Preparing data sources...', icon: '&#128203;' },
-      { label: 'Merging client information...', icon: '&#128100;' },
-      { label: 'Generating document with AI...', icon: '&#129302;' },
-      { label: 'Formatting and saving...', icon: '&#128196;' }
-    ];
-    var progressHtml = '<div style="text-align:center;padding:40px 20px;">';
-    progressHtml += '<div style="font-size:20px;font-weight:600;color:#1E3A5F;margin-bottom:24px;">Generating Document</div>';
-    progressHtml += '<div id="cc-dc-progress-steps" style="text-align:left;max-width:360px;margin:0 auto 24px;">';
-    for (var pi = 0; pi < steps.length; pi++) {
-      progressHtml += '<div id="cc-dc-step-' + pi + '" style="display:flex;align-items:center;gap:10px;padding:8px 0;color:#CBD5E1;transition:color 0.3s;">';
-      progressHtml += '<span style="font-size:18px;width:24px;text-align:center;">' + steps[pi].icon + '</span>';
-      progressHtml += '<span style="font-size:14px;">' + steps[pi].label + '</span>';
-      progressHtml += '<span id="cc-dc-check-' + pi + '" style="margin-left:auto;display:none;color:#22C55E;">&#10003;</span>';
+    var selectedTypes = state.docCreatorSelectedTypes || [state.docCreatorSelectedType];
+    var creators = state.documentCreators || [];
+    var totalDocs = selectedTypes.length;
+
+    // Build progress UI with a row per document
+    var progressHtml = '<div style="padding:30px 20px;">';
+    progressHtml += '<div style="font-size:20px;font-weight:600;color:#1E3A5F;margin-bottom:8px;text-align:center;">Generating ' + totalDocs + ' Document' + (totalDocs > 1 ? 's' : '') + '</div>';
+    progressHtml += '<p id="cc-dc-progress-time" style="color:#9CA3AF;font-size:12px;margin-bottom:20px;text-align:center;">This may take up to several minutes. Please do not close this window.</p>';
+    progressHtml += '<div id="cc-dc-doc-list" style="max-width:440px;margin:0 auto 20px;">';
+    for (var di = 0; di < selectedTypes.length; di++) {
+      var cr = creators.find(function(c) { return (c.id || c.record_id || c.creator_name) === selectedTypes[di]; });
+      var crName = cr ? (cr.creator_name || cr.Creator_Name || selectedTypes[di]) : selectedTypes[di];
+      progressHtml += '<div id="cc-dc-doc-' + di + '" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #E5E7EB;border-radius:8px;margin-bottom:6px;color:#CBD5E1;transition:all 0.3s;">';
+      progressHtml += '<span id="cc-dc-doc-icon-' + di + '" style="font-size:18px;width:24px;text-align:center;">&#128196;</span>';
+      progressHtml += '<span style="flex:1;font-size:14px;">' + escapeHtml(crName) + '</span>';
+      progressHtml += '<span id="cc-dc-doc-status-' + di + '" style="font-size:12px;color:#9CA3AF;">Waiting</span>';
       progressHtml += '</div>';
     }
     progressHtml += '</div>';
-    progressHtml += '<div style="background:#E5E7EB;border-radius:6px;height:6px;overflow:hidden;max-width:360px;margin:0 auto;">';
+    progressHtml += '<div style="background:#E5E7EB;border-radius:6px;height:6px;overflow:hidden;max-width:440px;margin:0 auto;">';
     progressHtml += '<div id="cc-dc-progress-bar" style="background:#3B82F6;height:100%;width:0%;transition:width 0.5s ease;border-radius:6px;"></div>';
     progressHtml += '</div>';
-    progressHtml += '<p id="cc-dc-progress-time" style="color:#9CA3AF;font-size:12px;margin-top:8px;">This may take up to several minutes. Please do not close this window.</p>';
     progressHtml += '</div>';
     modal.innerHTML = progressHtml;
 
-    // Animate progress steps
-    function activateStep(idx) {
-      var el = document.getElementById('cc-dc-step-' + idx);
-      if (el) el.style.color = '#1F2937';
-      // Complete previous step
-      if (idx > 0) {
-        var prev = document.getElementById('cc-dc-step-' + (idx - 1));
-        if (prev) prev.style.color = '#22C55E';
-        var chk = document.getElementById('cc-dc-check-' + (idx - 1));
-        if (chk) chk.style.display = '';
-      }
+    var results = [];
+    var errors = [];
+
+    for (var gi = 0; gi < selectedTypes.length; gi++) {
+      // Update UI — mark current doc as in-progress
+      var docRow = document.getElementById('cc-dc-doc-' + gi);
+      if (docRow) { docRow.style.color = '#1F2937'; docRow.style.borderColor = '#3B82F6'; docRow.style.background = '#EFF6FF'; }
+      var statusEl = document.getElementById('cc-dc-doc-status-' + gi);
+      if (statusEl) { statusEl.textContent = 'Generating...'; statusEl.style.color = '#3B82F6'; }
+
       var bar = document.getElementById('cc-dc-progress-bar');
-      if (bar) bar.style.width = ((idx + 1) / steps.length * 80) + '%';
-    }
+      if (bar) bar.style.width = ((gi / totalDocs) * 100) + '%';
 
-    activateStep(0);
-    var stepTimers = [];
-    stepTimers.push(setTimeout(function() { activateStep(1); }, 1500));
-    stepTimers.push(setTimeout(function() { activateStep(2); }, 3000));
-    stepTimers.push(setTimeout(function() { activateStep(3); }, 8000));
-
-    try {
-      var result = await API.documents.generate({
-        creator_type: 'will_creator',
-        lead_id: contactId,
-        field_data: state.docCreatorFieldData,
-        source_ids: state.docCreatorSources
-      });
-
-      if (result.success) {
-        // Complete progress bar
-        stepTimers.forEach(clearTimeout);
-        for (var si = 0; si < steps.length; si++) {
-          var stepEl = document.getElementById('cc-dc-step-' + si);
-          if (stepEl) stepEl.style.color = '#22C55E';
-          var chkEl = document.getElementById('cc-dc-check-' + si);
-          if (chkEl) chkEl.style.display = '';
-        }
-        var bar = document.getElementById('cc-dc-progress-bar');
-        if (bar) bar.style.width = '100%';
-        await new Promise(function(r) { setTimeout(r, 600); }); // Brief pause to show completion
-
-        // Auto-download the file if base64 is returned
-        if (result.file_base64) {
-          try {
-            var byteChars = atob(result.file_base64);
-            var byteNums = new Array(byteChars.length);
-            for (var bi = 0; bi < byteChars.length; bi++) byteNums[bi] = byteChars.charCodeAt(bi);
-            var byteArr = new Uint8Array(byteNums);
-            var blob = new Blob([byteArr], { type: 'application/msword' });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = result.file_name || 'Will.doc';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-          } catch (dlErr) { /* download error handled below in UI */ }
-        }
-
-        var html = '<div style="text-align:center;padding:40px 20px;">';
-        html += '<div style="font-size:20px;font-weight:600;color:#16a34a;margin-bottom:12px;">Document Generated</div>';
-        html += '<p style="color:#666;margin-bottom:8px;">' + escapeHtml(result.document_name || 'Will') + '</p>';
-        html += '<p style="color:#888;font-size:13px;margin-bottom:20px;">The .doc file has been downloaded. Open it in Word to review and edit, then upload the final version to Clio.</p>';
-        if (result.file_base64) {
-          html += '<button id="cc-dc-redownload" class="cc-btn cc-btn-outline" style="font-size:13px;margin-bottom:12px;">Download Again</button><br>';
-        }
-        html += '<div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">';
-        html += '<button id="cc-dc-close-success" class="cc-btn cc-btn-primary" style="font-size:13px;">Done</button>';
-        html += '</div></div>';
-        modal.innerHTML = html;
-
-        // Re-download button
-        var redownloadBtn = document.getElementById('cc-dc-redownload');
-        if (redownloadBtn && result.file_base64) {
-          redownloadBtn.addEventListener('click', function() {
-            var byteChars = atob(result.file_base64);
-            var byteNums = new Array(byteChars.length);
-            for (var bi = 0; bi < byteChars.length; bi++) byteNums[bi] = byteChars.charCodeAt(bi);
-            var blob = new Blob([new Uint8Array(byteNums)], { type: 'application/msword' });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = result.file_name || 'Will.doc';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          });
-        }
-
-        document.getElementById('cc-dc-close-success').addEventListener('click', function() {
-          closeDocCreatorModal();
-          // Refresh documents list
-          API.documents.list(contactId).then(function(r) {
-            state.documents = (r.data || []).filter(function(d) { return d.status !== 'archived'; });
-            renderDocuments($el('cc-contact-tab-content'));
-          });
+      try {
+        var creatorType = selectedTypes[gi];
+        var result = await API.documents.generate({
+          creator_type: creatorType,
+          lead_id: contactId,
+          field_data: state.docCreatorFieldData,
+          source_ids: state.docCreatorSources
         });
-      } else {
-        throw new Error(result.error || 'Generation failed');
+
+        if (result.success) {
+          results.push(result);
+          // Auto-download the file
+          if (result.file_base64) {
+            try {
+              var byteChars = atob(result.file_base64);
+              var byteNums = new Array(byteChars.length);
+              for (var bi = 0; bi < byteChars.length; bi++) byteNums[bi] = byteChars.charCodeAt(bi);
+              var blob = new Blob([new Uint8Array(byteNums)], { type: 'application/msword' });
+              var url = URL.createObjectURL(blob);
+              var a = document.createElement('a');
+              a.href = url;
+              a.download = result.file_name || 'Document.doc';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+            } catch (dlErr) { /* download error non-critical */ }
+          }
+          // Mark success
+          if (docRow) { docRow.style.borderColor = '#22C55E'; docRow.style.background = '#F0FDF4'; }
+          if (statusEl) { statusEl.textContent = '✓ Done'; statusEl.style.color = '#22C55E'; }
+        } else {
+          errors.push({ type: creatorType, error: result.error || 'Failed' });
+          if (docRow) { docRow.style.borderColor = '#EF4444'; docRow.style.background = '#FEF2F2'; }
+          if (statusEl) { statusEl.textContent = '✗ Failed'; statusEl.style.color = '#EF4444'; }
+        }
+      } catch (err) {
+        errors.push({ type: creatorType, error: err.message || String(err) });
+        if (docRow) { docRow.style.borderColor = '#EF4444'; docRow.style.background = '#FEF2F2'; }
+        if (statusEl) { statusEl.textContent = '✗ Error'; statusEl.style.color = '#EF4444'; }
       }
-    } catch (err) {
-      stepTimers.forEach(clearTimeout);
-      var html = '<div style="text-align:center;padding:40px 20px;">';
-      html += '<div style="font-size:20px;font-weight:600;color:#ef4444;margin-bottom:12px;">Generation Failed</div>';
-      html += '<p style="color:#666;margin-bottom:20px;">' + escapeHtml(err.message || String(err)) + '</p>';
-      html += '<div style="display:flex;gap:8px;justify-content:center;">';
-      html += '<button id="cc-dc-retry" class="cc-btn cc-btn-outline" style="font-size:13px;">Try Again</button>';
-      html += '<button id="cc-dc-close-err" class="cc-btn cc-btn-primary" style="font-size:13px;">Close</button>';
-      html += '</div></div>';
-      modal.innerHTML = html;
-      document.getElementById('cc-dc-retry').addEventListener('click', function() {
-        state.docCreatorStep = 1;
-        renderDocCreatorStep();
-      });
-      document.getElementById('cc-dc-close-err').addEventListener('click', closeDocCreatorModal);
     }
+
+    // Complete progress bar
+    if (bar) bar.style.width = '100%';
+    await new Promise(function(r) { setTimeout(r, 600); });
+
+    // Show summary
+    var successCount = results.length;
+    var failCount = errors.length;
+    var html = '<div style="padding:30px 20px;">';
+
+    if (failCount === 0) {
+      html += '<div style="text-align:center;margin-bottom:16px;">';
+      html += '<div style="font-size:20px;font-weight:600;color:#16a34a;margin-bottom:8px;">' + successCount + ' Document' + (successCount > 1 ? 's' : '') + ' Generated</div>';
+      html += '<p style="color:#888;font-size:13px;">The .doc file' + (successCount > 1 ? 's have' : ' has') + ' been downloaded. Open in Word to review and edit.</p>';
+      html += '</div>';
+    } else {
+      html += '<div style="text-align:center;margin-bottom:16px;">';
+      html += '<div style="font-size:20px;font-weight:600;color:#F59E0B;margin-bottom:8px;">Completed with ' + failCount + ' error' + (failCount > 1 ? 's' : '') + '</div>';
+      html += '<p style="color:#888;font-size:13px;">' + successCount + ' of ' + totalDocs + ' documents generated successfully.</p>';
+      html += '</div>';
+      html += '<div style="max-width:440px;margin:0 auto 16px;">';
+      errors.forEach(function(e) {
+        html += '<div style="font-size:12px;color:#EF4444;padding:4px 0;">✗ ' + escapeHtml(e.type) + ': ' + escapeHtml(e.error) + '</div>';
+      });
+      html += '</div>';
+    }
+
+    // List generated documents
+    if (results.length > 0) {
+      html += '<div style="max-width:440px;margin:0 auto 16px;">';
+      results.forEach(function(r) {
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #F3F4F6;">';
+        html += '<span style="color:#22C55E;">&#10003;</span>';
+        html += '<span style="flex:1;font-size:13px;">' + escapeHtml(r.document_name || 'Document') + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">';
+    html += '<button id="cc-dc-close-success" class="cc-btn cc-btn-primary" style="font-size:13px;">Done</button>';
+    html += '</div></div>';
+    modal.innerHTML = html;
+
+    document.getElementById('cc-dc-close-success').addEventListener('click', function() {
+      closeDocCreatorModal();
+      API.documents.list(contactId).then(function(r) {
+        state.documents = (r.data || []).filter(function(d) { return d.status !== 'archived'; });
+        renderDocuments($el('cc-contact-tab-content'));
+      });
+    });
+    return; // skip old error handler below
+    // --- old error handler kept for syntax closure ---
   }
 
   function renderDocCreatorStep3(modal) {
