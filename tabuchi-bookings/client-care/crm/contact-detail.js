@@ -2750,17 +2750,17 @@
     var merged = {
       testator: {
         full_legal_name: c.Client_Name || '',
-        date_of_birth: '',
+        date_of_birth: c.Date_of_Birth || c.DOB || '',
         address: {
-          street: c.Client_Address || '',
-          city: '',
-          province: 'Ontario',
-          postal_code: ''
+          street: c.Client_Address || c.Address || '',
+          city: c.City || '',
+          province: c.Province || 'Ontario',
+          postal_code: c.Postal_Code || ''
         },
-        marital_status: '',
-        occupation: ''
+        marital_status: c.Marital_Status || '',
+        occupation: c.Occupation || ''
       },
-      spouse: { name: '', relationship: '' },
+      spouse: { name: c.Spouse_Name || '', relationship: c.Marital_Status === 'Common-Law' ? 'Common-Law Partner' : (c.Marital_Status === 'Married' ? 'Spouse' : '') },
       children: [],
       executor: { name: '', relationship: '', address: '', alternate_executor: { name: '', relationship: '' } },
       guardian: { name: '', relationship: '', alternate_guardian: { name: '', relationship: '' } },
@@ -2829,7 +2829,7 @@
       } catch (e) { /* continue without file data */ }
     }
 
-    // Merge from selected transcription recordings
+    // Merge from selected transcription recordings — intelligent AI data extraction
     if (state.docCreatorSources.transcription && state.docCreatorSources._selectedRecordingIds) {
       try {
         var allRecordings = state.docCreatorSources._recordingData || [];
@@ -2837,11 +2837,143 @@
         for (var i = 0; i < allRecordings.length; i++) {
           var rec = allRecordings[i];
           var recId = rec.id || rec.record_id || '';
-          if (selectedRecIds.indexOf(recId) < 0) continue; // Skip unselected
+          if (selectedRecIds.indexOf(recId) < 0) continue;
+          var extracted = null;
           if (rec.Extracted_Data_JSON) {
-            var extracted = typeof rec.Extracted_Data_JSON === 'string' ? JSON.parse(rec.Extracted_Data_JSON) : rec.Extracted_Data_JSON;
-            deepMergeWillData(merged, extracted);
+            extracted = typeof rec.Extracted_Data_JSON === 'string' ? JSON.parse(rec.Extracted_Data_JSON) : rec.Extracted_Data_JSON;
           }
+          if (!extracted) continue;
+
+          // Map client_info to testator
+          var ci = extracted.client_info || {};
+          if (ci.name && !merged.testator.full_legal_name) merged.testator.full_legal_name = ci.name;
+          if (ci.location && !merged.testator.address.city) merged.testator.address.city = ci.location;
+          if (ci.occupation && !merged.testator.occupation) merged.testator.occupation = ci.occupation;
+          if (ci.marital_status && !merged.testator.marital_status) merged.testator.marital_status = ci.marital_status;
+          if (ci.background && !merged.special_instructions) merged.special_instructions = 'Background: ' + ci.background;
+
+          // Map family members to spouse/children
+          if (ci.family_members && ci.family_members.length) {
+            ci.family_members.forEach(function(fm) {
+              var rel = (fm.relationship || '').toLowerCase();
+              if (rel.indexOf('spouse') >= 0 || rel.indexOf('partner') >= 0 || rel.indexOf('wife') >= 0 || rel.indexOf('husband') >= 0 || rel.indexOf('common-law') >= 0) {
+                if (!merged.spouse.name) { merged.spouse.name = fm.name || ''; merged.spouse.relationship = fm.relationship || ''; }
+              } else if (rel.indexOf('son') >= 0 || rel.indexOf('daughter') >= 0 || rel.indexOf('child') >= 0) {
+                merged.children.push({ name: fm.name || '', relationship: fm.relationship || '', date_of_birth: fm.age || '', is_minor: false });
+              }
+            });
+          }
+
+          // Map Documents to Prepare sections (section 3)
+          var sections = extracted.sections || [];
+          sections.forEach(function(sec) {
+            var title = (sec.title || '').toLowerCase();
+
+            // Documents to Prepare — subsections have executor, beneficiary, POA fields
+            if (title.indexOf('documents') >= 0 && sec.subsections) {
+              sec.subsections.forEach(function(sub) {
+                var subTitle = (sub.title || '').toLowerCase();
+                var f = sub.fields || {};
+
+                if (subTitle.indexOf('will') >= 0 && subTitle.indexOf('living') < 0) {
+                  if (f.executors && !merged.executor.name) merged.executor.name = typeof f.executors === 'string' ? f.executors : JSON.stringify(f.executors);
+                  if (f.backup_executor && !merged.executor.alternate_executor.name) merged.executor.alternate_executor.name = f.backup_executor;
+                  if (f.beneficiaries && !merged.beneficiaries.length) {
+                    var bStr = typeof f.beneficiaries === 'string' ? f.beneficiaries : '';
+                    if (bStr) merged.residual_estate.distribution = bStr;
+                  }
+                  if (f.backup_beneficiaries && !merged.residual_estate.distribution) merged.residual_estate.distribution = f.backup_beneficiaries;
+                  if (f.personal_property) merged.special_instructions = (merged.special_instructions ? merged.special_instructions + '\n' : '') + 'Personal Property: ' + f.personal_property;
+                  if (f.special_provisions && Array.isArray(f.special_provisions)) {
+                    f.special_provisions.forEach(function(sp) {
+                      merged.specific_bequests.push({ item: sp, beneficiary: '', conditions: '' });
+                    });
+                  }
+                }
+
+                if (subTitle.indexOf('power') >= 0 && subTitle.indexOf('property') >= 0) {
+                  if (f.attorneys && !merged.poa_property.attorney) merged.poa_property.attorney = f.attorneys;
+                  if (f.backup_attorney && !merged.poa_property.alternate_attorney) merged.poa_property.alternate_attorney = f.backup_attorney;
+                }
+
+                if (subTitle.indexOf('personal care') >= 0) {
+                  if (f.attorneys && !merged.poa_personal_care.attorney) merged.poa_personal_care.attorney = f.attorneys;
+                  if (f.backup_attorney && !merged.poa_personal_care.alternate_attorney) merged.poa_personal_care.alternate_attorney = f.backup_attorney;
+                  if (f.advance_directive) merged.poa_personal_care.conditions = (merged.poa_personal_care.conditions ? merged.poa_personal_care.conditions + '\n' : '') + f.advance_directive;
+                }
+              });
+            }
+
+            // Assets Overview (section 2)
+            if (title.indexOf('assets') >= 0 && sec.items) {
+              sec.items.forEach(function(asset) {
+                merged.assets.push({
+                  type: asset.type || '',
+                  description: asset.description || '',
+                  value: asset.value || '',
+                  location: asset.notes || asset.probate_note || ''
+                });
+              });
+            }
+
+            // Drafting Notes (section 7) — detailed per-document instructions
+            if (title.indexOf('drafting') >= 0 && sec.subsections) {
+              sec.subsections.forEach(function(sub) {
+                var subTitle = (sub.title || '').toLowerCase();
+                if (sub.items && sub.items.length) {
+                  sub.items.forEach(function(note) {
+                    var noteLower = note.toLowerCase();
+                    // Extract executor from drafting notes
+                    if (noteLower.indexOf('executor') >= 0 && !merged.executor.name) {
+                      var colonIdx = note.indexOf(':');
+                      if (colonIdx > 0) merged.executor.name = note.substring(colonIdx + 1).trim();
+                    }
+                    // Extract backup executor
+                    if (noteLower.indexOf('backup executor') >= 0 && !merged.executor.alternate_executor.name) {
+                      var colonIdx2 = note.indexOf(':');
+                      if (colonIdx2 > 0) merged.executor.alternate_executor.name = note.substring(colonIdx2 + 1).trim();
+                    }
+                    // Extract funeral wishes
+                    if (noteLower.indexOf('cremat') >= 0 || noteLower.indexOf('burial') >= 0 || noteLower.indexOf('funeral') >= 0) {
+                      if (!merged.funeral_wishes.details) merged.funeral_wishes.details = note;
+                      if (noteLower.indexOf('cremat') >= 0) merged.funeral_wishes.preference = 'cremation';
+                      if (noteLower.indexOf('burial') >= 0) merged.funeral_wishes.preference = 'burial';
+                    }
+                  });
+
+                  // Add general notes as special instructions
+                  if (subTitle.indexOf('general') >= 0) {
+                    var generalNotes = sub.items.join('\n');
+                    merged.special_instructions = (merged.special_instructions ? merged.special_instructions + '\n\n' : '') + 'Drafting General Notes:\n' + generalNotes;
+                  }
+                }
+              });
+            }
+          });
+
+          // Also try legacy drafting_notes format
+          var dn = null;
+          try { if (rec.AI_Drafting_Notes) dn = typeof rec.AI_Drafting_Notes === 'string' ? JSON.parse(rec.AI_Drafting_Notes) : rec.AI_Drafting_Notes; } catch (e) {}
+          if (dn) {
+            if (dn.executor_discussed && !merged.executor.name) merged.executor.name = dn.executor_discussed;
+            if (dn.poa_property_discussed && !merged.poa_property.attorney) merged.poa_property.attorney = dn.poa_property_discussed;
+            if (dn.poa_care_discussed && !merged.poa_personal_care.attorney) merged.poa_personal_care.attorney = dn.poa_care_discussed;
+            if (dn.beneficiaries_discussed && dn.beneficiaries_discussed.length && !merged.beneficiaries.length) {
+              merged.beneficiaries = dn.beneficiaries_discussed.map(function(b) {
+                return { name: b.name || '', relationship: b.relationship || '', bequest_type: 'residual', description: b.share_description || '', percentage: '' };
+              });
+            }
+            if (dn.special_bequests && dn.special_bequests.length && !merged.specific_bequests.length) {
+              merged.specific_bequests = dn.special_bequests.map(function(sb) {
+                return { item: sb.item || '', beneficiary: sb.beneficiary || '', conditions: sb.notes || '' };
+              });
+            }
+            if (dn.trust_provisions && !merged.trusts.length) merged.trusts.push({ details: dn.trust_provisions });
+            if (dn.guardian_discussed && !merged.guardian.name) merged.guardian.name = dn.guardian_discussed;
+          }
+
+          // Deep merge anything else from extracted
+          deepMergeWillData(merged, extracted);
         }
       } catch (e) { /* continue without transcription data */ }
     }
