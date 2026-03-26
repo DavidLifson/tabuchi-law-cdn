@@ -1466,8 +1466,6 @@
           }
           if (rec.Reviewed_By) {
             html += '<span class="cc-rec-card-meta">Reviewed by ' + escapeHtml(rec.Reviewed_By_Name || rec.Reviewed_By) + '</span>';
-          } else if (rec.Status === 'completed') {
-            html += '<button class="cc-btn cc-btn-sm cc-btn-success cc-rec-approve-btn" data-rec-id="' + escapeAttr(rec.id) + '">Mark Reviewed</button>';
           }
           html += '<button class="cc-btn cc-btn-sm cc-rec-delete-btn" data-rec-id="' + escapeAttr(rec.id) + '" data-rec-name="' + escapeAttr(rec.Subject || rec.Meeting_Subject || 'this recording') + '" style="color:#DC2626;border:1px solid #FCA5A5;background:white;margin-left:auto;" title="Delete recording">Delete</button>';
           html += '</div>';

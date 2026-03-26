@@ -463,8 +463,6 @@
       }
       if (rec.Reviewed_By) {
         html += '<span class="cc-rec-card-meta">Reviewed by ' + escapeHtml(rec.Reviewed_By_Name || rec.Reviewed_By) + '</span>';
-      } else if (rec.Status === 'completed') {
-        html += '<button class="cc-btn cc-btn-sm cc-btn-success cc-rec-approve-btn" data-rec-id="' + escapeAttr(rec.id) + '">Mark Reviewed</button>';
       }
       html += '</div>';
 
