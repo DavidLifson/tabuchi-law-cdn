@@ -889,9 +889,10 @@
       '<input type="date" class="cc-input" id="cc-edit-nextaction" value="' + escapeAttr(c.Next_Action_Date || '') + '" /></div>';
     html += '</div>';
 
-    html += '<div class="cc-edit-actions">' +
-      '<button class="cc-btn cc-btn-secondary" id="cc-edit-cancel-btn">Cancel</button>' +
-      '<button class="cc-btn cc-btn-primary" id="cc-edit-save">Save Changes</button>' +
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;margin:12px 0;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;">' +
+      '<span style="flex:1;color:#92400e;font-weight:500;">You have unsaved changes</span>' +
+      '<button class="cc-btn cc-btn-secondary cc-btn-sm" id="cc-edit-cancel-btn">Discard</button>' +
+      '<button class="cc-btn cc-btn-primary cc-btn-sm" id="cc-edit-save">Save Changes</button>' +
     '</div>';
     html += '</div>'; // close section
     return html;
