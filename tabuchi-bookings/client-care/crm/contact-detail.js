@@ -2416,10 +2416,25 @@
       'meeting_summary_internal': 'Internal Summary',
       'meeting_summary_client': 'Client Copy of Summary',
       'will': 'Will',
+      'will_creator': 'Will',
       'poa_property': 'POA Property',
-      'poa_care': 'POA Personal Care'
+      'poa_property_creator': 'POA Property',
+      'poa_care': 'POA Personal Care',
+      'poa_personal_care_creator': 'POA Personal Care',
+      'probate_application': 'Probate Application'
     };
-    return map[(type || '').toLowerCase()] || type || 'Document';
+    var key = (type || '').toLowerCase();
+    if (map[key]) return map[key];
+    // If it's a record ID, try to find it in loaded document creators
+    if (key.indexOf('rec') === 0 && state.documentCreators) {
+      for (var i = 0; i < state.documentCreators.length; i++) {
+        var cr = state.documentCreators[i];
+        if ((cr.id || cr.record_id) === type) return cr.creator_name || cr.Creator_Name || type;
+      }
+    }
+    // Clean up snake_case to Title Case
+    if (key.indexOf('_') >= 0) return key.split('_').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+    return type || 'Document';
   }
 
   function contactDocCreatorColor(type) {
@@ -2427,8 +2442,12 @@
       'meeting_summary_internal': 'purple',
       'meeting_summary_client': 'green',
       'will': 'blue',
+      'will_creator': 'blue',
       'poa_property': 'blue',
-      'poa_care': 'blue'
+      'poa_property_creator': 'blue',
+      'poa_care': 'blue',
+      'poa_personal_care_creator': 'blue',
+      'probate_application': 'teal'
     };
     return map[(type || '').toLowerCase()] || 'gray';
   }
@@ -3313,7 +3332,13 @@
       if (bar) bar.style.width = ((gi / totalDocs) * 100) + '%';
 
       try {
-        var creatorType = selectedTypes[gi];
+        var creatorTypeId = selectedTypes[gi];
+        // Resolve record ID to creator_name slug for the backend
+        var creatorType = creatorTypeId;
+        if (creators.length > 0) {
+          var matchedCr = creators.find(function(c) { return (c.id || c.record_id) === creatorTypeId; });
+          if (matchedCr) creatorType = matchedCr.creator_name || matchedCr.Creator_Name || creatorTypeId;
+        }
         var result = await API.documents.generate({
           creator_type: creatorType,
           lead_id: contactId,
