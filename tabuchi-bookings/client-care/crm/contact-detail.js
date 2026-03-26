@@ -1411,41 +1411,56 @@
           var date = API.util.formatDateTime(rec.Meeting_Date || rec.Created_At);
           var source = (rec.Source || 'teams').toUpperCase();
 
-          html += '<div class="cc-rec-card" data-rec-id="' + escapeAttr(rec.id) + '">';
-          html += '<div class="cc-rec-card-header">';
-          html += '<span class="cc-badge cc-badge-' + (source === 'ZOOM' ? 'blue' : source === 'UPLOAD' ? 'purple' : 'purple') + '" style="font-size:.7rem;">' + escapeHtml(source) + '</span>';
-          html += '<span class="cc-badge cc-badge-' + statusCls + '">' + escapeHtml(rec.Status || 'pending') + '</span>';
-          if (rec.AI_Client_Intent) {
-            html += '<span class="cc-badge cc-badge-' + intentCls + '">' + escapeHtml(rec.AI_Client_Intent) + '</span>';
+          var recTitle = rec.Meeting_Subject || rec.File_Name || rec.Subject || 'Recording';
+          var isProcessing = rec.Status === 'pending' || rec.Status === 'transcribing' || rec.Status === 'analyzing';
+          // Count completed transcription docs for this recording
+          var recDocCount = (state.documents || []).filter(function(d) {
+            var ct = (d.creator_type || d.Creator_Type || '').toLowerCase();
+            if (ct.indexOf('meeting_summary') < 0) return false;
+            try { var sd = d.source_data_json || d.Source_Data_JSON || ''; var p = typeof sd === 'string' ? JSON.parse(sd) : sd; return p && p.transcription_id === rec.id; } catch (e) { return false; }
+          }).length;
+
+          html += '<div class="cc-rec-card" data-rec-id="' + escapeAttr(rec.id) + '" style="margin-bottom:0.75rem;">';
+
+          // ── Accordion Header (always visible, clickable) ──
+          html += '<div class="cc-rec-accordion-header" data-rec-idx="' + idx + '" style="display:flex;align-items:center;gap:8px;padding:10px 0;cursor:pointer;user-select:none;">';
+          html += '<span class="cc-rec-chevron" id="cc-rec-chevron-' + idx + '" style="font-size:12px;color:#6B7280;transition:transform 0.2s;transform:rotate(0deg);">&#9654;</span>';
+          html += '<div style="flex:1;min-width:0;">';
+          html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+          html += '<span style="font-weight:600;font-size:0.9rem;color:#1F2937;">' + escapeHtml(recTitle) + '</span>';
+          html += '<span class="cc-badge cc-badge-' + (source === 'ZOOM' ? 'blue' : 'purple') + '" style="font-size:.65rem;">' + escapeHtml(source) + '</span>';
+          html += '<span class="cc-badge cc-badge-' + statusCls + '" style="font-size:.65rem;">' + escapeHtml(rec.Status || 'pending') + '</span>';
+          if (rec.AI_Client_Intent) html += '<span class="cc-badge cc-badge-' + intentCls + '" style="font-size:.65rem;">' + escapeHtml(rec.AI_Client_Intent) + '</span>';
+          if (recDocCount > 0) html += '<span class="cc-badge" style="font-size:.65rem;background:#EDE9FE;color:#7C3AED;">' + recDocCount + ' doc' + (recDocCount > 1 ? 's' : '') + '</span>';
+          html += '</div>';
+          html += '<div style="font-size:0.75rem;color:#9CA3AF;margin-top:2px;">' + escapeHtml(date) + (duration ? ' &middot; ' + duration : '') + '</div>';
+          html += '</div>';
+          if (isProcessing) {
+            html += '<span style="display:inline-block;width:14px;height:14px;border:2px solid #D97706;border-top-color:transparent;border-radius:50%;animation:cc-spin 1s linear infinite;flex-shrink:0;"></span>';
           }
-          if (rec.Will_Status && rec.Will_Status !== 'NOT_APPLICABLE') {
-            html += '<span class="cc-badge cc-badge-' + willCls + '">Will: ' + escapeHtml(rec.Will_Status) + '</span>';
-          }
-          html += '<span class="cc-rec-card-meta" style="margin-left:auto;">' + escapeHtml(date) + (duration ? ' &middot; ' + duration : '') + '</span>';
           html += '</div>';
 
-          // Processing status indicator
-          if (rec.Status === 'pending' || rec.Status === 'transcribing' || rec.Status === 'analyzing') {
+          // ── Accordion Body (collapsed by default) ──
+          html += '<div class="cc-rec-accordion-body" id="cc-rec-body-' + idx + '" style="display:none;padding:0 0 8px 20px;border-top:1px solid #F3F4F6;">';
+
+          // Processing status
+          if (isProcessing) {
+            var statusMsg = rec.Status === 'pending' ? 'Waiting to start...' : rec.Status === 'transcribing' ? 'Transcribing audio (est. 5-15 min)...' : 'AI analysis in progress (est. 2-5 min)...';
             html += '<div style="padding:8px 0;font-size:0.85rem;color:#D97706;display:flex;align-items:center;gap:6px;">';
             html += '<span style="display:inline-block;width:12px;height:12px;border:2px solid #D97706;border-top-color:transparent;border-radius:50%;animation:cc-spin 1s linear infinite;"></span>';
-            var statusMsg = rec.Status === 'pending' ? 'Waiting to start...' : rec.Status === 'transcribing' ? 'Transcribing audio (est. 5-15 min)...' : 'AI analysis in progress (est. 2-5 min)...';
             html += escapeHtml(statusMsg);
             html += '</div>';
           }
 
-          // Subject / File name
-          var recTitle = rec.Meeting_Subject || rec.File_Name || rec.Subject || '';
-          if (recTitle) {
-            html += '<div style="font-size:0.9rem;font-weight:500;padding:4px 0 2px;color:#1F2937;">' + escapeHtml(recTitle) + '</div>';
-          }
+          // File name (if different from title)
           var fileName = rec.File_Name || '';
           if (fileName && fileName !== recTitle) {
-            html += '<div style="font-size:0.8rem;color:#6B7280;padding:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeAttr(fileName) + '">' + escapeHtml(fileName) + '</div>';
+            html += '<div style="font-size:0.8rem;color:#6B7280;padding:4px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeAttr(fileName) + '">' + escapeHtml(fileName) + '</div>';
           }
 
           // AI Summary
           if (rec.AI_Summary) {
-            html += '<div class="cc-rec-summary">' + escapeHtml(rec.AI_Summary) + '</div>';
+            html += '<div class="cc-rec-summary" style="margin-top:8px;">' + escapeHtml(rec.AI_Summary) + '</div>';
           }
 
           // Action Items
@@ -1527,6 +1542,7 @@
             html += '</div>';
           }
 
+          html += '</div>'; // end accordion body
           html += '</div>'; // end card
         });
 
@@ -1539,6 +1555,21 @@
   }
 
   function bindRecordingActions() {
+    // Accordion toggle for recording cards
+    document.querySelectorAll('.cc-rec-accordion-header').forEach(function(header) {
+      header.addEventListener('click', function(e) {
+        // Don't toggle if clicking a badge or button inside the header
+        if (e.target.closest('button') || e.target.closest('a')) return;
+        var idx = header.dataset.recIdx;
+        var body = document.getElementById('cc-rec-body-' + idx);
+        var chevron = document.getElementById('cc-rec-chevron-' + idx);
+        if (!body) return;
+        var isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : '';
+        if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+      });
+    });
+
     // Upload button toggle
     var uploadBtn = document.getElementById('cc-rec-upload-btn');
     var uploadForm = document.getElementById('cc-rec-upload-form');
