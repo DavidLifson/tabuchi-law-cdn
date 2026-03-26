@@ -46,7 +46,7 @@ const ClientCareAPI = (() => {
     'send_email', 'send_sms', 'log_call', 'update_user_settings',
     'create_section', 'update_section', 'delete_section',
     'create_field', 'update_field', 'delete_field', 'reorder',
-    'send_link'];
+    'send_link', 'generate_summary'];
 
   function _cacheKey(path, body) {
     return path + '|' + JSON.stringify(body || {});
@@ -941,6 +941,10 @@ const ClientCareAPI = (() => {
     return request('POST', '/cc/recordings', { body: { action: 'delete', transcription_id: id } });
   }
 
+  async function generateSummary(transcriptionId) {
+    return request('POST', '/cc/generate-summary', { body: { transcription_id: transcriptionId } });
+  }
+
   async function linkRecordingLead(transcriptionId, leadId) {
     return request('POST', '/cc/recordings', { body: { action: 'link_lead', transcription_id: transcriptionId, lead_id: leadId } });
   }
@@ -1215,7 +1219,8 @@ const ClientCareAPI = (() => {
       approveReview: approveRecordingReview, generateWill,
       uploadToClio, retryProcessing: retryRecordingProcessing,
       delete: deleteRecording, linkLead: linkRecordingLead,
-      analyze: analyzeTranscription, uploadFile: uploadRecordingFile
+      analyze: analyzeTranscription, uploadFile: uploadRecordingFile,
+      generateSummary
     },
     // Documents
     documents: {

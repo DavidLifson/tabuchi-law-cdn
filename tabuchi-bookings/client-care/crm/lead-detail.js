@@ -443,6 +443,7 @@
       html += '<div class="cc-rec-actions">';
       if (rec.Status === 'completed') {
         html += '<button class="cc-btn cc-btn-sm" onclick="window.open(\'' + escapeAttr(rec.Blob_Transcript_URL || '#') + '\')">Download Transcript</button>';
+        html += '<button class="cc-btn cc-btn-sm cc-btn-primary cc-rec-summary-btn" data-rec-id="' + escapeAttr(rec.id) + '" style="background:#7C3AED;border-color:#7C3AED;">Generate Summary</button>';
       }
       if (rec.Status === 'error') {
         html += '<button class="cc-btn cc-btn-sm cc-btn-warning cc-rec-retry-btn" data-rec-id="' + escapeAttr(rec.id) + '">Retry Processing</button>';
@@ -453,6 +454,16 @@
         html += '<button class="cc-btn cc-btn-sm cc-btn-success cc-rec-approve-btn" data-rec-id="' + escapeAttr(rec.id) + '">Mark Reviewed</button>';
       }
       html += '</div>';
+
+      // Summary document links (if previously generated)
+      var sourceData = parseJson(rec.Source_Data_JSON);
+      if (rec.Summary_Internal_Doc_ID || rec.Summary_Client_Doc_ID || (sourceData && sourceData.internal_doc_id)) {
+        html += '<div style="display:flex;gap:8px;padding:4px 0;flex-wrap:wrap;">';
+        html += '<span style="font-size:0.8rem;color:#6B7280;align-self:center;">Summaries:</span>';
+        html += '<a href="#" class="cc-btn cc-btn-sm cc-summary-view-btn" data-doc-type="internal" data-rec-id="' + escapeAttr(rec.id) + '" style="font-size:0.75rem;padding:3px 8px;background:#EDE9FE;color:#7C3AED;border:1px solid #C4B5FD;text-decoration:none;">Internal Summary</a>';
+        html += '<a href="#" class="cc-btn cc-btn-sm cc-summary-view-btn" data-doc-type="client" data-rec-id="' + escapeAttr(rec.id) + '" style="font-size:0.75rem;padding:3px 8px;background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;text-decoration:none;">Client Summary</a>';
+        html += '</div>';
+      }
 
       html += '</div>'; // end card
     });
@@ -602,6 +613,61 @@
           ccToast('Failed: ' + (err.error || 'Network error'), 'error');
         }
         btn.disabled = false;
+      });
+    });
+
+    // Generate Summary buttons
+    document.querySelectorAll('.cc-rec-summary-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var recId = btn.dataset.recId;
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+        btn.style.opacity = '0.7';
+        try {
+          var res = await API.recordings.generateSummary(recId);
+          if (res.success) {
+            ccToast('Meeting summaries generated successfully!', 'success');
+            if (res.internal_html) {
+              var w = window.open('', '_blank');
+              if (w) { w.document.write(res.internal_html); w.document.close(); }
+            }
+            reloadRecordings();
+          } else {
+            ccToast('Generation failed: ' + (res.error || 'Unknown error'), 'error');
+          }
+        } catch (err) {
+          ccToast('Generation failed: ' + (err.error || err.message || 'Network error'), 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Generate Summary';
+        btn.style.opacity = '';
+      });
+    });
+
+    // View Summary document buttons
+    document.querySelectorAll('.cc-summary-view-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.preventDefault();
+        var recId = btn.dataset.recId;
+        var docType = btn.dataset.docType;
+        btn.textContent = 'Loading...';
+        try {
+          var res = await API.recordings.generateSummary(recId);
+          if (res.success) {
+            var html = docType === 'internal' ? res.internal_html : res.client_html;
+            if (html) {
+              var w = window.open('', '_blank');
+              if (w) { w.document.write(html); w.document.close(); }
+            } else {
+              ccToast('No ' + docType + ' summary available.', 'info');
+            }
+          } else {
+            ccToast('Failed to load summary: ' + (res.error || 'Unknown error'), 'error');
+          }
+        } catch (err) {
+          ccToast('Failed: ' + (err.error || err.message || 'Network error'), 'error');
+        }
+        btn.textContent = docType === 'internal' ? 'Internal Summary' : 'Client Summary';
       });
     });
 
