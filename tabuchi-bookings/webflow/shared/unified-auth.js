@@ -116,7 +116,7 @@
       // Step 2: Validate with unified backend endpoint
       setButtonState(true, 'Verifying...');
 
-      var response = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/login-sso', {
+      var response = await fetch('https://n8n.tabuchilaw.com/webhook/cc/login-sso', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_token: idToken })

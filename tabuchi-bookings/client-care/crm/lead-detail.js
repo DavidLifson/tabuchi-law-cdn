@@ -3213,7 +3213,7 @@
 
     // Notify backend that a call was initiated — triggers recording poll
     try {
-      fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/call-started', {
+      fetch('https://n8n.tabuchilaw.com/webhook/cc/call-started', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -324,7 +324,7 @@
       // Resolve CRM user ID if not cached (maps dashboard_token → CC_Users record ID)
       var resolveUser = crmUserId
         ? Promise.resolve(crmUserId)
-        : fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/admin', {
+        : fetch('https://n8n.tabuchilaw.com/webhook/cc/admin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
             body: JSON.stringify({ action: 'list_users' })
@@ -338,7 +338,7 @@
 
       resolveUser.then(function(myId) {
         crmUserId = myId;
-        return fetch('https://tabuchilaw.app.n8n.cloud/webhook/cc/tasks', {
+        return fetch('https://n8n.tabuchilaw.com/webhook/cc/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
           body: JSON.stringify({ action: 'list' })

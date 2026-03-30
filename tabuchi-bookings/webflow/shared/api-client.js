@@ -9,7 +9,7 @@
 const TabuchiAPI = (() => {
   // n8n production webhook URLs - each workflow may have a different webhookId prefix.
   // These are the actual registered production URLs confirmed from n8n's "Copy production url".
-  const WH = 'https://tabuchilaw.app.n8n.cloud/webhook';
+  const WH = 'https://n8n.tabuchilaw.com/webhook';
   const ROUTES = {
     '/api/staff':               `${WH}`,
     '/api/meeting-type':        `${WH}`,

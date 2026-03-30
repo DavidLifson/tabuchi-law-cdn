@@ -123,7 +123,7 @@
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
-  var BOOKINGS_ENDPOINT = 'https://tabuchilaw.app.n8n.cloud/webhook/api/dashboard/bookings';
+  var BOOKINGS_ENDPOINT = 'https://n8n.tabuchilaw.com/webhook/api/dashboard/bookings';
 
   // ─── Helpers ─────────────────────────────────────────────────
 

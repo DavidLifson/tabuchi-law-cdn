@@ -98,7 +98,7 @@
   // ─── Booking Admin API Helper (calls WF-19 at api/admin/{endpoint}) ──
   async function bookingAdminFetch(endpoint, data) {
     var t = localStorage.getItem('admin_token') || '';
-    var r = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/' + endpoint, {
+    var r = await fetch('https://n8n.tabuchilaw.com/webhook/api/admin/' + endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Admin_Token': t },
       body: JSON.stringify(data || {})
@@ -111,7 +111,7 @@
 
   async function categoriesApiFetch(action, data) {
     var t = localStorage.getItem('app_token') || '';
-    var r = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/categories', {
+    var r = await fetch('https://n8n.tabuchilaw.com/webhook/api/admin/categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
       body: JSON.stringify(Object.assign({ action: action }, data || {}))
@@ -1940,7 +1940,7 @@
     });
 
     html += '</tbody></table>';
-    html += '<p class="cc-admin-hint">Workflows are managed at <a href="https://tabuchilaw.app.n8n.cloud" target="_blank" rel="noopener" class="cc-link">tabuchilaw.app.n8n.cloud</a> under the "Client Care" project.</p>';
+    html += '<p class="cc-admin-hint">Workflows are managed at <a href="https://n8n.tabuchilaw.com" target="_blank" rel="noopener" class="cc-link">n8n.tabuchilaw.com</a> under the "Client Care" project.</p>';
     html += '</div>';
 
     html += '</div>';

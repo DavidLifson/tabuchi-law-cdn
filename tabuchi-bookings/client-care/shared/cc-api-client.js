@@ -12,7 +12,7 @@
 const ClientCareAPI = (() => {
   'use strict';
 
-  const WH = 'https://tabuchilaw.app.n8n.cloud/webhook';
+  const WH = 'https://n8n.tabuchilaw.com/webhook';
 
   // ─── Response Cache ────────────────────────────────────────────
   // TTL-based cache for GET-like requests. Keyed by endpoint + body JSON.

@@ -65,7 +65,7 @@
       if (!r.ok) throw { status: r.status, error: 'Request failed' };
       return r.json();
     }
-    var _wh = 'https://tabuchilaw.app.n8n.cloud/webhook';
+    var _wh = 'https://n8n.tabuchilaw.com/webhook';
 
     if (staffCache && staffCache.slug) {
       const result = await _bareGet(_wh + '/api/staff?slug=' + encodeURIComponent(staffCache.slug));
@@ -146,7 +146,7 @@
     try {
       var controller = new AbortController();
       var timeout = setTimeout(function() { controller.abort(); }, 5000);
-      var resp = await fetch('https://tabuchilaw.app.n8n.cloud/webhook/api/admin/categories', {
+      var resp = await fetch('https://n8n.tabuchilaw.com/webhook/api/admin/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Dashboard_Token': t },
         body: JSON.stringify({ action: 'list' }),
@@ -818,7 +818,7 @@
   async function loadReminderOptions() {
     if (_reminderPickerLoaded) return;
     _reminderPickerLoaded = true;
-    var webhookBase = 'https://tabuchilaw.app.n8n.cloud/webhook';
+    var webhookBase = 'https://n8n.tabuchilaw.com/webhook';
     try {
       var [tplRes, campRes] = await Promise.all([
         fetch(webhookBase + '/cc/campaign-templates', {
