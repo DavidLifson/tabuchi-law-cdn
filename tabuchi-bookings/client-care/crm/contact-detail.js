@@ -443,6 +443,9 @@
     // Notes section
     html += buildNotesSection(c);
 
+    // Communication Preferences section
+    html += buildPreferencesSection();
+
     container.innerHTML = html;
 
     // Bind interactive elements
@@ -450,6 +453,7 @@
     bindConsentField();
     bindTagControls();
     bindNotesControls();
+    loadPreferencesSection();
   }
 
   function renderConsentField(c) {
@@ -479,6 +483,115 @@
       } catch (e) {
         ccToast('Failed to update subscription status.', 'error');
       }
+    });
+  }
+
+  // ─── Communication Preferences Section ──────────────────────
+  function buildPreferencesSection() {
+    var html = '<div class="cc-section" id="cc-prefs-section">';
+    html += '<h3 class="cc-section-title">Communication Preferences</h3>';
+    html += '<div id="cc-prefs-container"><div class="cc-loading-sm"><div class="cc-spinner-sm"></div> Loading preferences...</div></div>';
+    html += '</div>';
+    return html;
+  }
+
+  async function loadPreferencesSection() {
+    var container = document.getElementById('cc-prefs-container');
+    if (!container) return;
+
+    try {
+      var result = await API.subscriptions.getLeadPreferences(contactId);
+      if (!result.success || !result.preferences) {
+        container.innerHTML = '<p class="cc-text-muted">No subscription record found for this contact.</p>';
+        return;
+      }
+
+      var prefs = result.preferences;
+      var categories = result.categories || [];
+      var smsStopAt = result.sms_stop_at;
+
+      var emailCats = categories.filter(function(c) { return c.channel === 'EMAIL'; });
+      var smsCats = categories.filter(function(c) { return c.channel === 'SMS'; });
+
+      var html = '';
+
+      if (smsStopAt) {
+        html += '<div class="cc-alert cc-alert-warning" style="margin-bottom:0.75rem;font-size:0.85rem;">' +
+          '&#9888; SMS STOP received on ' + escapeHtml(API.util.formatDateTime(smsStopAt)) +
+          '. Re-enabling SMS requires explicit consent.' +
+        '</div>';
+      }
+
+      html += '<div class="cc-prefs-grid">';
+
+      if (emailCats.length > 0) {
+        html += '<div class="cc-prefs-channel"><div class="cc-prefs-channel-label">Email</div>';
+        emailCats.forEach(function(cat) {
+          html += renderPrefToggle(cat, prefs);
+        });
+        html += '</div>';
+      }
+
+      if (smsCats.length > 0) {
+        html += '<div class="cc-prefs-channel"><div class="cc-prefs-channel-label">SMS</div>';
+        smsCats.forEach(function(cat) {
+          html += renderPrefToggle(cat, prefs);
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+
+      if (result.preferences_updated_at) {
+        html += '<p class="cc-text-muted" style="font-size:0.8rem;margin-top:0.5rem;">Last updated: ' +
+          escapeHtml(API.util.formatDateTime(result.preferences_updated_at)) + '</p>';
+      }
+
+      container.innerHTML = html;
+      bindPrefToggles(smsStopAt);
+
+    } catch (e) {
+      container.innerHTML = '<p class="cc-text-muted">Unable to load preferences.</p>';
+    }
+  }
+
+  function renderPrefToggle(cat, prefs) {
+    var checked = prefs[cat.field] ? ' checked' : '';
+    return '<label class="cc-pref-crm-row">' +
+      '<span class="cc-pref-crm-label">' + escapeHtml(cat.label) + '</span>' +
+      '<span class="cc-pref-switch-sm">' +
+        '<input type="checkbox" class="cc-pref-crm-cb" data-field="' + escapeHtml(cat.field) + '"' + checked + ' />' +
+        '<span class="cc-pref-slider-sm"></span>' +
+      '</span>' +
+    '</label>';
+  }
+
+  function bindPrefToggles(smsStopAt) {
+    var checkboxes = document.querySelectorAll('.cc-pref-crm-cb');
+    checkboxes.forEach(function(cb) {
+      cb.addEventListener('change', async function() {
+        var field = cb.getAttribute('data-field');
+        var isSms = field.startsWith('Pref_SMS_');
+
+        // TCPA: warn before re-enabling SMS after STOP
+        if (isSms && cb.checked && smsStopAt) {
+          if (!confirm('This contact sent STOP via SMS. Re-enabling SMS preferences requires their explicit consent. Do you have consent to proceed?')) {
+            cb.checked = false;
+            return;
+          }
+        }
+
+        var prefs = {};
+        prefs[field] = cb.checked;
+
+        try {
+          await API.subscriptions.updateLeadPreferences(contactId, prefs);
+          ccToast('Preference updated.', 'success');
+        } catch (e) {
+          cb.checked = !cb.checked;
+          ccToast('Failed to update preference.', 'error');
+        }
+      });
     });
   }
 

@@ -608,6 +608,37 @@ const ClientCareAPI = (() => {
     });
   }
 
+  async function getPreferences(token) {
+    var resp = await fetch(WH + '/cc/subscription?token=' + encodeURIComponent(token));
+    return resp.json();
+  }
+
+  async function updatePreferences(token, preferences, reason) {
+    return request('POST', '/cc/subscription', {
+      body: { token: token, action: 'update_preferences', preferences: preferences, reason: reason || '' },
+      skipAuth: true
+    });
+  }
+
+  async function unsubscribeAll(token, reason) {
+    return request('POST', '/cc/subscription', {
+      body: { token: token, action: 'unsubscribe', reason: reason || '' },
+      skipAuth: true
+    });
+  }
+
+  async function getLeadPreferences(leadId) {
+    return request('POST', '/cc/subscription', {
+      body: { action: 'status', lead_id: leadId }
+    });
+  }
+
+  async function updateLeadPreferences(leadId, preferences) {
+    return request('POST', '/cc/subscription', {
+      body: { action: 'update_preferences', lead_id: leadId, preferences: preferences }
+    });
+  }
+
   // ─── Intake Form (Public) ────────────────────────────────────
 
   /**
@@ -1230,7 +1261,7 @@ const ClientCareAPI = (() => {
     // Dashboard
     dashboard: { get: getDashboard },
     // Subscriptions
-    subscriptions: { unsubscribe },
+    subscriptions: { unsubscribe, getPreferences, updatePreferences, unsubscribeAll, getLeadPreferences, updateLeadPreferences },
     // Forms (management)
     forms: {
       list: listForms, get: getForm, getPublic: getFormPublic,
