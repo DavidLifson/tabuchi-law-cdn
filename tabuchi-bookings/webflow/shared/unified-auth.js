@@ -33,9 +33,14 @@
   if (existingToken && !window.location.search.includes('logout')) {
     try {
       var _u = JSON.parse(localStorage.getItem('app_user') || '{}');
-      window.location.href = (_u.role === 'BOOKINGS') ? '/dashboard' : '/crm';
+      if (_u.role === 'BOOKINGS') {
+        window.location.href = '/dashboard';
+      } else {
+        var _sp = localStorage.getItem('cc_start_page') || 'dashboard';
+        window.location.href = _sp === 'leads' ? '/crm' : '/crm/dashboard';
+      }
     } catch (e) {
-      window.location.href = '/crm';
+      window.location.href = '/crm/dashboard';
     }
     return;
   }
@@ -142,9 +147,14 @@
         localStorage.setItem('app_user', JSON.stringify(result.user));
       }
 
-      // Step 4: Redirect based on role
-      var _dest = '/crm';
-      if (result.user && result.user.role === 'BOOKINGS') _dest = '/dashboard';
+      // Step 4: Redirect based on role + start page preference
+      var _dest = '/crm/dashboard';
+      if (result.user && result.user.role === 'BOOKINGS') {
+        _dest = '/dashboard';
+      } else {
+        var sp = localStorage.getItem('cc_start_page') || 'dashboard';
+        _dest = sp === 'leads' ? '/crm' : '/crm/dashboard';
+      }
       window.location.href = _dest;
 
     } catch (err) {

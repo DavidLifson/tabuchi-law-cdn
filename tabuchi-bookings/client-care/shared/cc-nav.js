@@ -27,7 +27,7 @@
 
   var html = '';
   // Brand
-  html += '<a id="app-home-link" href="/crm/dashboard" style="display:flex;align-items:center;gap:0.5rem;text-decoration:none;">';
+  html += '<a id="app-home-link" href="/" style="display:flex;align-items:center;gap:0.5rem;text-decoration:none;">';
   html += '<img id="app-logo" src="' + logoUrl + '" alt="Tabuchi Law" style="height:32px;width:auto;border-radius:6px;">';
   html += '<span style="font-weight:700;color:white;font-size:1.1rem;">Tabuchi Law</span>';
   html += '</a>';
@@ -178,7 +178,14 @@
     }
 
     var homeLink = bar.querySelector('#app-home-link');
-    if (homeLink) homeLink.href = (u.role === 'BOOKINGS') ? '/dashboard' : '/crm/dashboard';
+    if (homeLink) {
+      if (u.role === 'BOOKINGS') {
+        homeLink.href = '/dashboard';
+      } else {
+        var startPage = u.start_page || localStorage.getItem('cc_start_page') || 'dashboard';
+        homeLink.href = startPage === 'leads' ? '/crm' : '/crm/dashboard';
+      }
+    }
   } catch (e) { /* ignore */ }
 
   /* ── active page highlighting ── */
@@ -411,6 +418,14 @@
               '<label><input type="checkbox" id="cc-ms-notif-call-log" checked> Auto-prompt call log after RingCentral calls</label>' +
             '</div>' +
           '</div>' +
+          '<div class="cc-settings-section">' +
+            '<h4>Start Page</h4>' +
+            '<p style="font-size:0.85rem;color:#6B7280;margin:0 0 8px;">Choose which page to show when you click Home</p>' +
+            '<select id="cc-ms-start-page" class="cc-input" style="max-width:240px;">' +
+              '<option value="dashboard">Dashboard</option>' +
+              '<option value="leads">Leads</option>' +
+            '</select>' +
+          '</div>' +
         '</div>' +
         '<div class="cc-modal-footer">' +
           '<button class="cc-btn cc-btn-primary" id="cc-ms-save">Save Settings</button> ' +
@@ -448,6 +463,9 @@
               if (typeof prefs.email_notify !== 'undefined') document.getElementById('cc-ms-notif-email').checked = prefs.email_notify;
               if (typeof prefs.sms_notify !== 'undefined') document.getElementById('cc-ms-notif-sms').checked = prefs.sms_notify;
               if (typeof prefs.call_log_auto !== 'undefined') document.getElementById('cc-ms-notif-call-log').checked = prefs.call_log_auto;
+              if (prefs.start_page) {
+                document.getElementById('cc-ms-start-page').value = prefs.start_page;
+              }
             } catch (e) { /* ignore parse errors */ }
           }
         }
@@ -459,11 +477,17 @@
       var btn = this;
       btn.disabled = true; btn.textContent = 'Saving...';
       try {
+        var startPage = document.getElementById('cc-ms-start-page').value;
         var prefs = {
           email_notify: document.getElementById('cc-ms-notif-email').checked,
           sms_notify: document.getElementById('cc-ms-notif-sms').checked,
-          call_log_auto: document.getElementById('cc-ms-notif-call-log').checked
+          call_log_auto: document.getElementById('cc-ms-notif-call-log').checked,
+          start_page: startPage
         };
+        localStorage.setItem('cc_start_page', startPage);
+        // Update home link immediately
+        var hl = document.querySelector('#app-home-link');
+        if (hl) hl.href = startPage === 'leads' ? '/crm' : '/crm/dashboard';
         await API.admin.updateUserSettings({
           user_id: user.id,
           rc_extension: document.getElementById('cc-ms-rc-ext').value.trim(),
