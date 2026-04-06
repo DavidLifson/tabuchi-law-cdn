@@ -112,7 +112,7 @@
     const todayContainer = $el('tb-dash-today-list');
     if (todayContainer) {
       if (todayBookings.length === 0) {
-        todayContainer.innerHTML = '<p class="tb-no-slots">No bookings for today.</p>';
+        todayContainer.innerHTML = '<p class="tb-no-slots">No meetings for today.</p>';
       } else {
         todayContainer.innerHTML = todayBookings.map(b => renderBookingRow(b)).join('');
       }
@@ -123,7 +123,7 @@
     if (recentContainer) {
       const nextBookings = upcoming.slice(0, 10);
       if (nextBookings.length === 0) {
-        recentContainer.innerHTML = '<p class="tb-no-slots">No upcoming bookings.</p>';
+        recentContainer.innerHTML = '<p class="tb-no-slots">No upcoming meetings.</p>';
       } else {
         recentContainer.innerHTML = nextBookings.map(b => renderBookingRow(b)).join('');
       }

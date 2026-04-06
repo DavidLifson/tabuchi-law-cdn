@@ -328,7 +328,7 @@
           + (bookingUrl ? '<div style="background:var(--tb-accent-light, #EFF6FF);border:1px solid #DBEAFE;border-radius:var(--tb-radius, 8px);padding:0.75rem 1rem;margin-top:0.75rem;">'
           + '<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">'
           + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tb-accent, #2563EB)" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>'
-          + '<span style="font-size:0.8rem;font-weight:600;color:var(--tb-accent, #2563EB);">Client Booking Link</span></div>'
+          + '<span style="font-size:0.8rem;font-weight:600;color:var(--tb-accent, #2563EB);">Client Meeting Link</span></div>'
           + '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">'
           + '<code style="font-size:0.75rem;color:var(--tb-text, #374151);word-break:break-all;flex:1;background:white;padding:0.3rem 0.5rem;border-radius:4px;border:1px solid var(--tb-border, #E5E7EB);">' + esc(bookingUrl) + '</code>'
           + '<button class="tb-btn tb-btn-secondary tb-copy-link-btn" data-url="' + esc(bookingUrl) + '" style="padding:0.3rem 0.7rem;font-size:0.75rem;white-space:nowrap;">Copy</button>'

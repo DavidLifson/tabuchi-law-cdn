@@ -60,12 +60,12 @@
 
   // Bookings dropdown
   html += '<span id="app-bk-nav" style="position:relative;">';
-  html += '<button id="app-bk-btn" data-nav="bk-overview,bk-types,bk-avail,bk-bookings" style="color:#D1D5DB;padding:0.3rem 0.6rem;font-size:0.9rem;border-radius:4px;background:none;border:none;cursor:pointer;font-family:inherit;">Bookings &#9662;</button>';
+  html += '<button id="app-bk-btn" data-nav="bk-overview,bk-types,bk-avail,bk-bookings" style="color:#D1D5DB;padding:0.3rem 0.6rem;font-size:0.9rem;border-radius:4px;background:none;border:none;cursor:pointer;font-family:inherit;">Meetings &#9662;</button>';
   html += '<div id="app-bk-dropdown" style="display:none;position:absolute;right:0;top:100%;background:white;border:1px solid #E5E7EB;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:170px;z-index:100;margin-top:0.25rem;">';
   html += '<a href="/dashboard" data-nav="bk-overview" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Overview</a>';
   html += '<a href="/dashboard-meeting-types" data-nav="bk-types" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Meeting Types</a>';
   html += '<a href="/dashboard-availability" data-nav="bk-avail" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Availability</a>';
-  html += '<a href="/dashboard-bookings" data-nav="bk-bookings" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Bookings</a>';
+  html += '<a href="/dashboard-bookings" data-nav="bk-bookings" style="display:block;padding:0.5rem 1rem;color:#1F2937;text-decoration:none;font-size:0.9rem;">Meetings</a>';
   html += '</div></span>';
 
   // Notification bell
@@ -168,7 +168,7 @@
         meetingLink.style.color = '#9CA3AF';
         meetingLink.style.cursor = 'default';
         meetingLink.style.pointerEvents = 'none';
-        meetingLink.title = 'Only available on Bookings pages';
+        meetingLink.title = 'Only available on Meetings pages';
       }
     }
 

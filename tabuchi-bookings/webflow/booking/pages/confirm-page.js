@@ -18,12 +18,12 @@
   const params = TabuchiAPI.util.getUrlParams();
 
   if (!params.bookingId) {
-    TabuchiAPI.util.showError('tb-confirm-message', 'No booking information found.');
+    TabuchiAPI.util.showError('tb-confirm-message', 'No meeting information found.');
     return;
   }
 
   // Populate confirmation details
-  setText('tb-confirm-message', params.message || 'Your booking is confirmed!');
+  setText('tb-confirm-message', params.message || 'Your meeting is confirmed!');
   setText('tb-confirm-meeting', params.meetingType);
   setText('tb-confirm-staff', params.staffName);
   setText('tb-confirm-date', TabuchiAPI.util.formatDate(params.date));

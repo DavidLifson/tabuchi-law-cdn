@@ -29,7 +29,7 @@
   if (!staffSlug || !meetingSlug) {
     var errorEl = document.getElementById('tb-error');
     if (errorEl) {
-      errorEl.textContent = 'Invalid booking link. Please use a booking link provided by our team, or visit our website to select a meeting type.';
+      errorEl.textContent = 'Invalid meeting link. Please use a link provided by our team, or visit our website to select a meeting type.';
       errorEl.style.display = '';
       errorEl.style.padding = '1.5rem';
       errorEl.style.color = '#b91c1c';
@@ -101,7 +101,7 @@
     fetchMonthAvailability(new Date());
   } catch (err) {
     hideElement('tb-loading');
-    TabuchiAPI.util.showError('tb-error', err.error || 'Unable to load booking page. Please try again.');
+    TabuchiAPI.util.showError('tb-error', err.error || 'Unable to load meeting page. Please try again.');
     return;
   }
 
@@ -404,7 +404,7 @@
     var originalText = submitBtn ? submitBtn.textContent : '';
 
     try {
-      if (submitBtn) { submitBtn.textContent = 'Booking...'; submitBtn.disabled = true; }
+      if (submitBtn) { submitBtn.textContent = 'Scheduling...'; submitBtn.disabled = true; }
 
       // Collect intake responses
       var intakeResponses = {};
@@ -435,7 +435,7 @@
       var booking = result && result.booking ? result.booking : null;
       if (!booking || !booking.bookingId) {
         // API returned 200 but without expected booking data
-        var detail = result && result.error ? result.error : (result && result.message ? result.message : 'Server returned an unexpected response. Your booking may not have been created.');
+        var detail = result && result.error ? result.error : (result && result.message ? result.message : 'Server returned an unexpected response. Your meeting may not have been created.');
         throw { error: detail, _rawResult: result };
       }
 
@@ -462,7 +462,7 @@
       if (submitBtn) { submitBtn.textContent = originalText; submitBtn.disabled = false; }
       var errorEl = document.getElementById('tb-form-error');
       if (errorEl) {
-        errorEl.textContent = err.error || 'Unable to complete booking. Please try again.';
+        errorEl.textContent = err.error || 'Unable to schedule meeting. Please try again.';
         errorEl.style.display = 'block';
       }
       // If slot taken, clear cache and refresh availability

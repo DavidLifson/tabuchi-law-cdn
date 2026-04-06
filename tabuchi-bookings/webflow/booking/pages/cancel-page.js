@@ -34,12 +34,12 @@
     hideEl('tb-loading');
 
     if (!booking) {
-      TabuchiAPI.util.showError('tb-error', 'Booking not found.');
+      TabuchiAPI.util.showError('tb-error', 'Meeting not found.');
       return;
     }
 
     if (booking.status === 'cancelled') {
-      TabuchiAPI.util.showError('tb-error', 'This booking has already been cancelled.');
+      TabuchiAPI.util.showError('tb-error', 'This meeting has already been cancelled.');
       return;
     }
 
@@ -50,7 +50,7 @@
 
   } catch (err) {
     hideEl('tb-loading');
-    TabuchiAPI.util.showError('tb-error', err.error || 'Unable to load booking details.');
+    TabuchiAPI.util.showError('tb-error', err.error || 'Unable to load meeting details.');
     return;
   }
 
@@ -66,15 +66,15 @@
 
       const successEl = document.getElementById('tb-cancel-success');
       if (successEl) {
-        successEl.innerHTML = '<h3>Booking Cancelled</h3><p>Your booking has been cancelled. A confirmation will be sent to your email.</p><p><a href="/book" class="tb-btn tb-btn-secondary">Book a New Appointment</a></p>';
+        successEl.innerHTML = '<h3>Meeting Cancelled</h3><p>Your meeting has been cancelled. A confirmation will be sent to your email.</p><p><a href="/book" class="tb-btn tb-btn-secondary">Book a New Appointment</a></p>';
         successEl.style.display = '';
       }
       hideEl('tb-cancel-details');
 
     } catch (err) {
-      if (btn) { btn.textContent = 'Cancel Booking'; btn.disabled = false; }
+      if (btn) { btn.textContent = 'Cancel Meeting'; btn.disabled = false; }
       const errEl = document.getElementById('tb-cancel-error');
-      if (errEl) { errEl.textContent = err.error || 'Unable to cancel booking.'; errEl.style.display = ''; }
+      if (errEl) { errEl.textContent = err.error || 'Unable to cancel meeting.'; errEl.style.display = ''; }
     }
   });
 

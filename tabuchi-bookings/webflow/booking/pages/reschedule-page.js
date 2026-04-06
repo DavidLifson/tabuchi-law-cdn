@@ -69,7 +69,7 @@
     fetchMonthAvailability(new Date());
   } catch (err) {
     hideEl('tb-loading');
-    TabuchiAPI.util.showError('tb-error', err.error || 'Unable to load booking. The link may be invalid or expired.');
+    TabuchiAPI.util.showError('tb-error', err.error || 'Unable to load meeting. The link may be invalid or expired.');
     return;
   }
 

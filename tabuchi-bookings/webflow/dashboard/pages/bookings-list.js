@@ -108,7 +108,7 @@
       renderBookings();
     } catch (err) {
       if (err.status === 401) { window.location.href = '/login'; return; }
-      if (container) container.innerHTML = `<div class="tb-error">${escapeHtml(err.error || 'Unable to load bookings.')}</div>`;
+      if (container) container.innerHTML = `<div class="tb-error">${escapeHtml(err.error || 'Unable to load meetings.')}</div>`;
     }
   }
 
@@ -118,12 +118,12 @@
 
     if (bookings.length === 0) {
       const messages = {
-        upcoming: 'No upcoming bookings.',
-        past: 'No past bookings.',
-        cancelled: 'No cancelled bookings.'
+        upcoming: 'No upcoming meetings.',
+        past: 'No past meetings.',
+        cancelled: 'No cancelled meetings.'
       };
       container.innerHTML = `<p class="tb-no-slots">${messages[currentTab]}</p>`;
-      setText('tb-bookings-count', '0 bookings');
+      setText('tb-bookings-count', '0 meetings');
       return;
     }
 
@@ -132,10 +132,10 @@
       ? bookings.filter(b => b.category === currentCategory)
       : bookings.slice();
 
-    setText('tb-bookings-count', `${filtered.length} booking${filtered.length !== 1 ? 's' : ''}`);
+    setText('tb-bookings-count', `${filtered.length} meeting${filtered.length !== 1 ? 's' : ''}`);
 
     if (filtered.length === 0) {
-      container.innerHTML = '<p class="tb-no-slots">No bookings in this category.</p>';
+      container.innerHTML = '<p class="tb-no-slots">No meetings in this category.</p>';
       return;
     }
 
