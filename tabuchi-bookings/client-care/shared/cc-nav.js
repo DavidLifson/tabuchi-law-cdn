@@ -12,6 +12,35 @@
 (function ccNav() {
   'use strict';
 
+  /* ── inject modal + toast styles if not already present ── */
+  if (!document.getElementById('cc-nav-styles')) {
+    var styleEl = document.createElement('style');
+    styleEl.id = 'cc-nav-styles';
+    styleEl.textContent =
+      '.cc-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;display:flex;align-items:center;justify-content:center}' +
+      '.cc-modal{background:white;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,0.2);max-width:500px;width:90%;max-height:85vh;overflow-y:auto}' +
+      '.cc-modal-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid #E5E7EB;font-weight:600;font-size:1.1rem}' +
+      '.cc-modal-body{padding:1.5rem}' +
+      '.cc-modal-footer{display:flex;justify-content:flex-end;gap:0.5rem;padding:1rem 1.5rem;border-top:1px solid #E5E7EB}' +
+      '.cc-modal-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6B7280;line-height:1}' +
+      '.cc-modal-close:hover{color:#1F2937}' +
+      '.cc-btn{display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;padding:0.5rem 1rem;border-radius:6px;font-size:0.9rem;font-weight:500;cursor:pointer;border:none;transition:opacity 0.15s}' +
+      '.cc-btn:hover{opacity:0.85}.cc-btn:disabled{opacity:0.5;cursor:not-allowed}' +
+      '.cc-btn-primary{background:#2563EB;color:white}' +
+      '.cc-btn-secondary{background:#fff;color:#374151;border:1px solid #D1D5DB;padding:8px 16px;border-radius:6px;font-size:0.9rem;cursor:pointer}' +
+      '.cc-input{width:100%;padding:0.5rem 0.75rem;border:1px solid #D1D5DB;border-radius:6px;font-size:0.9rem;color:#1F2937;box-sizing:border-box;background:white}' +
+      '.cc-input:focus{outline:none;border-color:#2563EB;box-shadow:0 0 0 2px rgba(37,99,235,0.15)}' +
+      '.cc-textarea{width:100%;padding:0.5rem 0.75rem;border:1px solid #D1D5DB;border-radius:6px;font-size:0.9rem;color:#1F2937;box-sizing:border-box;resize:vertical;min-height:80px;font-family:inherit;background:white}' +
+      '.cc-settings-section{margin-bottom:20px}' +
+      '.cc-settings-section h4{margin:0 0 8px;font-size:0.95rem;font-weight:600;color:#374151}' +
+      '.cc-settings-section .cc-input{margin-bottom:8px}' +
+      '.cc-sig-preview{border:1px solid #E5E7EB;border-radius:6px;padding:12px;background:#FAFAFA;min-height:60px;font-size:0.85rem;margin-top:4px}' +
+      '.cc-settings-checks label{display:block;margin-bottom:6px;font-size:0.9rem;color:#374151}' +
+      '.cc-toast{position:fixed;top:1rem;right:1rem;padding:0.75rem 1.25rem;border-radius:8px;color:white;font-size:0.9rem;z-index:2000;transform:translateX(120%);transition:transform 0.3s ease;box-shadow:0 4px 12px rgba(0,0,0,0.15)}' +
+      '.cc-toast-visible{transform:translateX(0)}.cc-toast-success{background:#059669}.cc-toast-error{background:#DC2626}.cc-toast-info{background:#2563EB}';
+    document.head.appendChild(styleEl);
+  }
+
   /* ── locate the placeholder ── */
   function $last(id) {
     var els = document.querySelectorAll('[id="' + id + '"]');
