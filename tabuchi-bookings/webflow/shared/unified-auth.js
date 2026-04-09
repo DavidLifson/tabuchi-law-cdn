@@ -23,6 +23,10 @@
 (function UnifiedAuth() {
   'use strict';
 
+  // Prevent double-execution when both HTML Embed widget and Before </body> code load this script
+  if (window.__unifiedAuthLoaded) return;
+  window.__unifiedAuthLoaded = true;
+
   // Use last #app-page-root to handle Webflow dual-embed (HTML Embed widget + Before </body> tag)
   var _roots = document.querySelectorAll('#app-page-root');
   var _root = _roots[_roots.length - 1] || null;
