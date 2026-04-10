@@ -1,24 +1,58 @@
 /* ═══════════════════════════════════════════════════════════════
    Tabuchi Law Booking System - Custom Styles
+   Brand-aligned with Tabuchi Law design system (navy/rose/linen)
    Add this CSS to Webflow's custom code section (site-wide)
    ═══════════════════════════════════════════════════════════════ */
 
+/* Import Outfit font from Google Fonts to match brand */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 :root {
-  --tb-accent: #2563EB;
-  --tb-accent-hover: #1D4ED8;
-  --tb-accent-light: #EFF6FF;
-  --tb-text: #1F2937;
-  --tb-text-light: #6B7280;
-  --tb-bg: #FFFFFF;
-  --tb-bg-light: #F9FAFB;
-  --tb-bg-page: #F3F4F6;
-  --tb-border: #E5E7EB;
-  --tb-success: #059669;
-  --tb-error: #DC2626;
+  /* Tabuchi Law brand tokens */
+  --tl-navy: #1A2F4B;
+  --tl-navy-light: #243d5e;
+  --tl-rose: #B8927A;
+  --tl-rose-hover: #a37d64;
+  --tl-white: #FDFCFA;
+  --tl-charcoal: #2B2C2D;
+  --tl-linen: #F3F0EB;
+  --tl-gold: #D4AF37;
+
+  /* Booking system variables mapped to brand */
+  --tb-accent: var(--tl-rose);
+  --tb-accent-hover: var(--tl-rose-hover);
+  --tb-accent-light: #F9F3EF;
+  --tb-text: var(--tl-charcoal);
+  --tb-text-light: #6B6356;
+  --tb-bg: var(--tl-white);
+  --tb-bg-light: #FAF8F4;
+  --tb-bg-page: var(--tl-linen);
+  --tb-border: #E7E1D7;
+  --tb-navy: var(--tl-navy);
+  --tb-success: #4A7C59;
+  --tb-error: #A94442;
   --tb-radius: 8px;
   --tb-radius-lg: 12px;
-  --tb-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  --tb-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  --tb-shadow: 0 2px 8px rgba(26, 47, 75, 0.06);
+  --tb-shadow-md: 0 8px 24px rgba(26, 47, 75, 0.08);
+  --tb-font: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Apply brand font to booking page shell */
+.tb-page-shell,
+.tb-page-shell input,
+.tb-page-shell button,
+.tb-page-shell textarea,
+.tb-page-shell select {
+  font-family: var(--tb-font);
+}
+
+/* Navy headings on light background to match brand */
+.tb-meeting-info-card h3,
+.tb-form-section-title,
+.tb-confirm-title,
+.tb-booking-summary strong {
+  color: var(--tl-navy);
 }
 
 /* ─── Public Booking Page Shell ──────────────────────────────── */
@@ -32,13 +66,13 @@
 
 .tb-page-header {
   text-align: center;
-  padding: 2rem 1rem 1.5rem;
-  background: var(--tb-bg);
-  border-bottom: 1px solid var(--tb-border);
+  padding: 2rem 1rem 1.75rem;
+  background-image: linear-gradient(135deg, var(--tl-navy) 0%, var(--tl-navy-light) 50%, var(--tl-navy) 100%);
+  border-bottom: 3px solid var(--tl-rose);
 }
 
 .tb-page-header img {
-  height: 48px;
+  height: 64px;
   width: auto;
 }
 
@@ -487,7 +521,7 @@
   background: var(--tb-accent); color: white;
 }
 .tb-btn-primary:hover { background: var(--tb-accent-hover); }
-.tb-btn-primary:disabled { background: #93C5FD; cursor: not-allowed; }
+.tb-btn-primary:disabled { background: #D4BEAE; cursor: not-allowed; }
 
 .tb-btn-secondary {
   background: white; color: var(--tb-accent); border: 1px solid var(--tb-accent);
@@ -497,7 +531,7 @@
 .tb-btn-danger {
   background: var(--tb-error); color: white;
 }
-.tb-btn-danger:hover { background: #B91C1C; }
+.tb-btn-danger:hover { background: #8a3835; }
 
 .tb-btn-full { width: 100%; }
 
