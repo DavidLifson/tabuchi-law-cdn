@@ -6,6 +6,27 @@
  * Loaded via Webflow site-wide footer custom code.
  */
 
+/* Inject Tabuchi Law favicon on every page */
+(function injectTabuchiFavicon() {
+  try {
+    var assetBase = 'https://davidlifson.github.io/tabuchi-law-cdn/tabuchi-bookings/assets/';
+    var existing = document.querySelectorAll('link[rel*="icon"]');
+    for (var i = 0; i < existing.length; i++) existing[i].parentNode.removeChild(existing[i]);
+    function addLink(rel, type, sizes, href) {
+      var l = document.createElement('link');
+      l.rel = rel;
+      if (type) l.type = type;
+      if (sizes) l.sizes = sizes;
+      l.href = href;
+      document.head.appendChild(l);
+    }
+    addLink('icon', 'image/x-icon', null, assetBase + 'favicon.ico');
+    addLink('icon', 'image/png', '32x32', assetBase + 'favicon-32.png');
+    addLink('icon', 'image/png', '16x16', assetBase + 'favicon-16.png');
+    addLink('apple-touch-icon', null, '180x180', assetBase + 'apple-touch-icon.png');
+  } catch (e) { /* ignore */ }
+})();
+
 const TabuchiAPI = (() => {
   // n8n production webhook URLs - each workflow may have a different webhookId prefix.
   // These are the actual registered production URLs confirmed from n8n's "Copy production url".
