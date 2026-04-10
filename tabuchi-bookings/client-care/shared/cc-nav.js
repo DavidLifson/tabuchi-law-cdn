@@ -52,13 +52,12 @@
   var activePage = bar.getAttribute('data-active-page') || '';
 
   /* ── build HTML ── */
-  var logoUrl = 'https://davidlifson.github.io/tabuchi-law-cdn/tabuchi-bookings/assets/logo.png';
+  var logoUrl = 'https://davidlifson.github.io/tabuchi-law-cdn/tabuchi-bookings/assets/logo-reverse.png';
 
   var html = '';
   // Brand
-  html += '<a id="app-home-link" href="/" style="display:flex;align-items:center;gap:0.5rem;text-decoration:none;">';
-  html += '<img id="app-logo" src="' + logoUrl + '" alt="Tabuchi Law" style="height:32px;width:auto;border-radius:6px;">';
-  html += '<span style="font-weight:700;color:white;font-size:1.1rem;">Tabuchi Law</span>';
+  html += '<a id="app-home-link" href="/" style="display:flex;align-items:center;text-decoration:none;">';
+  html += '<img id="app-logo" src="' + logoUrl + '" alt="Tabuchi Law" style="height:44px;width:auto;">';
   html += '</a>';
 
   // Nav links
