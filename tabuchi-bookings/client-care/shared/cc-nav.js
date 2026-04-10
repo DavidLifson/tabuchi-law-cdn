@@ -68,6 +68,11 @@
     var els = document.querySelectorAll('[id="' + id + '"]');
     return els.length ? els[els.length - 1] : null;
   }
+  /* Hide duplicate nav bars (HTML Embed widget + Before </body> custom code) */
+  var allBars = document.querySelectorAll('[id="app-nav-bar"]');
+  for (var nbi = 0; nbi < allBars.length - 1; nbi++) {
+    allBars[nbi].style.display = 'none';
+  }
   var bar = $last('app-nav-bar');
   if (!bar) return;
 
