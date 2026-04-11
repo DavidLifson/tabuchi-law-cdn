@@ -1293,6 +1293,29 @@ if (!window.ClientCareAPI) (function() {
 
 // Expose to window so other scripts can find it
 window.ClientCareAPI = ClientCareAPI;
+
+// On /intake pages, retry intake-engine init by pre-loading the config
+// (the OLD cached intake-engine.js runs before this API is available)
+if (/\/intake/.test(location.pathname)) {
+  setTimeout(function tryReinit() {
+    var errEl = document.querySelector('#cc-intake-step-content .cc-error');
+    if (errEl && /Form configuration not found/i.test(errEl.textContent)) {
+      var params = new URLSearchParams(location.search);
+      var formId = params.get('form');
+      if (!formId) return;
+      window.ClientCareAPI.forms.getPublic(formId).then(function(result) {
+        if (!result || !result.success || !result.config) return;
+        // Inject the config into IntakeFormConfigs so static lookup works
+        window.IntakeFormConfigs = window.IntakeFormConfigs || {};
+        window.IntakeFormConfigs[formId] = result.config;
+        // Inject a fresh intake-engine.js with a cache-busting URL
+        var s = document.createElement('script');
+        s.src = 'https://davidlifson.github.io/tabuchi-law-cdn/tabuchi-bookings/client-care/public/intake-engine.js?_v=' + Date.now();
+        document.body.appendChild(s);
+      });
+    }
+  }, 1000);
+}
 })();  // End of "if (!window.ClientCareAPI)" wrapper
 
 /* ── Nav Sync: ensure all CRM pages have Dashboard + Contacts links, Campaigns dropdown ── */
