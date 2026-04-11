@@ -354,7 +354,11 @@
         var dueLabel = t.Due_At ? t.Due_At.slice(0, 10) : 'No due date';
         var leadId = (t.Lead && t.Lead[0]) || '';
         var href = leadId ? '/crm/lead?id=' + leadId + '&tab=tasks' : '/crm/dashboard#tasks';
-        html += '<a href="' + href + '" style="display:block;padding:0.6rem 1rem;text-decoration:none;border-bottom:1px solid #F3F4F6;transition:background 0.15s;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'transparent\'">';
+        html += '<div data-task-id="' + escapeHtml(t.id) + '" style="display:flex;align-items:flex-start;gap:0.5rem;padding:0.6rem 1rem;border-bottom:1px solid #F3F4F6;transition:background 0.15s;" onmouseover="this.style.background=\'#F9FAFB\'" onmouseout="this.style.background=\'transparent\'">';
+        // Checkbox for marking complete
+        html += '<button type="button" class="cc-notif-complete-btn" data-task-id="' + escapeHtml(t.id) + '" title="Mark complete" style="flex-shrink:0;width:18px;height:18px;border:1.5px solid #D1D5DB;border-radius:4px;background:white;cursor:pointer;padding:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all 0.15s;" onmouseover="this.style.borderColor=\'#1A2F4B\';this.style.background=\'#F3F0EB\'" onmouseout="this.style.borderColor=\'#D1D5DB\';this.style.background=\'white\'"></button>';
+        // Task content (clickable to navigate)
+        html += '<a href="' + href + '" style="flex:1;text-decoration:none;color:inherit;min-width:0;">';
         html += '<div style="display:flex;align-items:center;gap:0.5rem;">';
         html += '<span style="font-size:0.85rem;color:#1F2937;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(t.Title) + '</span>';
         html += '<span style="font-size:0.65rem;font-weight:600;color:white;background:' + tagColor + ';padding:1px 6px;border-radius:4px;white-space:nowrap;">' + tagLabel + '</span>';
@@ -362,11 +366,49 @@
         html += '<div style="display:flex;gap:0.75rem;margin-top:0.2rem;font-size:0.75rem;color:#6B7280;">';
         html += '<span>' + escapeHtml(dueLabel) + '</span>';
         if (t.Lead_Name) html += '<span>' + escapeHtml(t.Lead_Name) + '</span>';
-        if (!leadId) html += '<span style="color:#F59E0B;font-style:italic;">No lead linked</span>';
         html += '</div>';
         html += '</a>';
+        html += '</div>';
       });
       listEl.innerHTML = html;
+
+      // Wire up complete-task buttons
+      var completeBtns = listEl.querySelectorAll('.cc-notif-complete-btn');
+      for (var i = 0; i < completeBtns.length; i++) {
+        completeBtns[i].addEventListener('click', function(ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var btn = this;
+          var taskId = btn.getAttribute('data-task-id');
+          if (!taskId) return;
+          btn.disabled = true;
+          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1A2F4B" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+          fetch('https://n8n.tabuchilaw.com/webhook/cc/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
+            body: JSON.stringify({ action: 'update', id: taskId, fields: { Status: 'COMPLETED' } })
+          }).then(function(r) { return r.json(); }).then(function(d) {
+            // Remove the row
+            var row = btn.closest('[data-task-id]');
+            if (row) row.style.display = 'none';
+            // Invalidate cache and re-render
+            sessionStorage.removeItem(CACHE_KEY);
+            sessionStorage.removeItem(CACHE_TS_KEY);
+            // Decrement badge
+            var current = parseInt(badge.textContent || '0', 10) - 1;
+            if (current <= 0) {
+              badge.style.display = 'none';
+              listEl.innerHTML = '<div style="padding:1rem;color:#9CA3AF;font-size:0.85rem;text-align:center;">No overdue or due-today tasks</div>';
+            } else {
+              badge.textContent = current;
+            }
+          }).catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '';
+            alert('Failed to mark task complete. Please try again.');
+          });
+        });
+      }
     }
 
     function fetchAndRender() {
@@ -409,14 +451,14 @@
       .then(function(r) { return r.json(); })
       .then(function(data) {
         // Filter: OPEN tasks, due today or overdue, owned by current CRM user
+        // Excludes unassigned tasks (e.g. SLA tasks not yet claimed)
         var tasks = (data.tasks || []).filter(function(t) {
           if (t.Status !== 'OPEN') return false;
           if (!t.Due_At) return false;
           if (t.Due_At.slice(0, 10) > today) return false;
-          if (crmUserId && t.Owner && t.Owner.length > 0) {
-            return t.Owner.indexOf(crmUserId) !== -1;
-          }
-          return !t.Owner || t.Owner.length === 0; // include unassigned tasks
+          if (!crmUserId) return false; // can't determine ownership without user ID
+          if (!t.Owner || t.Owner.length === 0) return false; // skip unassigned
+          return t.Owner.indexOf(crmUserId) !== -1;
         });
         // Sort: overdue first, then today
         tasks.sort(function(a, b) {
