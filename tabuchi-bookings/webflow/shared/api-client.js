@@ -24,6 +24,23 @@
   setTimeout(dedup, 500);
 })();
 
+/* Update old phone number 905-997-2515 to new 416-477-5673 in booking page footer */
+(function updatePhoneNumber() {
+  function patch() {
+    try {
+      var phones = document.querySelectorAll('.tb-footer-phone');
+      for (var i = 0; i < phones.length; i++) {
+        phones[i].innerHTML = phones[i].innerHTML.replace(/\(905\)\s*997-2515/g, '(416) 477-5673');
+      }
+    } catch (e) { /* ignore */ }
+  }
+  patch();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', patch);
+  }
+  setTimeout(patch, 500);
+})();
+
 /* Inject Tabuchi Law favicon on every page */
 (function injectTabuchiFavicon() {
   try {
