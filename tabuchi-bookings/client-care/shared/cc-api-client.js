@@ -9,7 +9,8 @@
  * Token is stored in localStorage as 'app_token' (unified with Booking system).
  */
 
-const ClientCareAPI = (() => {
+if (!window.ClientCareAPI) (function() {
+  var ClientCareAPI = (function() {
   'use strict';
 
   const WH = 'https://n8n.tabuchilaw.com/webhook';
@@ -1290,9 +1291,9 @@ const ClientCareAPI = (() => {
   };
 })();
 
-// Ensure ClientCareAPI is available on window for scripts loaded via separate <script> tags
-// (const at top-level scope doesn't attach to window automatically)
-if (typeof ClientCareAPI !== 'undefined') { window.ClientCareAPI = ClientCareAPI; }
+// Expose to window so other scripts can find it
+window.ClientCareAPI = ClientCareAPI;
+})();  // End of "if (!window.ClientCareAPI)" wrapper
 
 /* ── Nav Sync: ensure all CRM pages have Dashboard + Contacts links, Campaigns dropdown ── */
 (function navSync() {
