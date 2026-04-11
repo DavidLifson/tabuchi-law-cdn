@@ -27,9 +27,21 @@
 (function IntakeEngine() {
   'use strict';
 
-  var API = window.ClientCareAPI || (typeof ClientCareAPI !== 'undefined' ? ClientCareAPI : null);
-  if (!API) return;
+  // Wait for ClientCareAPI to load (it may be loaded async by site-level loader script)
+  function waitForAPI(maxMs) {
+    return new Promise(function(resolve, reject) {
+      var start = Date.now();
+      function check() {
+        var api = window.ClientCareAPI || (typeof ClientCareAPI !== 'undefined' ? ClientCareAPI : null);
+        if (api) return resolve(api);
+        if (Date.now() - start > maxMs) return reject(new Error('ClientCareAPI failed to load'));
+        setTimeout(check, 100);
+      }
+      check();
+    });
+  }
 
+  var API = null;
   var $el = function(id) { return document.getElementById(id); };
 
   // ─── State ───────────────────────────────────────────────────
@@ -1349,9 +1361,22 @@
     renderStep();
   }
 
+  function bootstrap() {
+    waitForAPI(8000).then(function(api) {
+      API = api;
+      init();
+    }).catch(function(err) {
+      var content = document.getElementById('cc-intake-step-content');
+      if (content) {
+        content.innerHTML = '<div class="cc-error">Failed to initialize. Please refresh the page.</div>';
+      }
+      console.error('[intake] ', err);
+    });
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', bootstrap);
   } else {
-    init();
+    bootstrap();
   }
 })();
