@@ -6,6 +6,24 @@
  * Loaded via Webflow site-wide footer custom code.
  */
 
+/* Hide duplicate #tb-page-root elements (HTML Embed widget + Before </body> custom code) */
+(function hideDuplicatePageRoots() {
+  function dedup() {
+    try {
+      var roots = document.querySelectorAll('[id="tb-page-root"]');
+      for (var i = 0; i < roots.length - 1; i++) {
+        roots[i].style.display = 'none';
+      }
+    } catch (e) { /* ignore */ }
+  }
+  dedup();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', dedup);
+  }
+  // Run again after a short delay in case more roots get injected
+  setTimeout(dedup, 500);
+})();
+
 /* Inject Tabuchi Law favicon on every page */
 (function injectTabuchiFavicon() {
   try {
