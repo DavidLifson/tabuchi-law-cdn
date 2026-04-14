@@ -9,6 +9,34 @@
   function $el(id) { return _root ? _root.querySelector('#' + id) : document.getElementById(id); }
   function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+  // Hide the redundant "Buffer After" field (same concept as "Time Between Meetings")
+  function hideBufferAfterField() {
+    try {
+      var el = document.getElementById('tb-mt-buffer-after');
+      if (!el) return;
+      var wrap = el.closest('.tb-form-field, .tb-mt-field, label, div');
+      while (wrap && wrap.parentNode && !(wrap.querySelector && wrap.querySelector('label[for="tb-mt-buffer-after"]'))) {
+        wrap = wrap.parentNode;
+        if (wrap === document.body) { wrap = null; break; }
+      }
+      // Fallback: hide the input and its label
+      var lbl = document.querySelector('label[for="tb-mt-buffer-after"]');
+      if (wrap && wrap !== document.body) { wrap.style.display = 'none'; return; }
+      el.style.display = 'none';
+      if (lbl) lbl.style.display = 'none';
+    } catch (e) { /* ignore */ }
+  }
+  hideBufferAfterField();
+  // Re-run after a delay in case the modal renders later
+  setTimeout(hideBufferAfterField, 500);
+  document.addEventListener('click', function(e) {
+    // Re-hide whenever the modal might reopen
+    if (e.target && e.target.closest && (e.target.closest('#tb-mt-add-btn') || e.target.closest('.tb-mt-edit-btn'))) {
+      setTimeout(hideBufferAfterField, 100);
+      setTimeout(hideBufferAfterField, 400);
+    }
+  });
+
   const token = localStorage.getItem('app_token');
   if (!token) { window.location.href = '/login'; return; }
 

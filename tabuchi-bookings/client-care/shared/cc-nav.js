@@ -215,17 +215,7 @@
       if (adminLink) adminLink.style.display = 'block';
     }
 
-    // Grey out Meeting Settings if not on a booking page
-    var meetingLink = bar.querySelector('#app-meeting-settings-link');
-    if (meetingLink) {
-      var onBookingPage = window.location.pathname.indexOf('/dashboard') === 0;
-      if (!onBookingPage) {
-        meetingLink.style.color = '#9CA3AF';
-        meetingLink.style.cursor = 'default';
-        meetingLink.style.pointerEvents = 'none';
-        meetingLink.title = 'Only available on Meetings pages';
-      }
-    }
+    // Meeting Settings link always clickable — navigates to /dashboard-settings from anywhere
 
     if (u.role === 'BOOKINGS') {
       var crmNav = bar.querySelector('#app-crm-nav');
@@ -238,7 +228,13 @@
         homeLink.href = '/dashboard';
       } else {
         var startPage = u.start_page || localStorage.getItem('cc_start_page') || 'dashboard';
-        homeLink.href = startPage === 'leads' ? '/crm' : '/crm/dashboard';
+        var _destMap = {
+          dashboard: '/crm/dashboard',
+          leads:     '/crm',
+          contacts:  '/crm/contacts',
+          meetings:  '/dashboard'
+        };
+        homeLink.href = _destMap[startPage] || '/crm/dashboard';
       }
     }
   } catch (e) { /* ignore */ }
@@ -258,12 +254,15 @@
     }
   }
 
-  // Highlight dropdown items
+  // Highlight dropdown items: active page shows visibly "current" (muted grey, linen tint)
   var ddLinks = bar.querySelectorAll('[id$="-dropdown"] a');
   for (var j = 0; j < ddLinks.length; j++) {
     if (ddLinks[j].getAttribute('data-nav') === activePage) {
-      ddLinks[j].style.background = '#F3F4F6';
+      ddLinks[j].style.background = '#F3F0EB';  // brand linen tint
+      ddLinks[j].style.color = '#9CA3AF';        // muted grey — reads as "current/disabled"
       ddLinks[j].style.fontWeight = '600';
+      ddLinks[j].style.cursor = 'default';
+      ddLinks[j].title = 'Current page';
     }
   }
 
@@ -504,8 +503,16 @@
           '</div>' +
           '<div class="cc-settings-section">' +
             '<h4>Email Signature</h4>' +
-            '<textarea id="cc-ms-sig" class="cc-input cc-textarea" rows="4" placeholder="Your HTML email signature..."></textarea>' +
-            '<div class="cc-sig-preview" id="cc-ms-sig-preview">Preview will appear here</div>' +
+            '<div id="cc-ms-sig-toolbar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">' +
+              '<button type="button" data-sig-cmd="bold" title="Bold" style="padding:4px 10px;border:1px solid #D1D5DB;background:#fff;border-radius:4px;font-weight:700;cursor:pointer;font-size:0.85rem;">B</button>' +
+              '<button type="button" data-sig-cmd="italic" title="Italic" style="padding:4px 10px;border:1px solid #D1D5DB;background:#fff;border-radius:4px;font-style:italic;cursor:pointer;font-size:0.85rem;">I</button>' +
+              '<button type="button" data-sig-cmd="br" title="Line break" style="padding:4px 10px;border:1px solid #D1D5DB;background:#fff;border-radius:4px;cursor:pointer;font-size:0.85rem;">&#8629; Break</button>' +
+              '<button type="button" data-sig-cmd="link" title="Insert link" style="padding:4px 10px;border:1px solid #D1D5DB;background:#fff;border-radius:4px;cursor:pointer;font-size:0.85rem;">Insert Link</button>' +
+              '<button type="button" data-sig-cmd="booking" title="Insert booking link" style="padding:4px 10px;border:1px solid #2563EB;background:#EFF6FF;color:#1E40AF;border-radius:4px;cursor:pointer;font-size:0.85rem;font-weight:500;">Insert Booking Link</button>' +
+            '</div>' +
+            '<textarea id="cc-ms-sig" class="cc-input cc-textarea" rows="8" placeholder="Your HTML email signature... You can use <strong>bold</strong>, <em>italic</em>, <a href=\'...\'>links</a>, and <br> for line breaks."></textarea>' +
+            '<div style="font-size:0.75rem;color:#6B7280;margin-top:4px;">Preview:</div>' +
+            '<div class="cc-sig-preview" id="cc-ms-sig-preview" style="border:1px solid #E5E7EB;border-radius:6px;padding:12px;margin-top:4px;min-height:60px;background:#FAFAFA;">Preview will appear here</div>' +
           '</div>' +
           '<div class="cc-settings-section">' +
             '<h4>Notification Preferences</h4>' +
@@ -521,6 +528,8 @@
             '<select id="cc-ms-start-page" class="cc-input" style="max-width:240px;">' +
               '<option value="dashboard">Dashboard</option>' +
               '<option value="leads">Leads</option>' +
+              '<option value="contacts">Contacts</option>' +
+              '<option value="meetings">Meetings</option>' +
             '</select>' +
           '</div>' +
         '</div>' +
@@ -542,6 +551,46 @@
     sigInput.addEventListener('input', function() {
       sigPreview.innerHTML = sigInput.value || '<span style="color:#9CA3AF;">Preview will appear here</span>';
     });
+
+    // Signature toolbar: wrap selection in HTML tags or insert snippets
+    function insertIntoSig(before, after) {
+      var start = sigInput.selectionStart;
+      var end = sigInput.selectionEnd;
+      var selected = sigInput.value.substring(start, end);
+      var newText = before + (selected || '') + (after || '');
+      sigInput.value = sigInput.value.substring(0, start) + newText + sigInput.value.substring(end);
+      var newPos = start + before.length + (selected ? selected.length : 0);
+      sigInput.selectionStart = sigInput.selectionEnd = newPos;
+      sigInput.focus();
+      sigPreview.innerHTML = sigInput.value || '<span style="color:#9CA3AF;">Preview will appear here</span>';
+    }
+    var toolbar = document.getElementById('cc-ms-sig-toolbar');
+    if (toolbar) {
+      toolbar.addEventListener('click', function(ev) {
+        var b = ev.target.closest('[data-sig-cmd]');
+        if (!b) return;
+        ev.preventDefault();
+        var cmd = b.getAttribute('data-sig-cmd');
+        if (cmd === 'bold') insertIntoSig('<strong>', '</strong>');
+        else if (cmd === 'italic') insertIntoSig('<em>', '</em>');
+        else if (cmd === 'br') insertIntoSig('<br>', '');
+        else if (cmd === 'link') {
+          var u = prompt('Enter URL:', 'https://');
+          if (u) insertIntoSig('<a href="' + u + '">', '</a>');
+        }
+        else if (cmd === 'booking') {
+          var me = (window.ClientCareAPI && window.ClientCareAPI.auth && window.ClientCareAPI.auth.getUser) ? window.ClientCareAPI.auth.getUser() : null;
+          var slug = (me && me.slug) || '';
+          var name = (me && me.name) || 'me';
+          if (!slug) {
+            try { var cached = JSON.parse(localStorage.getItem('app_user') || '{}'); slug = cached.slug || ''; name = cached.name || name; } catch(e){}
+          }
+          if (!slug) { alert('Your booking slug is not set. Visit Meeting Settings first.'); return; }
+          var bookingHref = 'https://clientcare.tabuchilaw.com/book?staff=' + encodeURIComponent(slug);
+          insertIntoSig('<a href="' + bookingHref + '">Book time with ' + name + '</a>', '');
+        }
+      });
+    }
 
     // Load current settings
     var user = API.auth.getUser();
@@ -584,7 +633,10 @@
         localStorage.setItem('cc_start_page', startPage);
         // Update home link immediately
         var hl = document.querySelector('#app-home-link');
-        if (hl) hl.href = startPage === 'leads' ? '/crm' : '/crm/dashboard';
+        if (hl) {
+          var _dm = { dashboard: '/crm/dashboard', leads: '/crm', contacts: '/crm/contacts', meetings: '/dashboard' };
+          hl.href = _dm[startPage] || '/crm/dashboard';
+        }
         await API.admin.updateUserSettings({
           user_id: user.id,
           rc_extension: document.getElementById('cc-ms-rc-ext').value.trim(),
