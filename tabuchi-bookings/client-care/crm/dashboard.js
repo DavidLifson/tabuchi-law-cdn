@@ -508,16 +508,48 @@
   }
 
   function taskRow(item, color) {
-    var leadId = item.lead_id || item.id || '';
-    var href = leadId ? '/crm/lead?id=' + encodeURIComponent(leadId) : '#';
-    return '<a href="' + href + '" class="cc-dash-task-row">' +
-      '<span class="cc-dash-task-dot cc-bg-' + color + '"></span>' +
-      '<span class="cc-dash-task-title">' + escapeHtml(item.title || 'Untitled') + '</span>' +
-      '<span class="cc-dash-task-meta">' + escapeHtml(item.lead_name || '') +
-        (item.due_at ? ' &middot; ' + escapeHtml(API.util.formatDate(item.due_at)) : '') +
-      '</span>' +
-    '</a>';
+    var leadId = item.lead_id || '';
+    var taskId = item.task_id || item.id || '';
+    var href = leadId ? '/crm/lead?id=' + encodeURIComponent(leadId) + '&tab=tasks' : '#';
+    return '<div class="cc-dash-task-row" style="display:flex;align-items:center;gap:0.5rem;">' +
+      '<button type="button" class="cc-dash-task-check" data-task-id="' + escapeHtml(taskId) + '" title="Mark complete" ' +
+        'style="flex-shrink:0;width:18px;height:18px;border:1.5px solid #D1D5DB;border-radius:4px;background:white;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;transition:all 0.15s;" ' +
+        'onmouseover="this.style.borderColor=\'#1A2F4B\';this.style.background=\'#F3F0EB\'" ' +
+        'onmouseout="this.style.borderColor=\'#D1D5DB\';this.style.background=\'white\'"></button>' +
+      '<a href="' + href + '" style="flex:1;text-decoration:none;color:inherit;display:flex;align-items:center;gap:0.4rem;min-width:0;">' +
+        '<span class="cc-dash-task-dot cc-bg-' + color + '"></span>' +
+        '<span class="cc-dash-task-title">' + escapeHtml(item.title || 'Untitled') + '</span>' +
+        '<span class="cc-dash-task-meta">' + escapeHtml(item.lead_name || '') +
+          (item.due_at ? ' &middot; ' + escapeHtml(API.util.formatDate(item.due_at)) : '') +
+        '</span>' +
+      '</a>' +
+    '</div>';
   }
+
+  // Wire up task-complete checkboxes
+  document.addEventListener('click', function(ev) {
+    var btn = ev.target.closest('.cc-dash-task-check');
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var taskId = btn.getAttribute('data-task-id');
+    if (!taskId) return;
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1A2F4B" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+    var token = localStorage.getItem('app_token') || '';
+    fetch('https://n8n.tabuchilaw.com/webhook/cc/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
+      body: JSON.stringify({ action: 'update', id: taskId, fields: { Status: 'COMPLETED' } })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      var row = btn.closest('.cc-dash-task-row');
+      if (row) { row.style.opacity = '0.4'; row.style.textDecoration = 'line-through'; }
+    }).catch(function() {
+      btn.disabled = false;
+      btn.innerHTML = '';
+      alert('Failed to mark complete. Please try again.');
+    });
+  });
 
   // ─── Pipeline Funnel ─────────────────────────────────────────
 
