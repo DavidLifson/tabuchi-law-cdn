@@ -526,29 +526,32 @@
     '</div>';
   }
 
-  // Wire up task-complete checkboxes
-  document.addEventListener('click', function(ev) {
+  // Wire up task-complete checkboxes.
+  document.addEventListener('click', async function(ev) {
     var btn = ev.target.closest('.cc-dash-task-check');
     if (!btn) return;
     ev.preventDefault();
     ev.stopPropagation();
+
     var taskId = btn.getAttribute('data-task-id');
-    if (!taskId) return;
+    if (!taskId || btn.disabled) return;
+
     btn.disabled = true;
     btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1A2F4B" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
-    var token = localStorage.getItem('app_token') || '';
-    fetch('https://n8n.tabuchilaw.com/webhook/cc/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-dashboard-token': token },
-      body: JSON.stringify({ action: 'update', id: taskId, fields: { Status: 'COMPLETED' } })
-    }).then(function(r) { return r.json(); }).then(function(d) {
+
+    try {
+      var result = await API.tasks.update(taskId, { status: 'DONE' });
+      if (result && result.success === false) throw result;
       var row = btn.closest('.cc-dash-task-row');
-      if (row) { row.style.opacity = '0.4'; row.style.textDecoration = 'line-through'; }
-    }).catch(function() {
+      if (row) {
+        row.style.opacity = '0.4';
+        row.style.textDecoration = 'line-through';
+      }
+    } catch (err) {
       btn.disabled = false;
       btn.innerHTML = '';
-      alert('Failed to mark complete. Please try again.');
-    });
+      alert('Failed to mark complete: ' + (err && err.error ? err.error : 'Please try again.'));
+    }
   });
 
   // ─── Pipeline Funnel ─────────────────────────────────────────

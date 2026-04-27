@@ -28,11 +28,19 @@
   'use strict';
 
   // Wait for ClientCareAPI to load (it may be loaded async by site-level loader script)
+  // Note: cc-api-client.js declares with `const` so it's NOT on window. Use eval to test.
+  function getAPI() {
+    if (window.ClientCareAPI) return window.ClientCareAPI;
+    try {
+      // eslint-disable-next-line no-eval
+      return (0, eval)('typeof ClientCareAPI !== "undefined" ? ClientCareAPI : null');
+    } catch (e) { return null; }
+  }
   function waitForAPI(maxMs) {
     return new Promise(function(resolve, reject) {
       var start = Date.now();
       function check() {
-        var api = window.ClientCareAPI || (typeof ClientCareAPI !== 'undefined' ? ClientCareAPI : null);
+        var api = getAPI();
         if (api) return resolve(api);
         if (Date.now() - start > maxMs) return reject(new Error('ClientCareAPI failed to load'));
         setTimeout(check, 100);
